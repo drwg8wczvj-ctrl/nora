@@ -18,6 +18,12 @@ const fmtTime = (h, m) => {
   const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
   return `${hr}:${pad(m)} ${suffix}`;
 };
+const shortTitle = (title) => {
+  if (!title) return "";
+  const words = title.trim().split(/\s+/);
+  return words.length <= 3 ? title : words.slice(0, 3).join(" ") + "…";
+};
+
 const fmtDur = (min) => {
   if (!min) return "";
   if (min < 60) return `${min}m`;
@@ -365,7 +371,7 @@ function MobileGrid({ ctx }) {
                 className={`mob-grid-block${t.completed ? " mob-gb-done" : ""}`}
                 style={{ top, height, borderLeftColor: color, background: `${color}18` }}
                 onClick={() => setEditingTask(t)}>
-                <span className="mob-gb-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
+                <span className="mob-gb-title">{shortTitle(t.title) || (tp === "break" ? "Break" : "Deadline")}</span>
                 {t.duration && <span className="mob-gb-dur">{fmtDur(t.duration)}</span>}
                 {tp === "task" && (
                   <button
@@ -545,26 +551,30 @@ function MobileTasks({ ctx }) {
               onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
               {t.completed && <Check size={13} strokeWidth={3} />}
             </button>
-          ) : tp === "deadline" ? (
-            <button className={`mob-check mob-check-dl${t.completed ? " checked" : ""}`}
-              onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
-              {t.completed ? <Check size={13} strokeWidth={3} /> : <Flag size={12} style={{ color: "#ef4444" }} />}
-            </button>
           ) : (
-            <span className="mtr-icon"><Coffee size={14} style={{ color: "#94a3b8" }} /></span>
+            <span className="mtr-icon">
+              {tp === "deadline"
+                ? <Flag size={15} style={{ color: t.completed ? "#22c55e" : "#ef4444" }} />
+                : <Coffee size={14} style={{ color: "#94a3b8" }} />}
+            </span>
           )}
         </div>
 
         <div className="mtr-body">
-          <span className="mtr-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
+          <span className="mtr-title">{shortTitle(t.title) || (tp === "break" ? "Break" : "Deadline")}</span>
           <span className="mtr-meta">
             {t.startHour != null && <span>{fmtTime(t.startHour, t.startMinute ?? 0)} </span>}
             {t.duration && <span>{fmtDur(t.duration)}</span>}
           </span>
         </div>
 
-        {!t.completed && tp !== "break" && (
+        {!t.completed && (
           <div className="mtr-actions" onClick={(e) => e.stopPropagation()}>
+            {tp === "deadline" && (
+              <button className="mtr-act mtr-act-done-dl" onClick={() => toggleTask(t.id)}>
+                <Check size={13} />
+              </button>
+            )}
             {tp === "task" && (
               <button className="mtr-act" title="Skip to tomorrow" onClick={() => skipTask(t.id)}>
                 <SkipForward size={15} />

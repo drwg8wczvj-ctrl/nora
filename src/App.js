@@ -85,6 +85,12 @@ const fmtDur = (min) => {
   return m === 0 ? `${h}h` : `${h}h${m}m`;
 };
 
+const shortTitle = (title) => {
+  if (!title) return "";
+  const words = title.trim().split(/\s+/);
+  return words.length <= 3 ? title : words.slice(0, 3).join(" ") + "…";
+};
+
 const prettyDate = (dateStr) => {
   const today = todayStr();
   if (dateStr === today)                        return "Today";
@@ -1945,7 +1951,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                             {tp === "deadline" && !t.completed && (
                               <div className="sc-actions">
                                 <button className="tca tca-done-dl" onClick={() => toggleTask(t.id)}>
-                                  <Check size={10} /> Mark done
+                                  Mark done
                                 </button>
                                 <button className="tca tca-edit" onClick={() => setEditingTask(t)}>
                                   <Pencil size={10} /> Edit
@@ -1979,7 +1985,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                             if (tp === "deadline") return (
                               <div key={t.id} className={`unsched-deadline${t.completed ? " unsched-dl-done" : ""}`}>
                                 <Flag size={11} /><span onClick={() => setEditingTask(t)}>{t.title || "Deadline"}</span>
-                                {!t.completed && <button className="dl-done-btn" onClick={() => toggleTask(t.id)}><Check size={11} /></button>}
+                                {!t.completed && <button className="dl-done-btn" onClick={() => toggleTask(t.id)}>Done</button>}
                               </div>
                             );
                             if (tp === "break") return (
@@ -2104,7 +2110,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           <span className="tl-deadline-time">{fmtTime(t.startHour, t.startMinute ?? 0)}</span>
                         </div>
                         {!t.completed && (
-                          <button className="dl-done-btn" onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}><Check size={11} /></button>
+                          <button className="dl-done-btn" onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>Done</button>
                         )}
                       </div>
                     ))
@@ -2152,7 +2158,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                             {t.completed && <Check size={9} strokeWidth={3} />}
                           </button>
                           <div className="tl-task-content">
-                            <span className="tl-task-title">{t.title}</span>
+                            <span className="tl-task-title" title={t.title}>{shortTitle(t.title)}</span>
                             {height > 36 && (
                               <span className="tl-task-time">
                                 {fmtTime(t.startHour, t.startMinute ?? 0)}
@@ -2328,8 +2334,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                                 </span>
                             }
                             <div className="list-task-body">
-                              <span className="list-task-title">
-                                {t.title || (tp === "break" ? "Break" : "Deadline")}
+                              <span className="list-task-title" title={t.title || undefined}>
+                                {shortTitle(t.title) || (tp === "break" ? "Break" : "Deadline")}
                                 {t.startHour != null && <span className="list-title-time"> — {fmtTime(t.startHour, t.startMinute ?? 0)}</span>}
                               </span>
                               <div className="list-task-meta">
@@ -2346,7 +2352,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                             <div className="list-task-actions">
                               <button className="tca tca-done-dl"
                                 onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
-                                <Check size={10} /> Mark done
+                                Mark done
                               </button>
                               <button className="tca tca-edit"
                                 onClick={(e) => { e.stopPropagation(); setEditingTask(t); }}>

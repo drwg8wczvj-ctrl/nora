@@ -2493,15 +2493,20 @@
 .tca-done-dl:hover { background: rgba(34,197,94,0.20) !important; }
 
 .dl-done-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 50%;
-  border: 1.5px solid rgba(34,197,94,0.5);
-  background: rgba(34,197,94,0.10);
-  color: #22c55e; cursor: pointer; flex-shrink: 0;
-  transition: background .15s, border-color .15s;
+  padding: 2px 8px; border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 10px; font-weight: 600;
+  cursor: pointer; flex-shrink: 0;
   margin-left: 6px;
+  transition: all .15s;
 }
-.dl-done-btn:hover { background: rgba(34,197,94,0.22); }
+.dl-done-btn:hover {
+  border-color: rgba(34,197,94,0.4);
+  color: #22c55e;
+  background: rgba(34,197,94,0.08);
+}
 
 /* Unscheduled deadline done-state */
 .unsched-deadline { display: flex; align-items: center; gap: 6px; }
@@ -2527,9 +2532,9 @@
 }
 .micro-start-btn:hover { border-color: rgba(124,58,237,0.3); color: var(--accent); }
 .micro-start-btn.active {
-  background: rgba(234,179,8,0.15);
-  border-color: rgba(234,179,8,0.4);
-  color: #ca8a04;
+  background: rgba(34,197,94,0.12);
+  border-color: rgba(34,197,94,0.40);
+  color: #16a34a;
 }
 
 /* ── Page transition ── */
