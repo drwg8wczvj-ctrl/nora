@@ -7,13 +7,14 @@
 /* ── 1. TOKEN OVERRIDES ─────────────────────────────────────── */
 
 .glass:not(.dark) {
-  --bg:            linear-gradient(150deg, #d4ceff 0%, #e6eaff 30%, #dde8ff 60%, #d2deff 100%);
-  --surface:       rgba(255,255,255,0.24);
-  --surface-2:     rgba(255,255,255,0.44);
-  --surface-solid: rgba(255,255,255,0.82);
-  --border:        rgba(255,255,255,0.62);
-  --border-glow:   rgba(124,58,237,0.60);
-  --text-muted:    rgba(24,6,64,0.52);
+  --bg:            linear-gradient(150deg, #e0dcff 0%, #eaedff 30%, #e5edff 60%, #dce9ff 100%);
+  --surface:       rgba(255,255,255,0.32);
+  --surface-2:     rgba(255,255,255,0.54);
+  --surface-solid: rgba(255,255,255,0.90);
+  --border:        rgba(255,255,255,0.65);
+  --border-glow:   rgba(124,58,237,0.55);
+  --text:          #1a1440;
+  --text-muted:    rgba(26,20,64,0.62);
 
   --shadow:
     0 1px 0 rgba(255,255,255,0.90) inset,
@@ -55,7 +56,8 @@
   --surface-solid: rgba(10,8,28,0.97);
   --border:        rgba(255,255,255,0.18);
   --border-glow:   rgba(167,139,250,0.65);
-  --text-muted:    rgba(232,232,255,0.50);
+  --text:          #f0f0ff;
+  --text-muted:    rgba(232,232,255,0.65);
 
   --shadow:
     0 1px 0 rgba(255,255,255,0.14) inset,
@@ -561,7 +563,6 @@
 .glass .mob-status-card,
 .glass .mob-sett-card,
 .glass .mob-nora-card,
-.glass .mob-tasks-day-group,
 .glass .mob-cal-day-panel,
 .glass .mob-notes .mob-note-card {
   position: relative;

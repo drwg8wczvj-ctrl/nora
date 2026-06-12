@@ -48,6 +48,40 @@ const LABEL_W = 60; // px for time label column
 
 const calcTop = (hour, minute, hh = HOUR_H) => (hour - HOURS[0]) * hh + (minute / 60) * hh;
 
+// ── Chat autocomplete suggestions ──────────────────────
+const CHAT_SUGGESTIONS = [
+  "Plan my day for today",
+  "What should I focus on right now?",
+  "How's my week looking?",
+  "How is my workload this week?",
+  "Help me reschedule my tasks this week",
+  "Help me prioritize today",
+  "Help me start this task step by step",
+  "I'm feeling overwhelmed, can you help?",
+  "I'm feeling stressed today",
+  "I have no energy today, what should I do?",
+  "Rebalance my schedule this week",
+  "Schedule my most important task for today",
+  "Move my tasks to a lighter day",
+  "What can I do with 30 minutes?",
+  "Add a break to my afternoon",
+  "Plan my morning routine",
+  "Show me my workload for the week",
+  "Can you prioritize my tasks for today?",
+  "What's the best time for deep work today?",
+];
+
+const getChatSuggestion = (input) => {
+  if (!input || input.trim().length < 3) return "";
+  const lc = input.toLowerCase();
+  for (const s of CHAT_SUGGESTIONS) {
+    if (s.toLowerCase().startsWith(lc) && s.length > input.length) {
+      return s.slice(input.length);
+    }
+  }
+  return "";
+};
+
 // ── Helpers ────────────────────────────────────────────
 const uid      = () => Math.random().toString(36).slice(2);
 const pad      = (n) => String(n).padStart(2, "0");
@@ -390,6 +424,7 @@ export default function App() {
   const [chatInput,      setChatInput]      = useState("");
   const [chatLoading,    setChatLoading]    = useState(false);
   const [microStartMode,  setMicroStartMode]  = useState(false);
+  const [chatSuggestion,  setChatSuggestion]  = useState("");
   const [rescheduleTask,  setRescheduleTask]  = useState(null);
   const [inAppAlert,      setInAppAlert]      = useState(null);
   const [messages,    setMessages]    = useState([{
@@ -2849,24 +2884,42 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {chatLoading && <div className="chat-msg assistant"><div className="chat-bubble typing"><span /><span /><span /></div></div>}
           <div ref={chatEndRef} />
         </div>
-        <div className="chat-toolbar">
-          <button
-            className={`micro-start-btn${microStartMode ? " active" : ""}`}
-            onClick={() => setMicroStartMode((m) => !m)}
-            title="Micro Start: break goals into tiny first steps">
-            <Zap size={12} />
-            Micro Start
-          </button>
-        </div>
         <div className="chat-input-row">
-          <textarea ref={chatInputRef} className="chat-input" value={chatInput} rows={1}
-            onChange={(e) => {
-              setChatInput(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
-            }}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-            placeholder="Ask for advice, add tasks, or say 'how's my week looking?'" />
+          <button
+            className={`chat-micro-btn${microStartMode ? " on" : ""}`}
+            onClick={() => setMicroStartMode((m) => !m)}
+            title={microStartMode ? "Micro Start: ON — click to disable" : "Micro Start: break goals into tiny first steps"}>
+            <Zap size={14} />
+          </button>
+          <div className="chat-input-wrap">
+            {chatSuggestion && (
+              <div className="chat-ghost" aria-hidden="true">
+                {chatInput}<span className="chat-ghost-suggest">{chatSuggestion}</span>
+              </div>
+            )}
+            <textarea ref={chatInputRef} className="chat-input" value={chatInput} rows={2}
+              onChange={(e) => {
+                const val = e.target.value;
+                setChatInput(val);
+                setChatSuggestion(getChatSuggestion(val));
+                e.target.style.height = "auto";
+                e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+              }}
+              onKeyDown={(e) => {
+                if ((e.key === "Tab" || e.key === "ArrowRight") && chatSuggestion && e.target.selectionStart === chatInput.length) {
+                  e.preventDefault();
+                  setChatInput(chatInput + chatSuggestion);
+                  setChatSuggestion("");
+                } else if (e.key === "Escape") {
+                  setChatSuggestion("");
+                } else if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendChat();
+                  setChatSuggestion("");
+                }
+              }}
+              placeholder="Ask NORA anything…" />
+          </div>
           <button className="chat-send" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
             {chatLoading ? <span className="dot-spin" /> : <Send size={16} />}
           </button>

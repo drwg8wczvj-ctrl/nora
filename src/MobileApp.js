@@ -18,6 +18,33 @@ const fmtTime = (h, m) => {
   const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
   return `${hr}:${pad(m)} ${suffix}`;
 };
+// ── Chat autocomplete suggestions ──────────────────────
+const CHAT_SUGGESTIONS = [
+  "Plan my day for today",
+  "What should I focus on right now?",
+  "How's my week looking?",
+  "Help me reschedule my tasks this week",
+  "Help me prioritize today",
+  "I'm feeling overwhelmed, can you help?",
+  "I have no energy today, what should I do?",
+  "Rebalance my schedule this week",
+  "Schedule my most important task for today",
+  "What can I do with 30 minutes?",
+  "Plan my morning routine",
+  "Can you prioritize my tasks for today?",
+  "Move my tasks to a lighter day",
+  "Add a break to my afternoon",
+  "Help me start this task step by step",
+];
+const getChatSuggestion = (input) => {
+  if (!input || input.trim().length < 3) return "";
+  const lc = input.toLowerCase();
+  for (const s of CHAT_SUGGESTIONS) {
+    if (s.toLowerCase().startsWith(lc) && s.length > input.length) return s.slice(input.length);
+  }
+  return "";
+};
+
 const shortTitle = (title) => {
   if (!title) return "";
   const words = title.trim().split(/\s+/);
@@ -506,8 +533,9 @@ function MobileTasks({ ctx }) {
     return at - bt;
   });
 
-  const active    = sorted.filter((t) => !t.completed);
-  const completed = sorted.filter((t) => t.completed).slice(0, 10);
+  // Deadlines always stay in their day section even when done
+  const active    = sorted.filter((t) => !t.completed || t.type === "deadline");
+  const completed = sorted.filter((t) => t.completed && t.type !== "deadline").slice(0, 10);
 
   // Group active tasks by date
   const tomorrow = (() => {
@@ -568,19 +596,21 @@ function MobileTasks({ ctx }) {
           </span>
         </div>
 
-        {!t.completed && (
+        {(tp === "deadline" || !t.completed) && (
           <div className="mtr-actions" onClick={(e) => e.stopPropagation()}>
             {tp === "deadline" && (
-              <button className="mtr-act mtr-act-done-dl" onClick={() => toggleTask(t.id)}>
+              <button
+                className={`mtr-act mtr-act-done-dl${t.completed ? " dl-done" : ""}`}
+                onClick={() => toggleTask(t.id)}>
                 <Check size={13} />
               </button>
             )}
-            {tp === "task" && (
+            {tp === "task" && !t.completed && (
               <button className="mtr-act" title="Skip to tomorrow" onClick={() => skipTask(t.id)}>
                 <SkipForward size={15} />
               </button>
             )}
-            {tp === "task" && (
+            {tp === "task" && !t.completed && (
               <button className="mtr-act mtr-act-ai" title="Move task" onClick={() => setRescheduleTask(t)}>
                 <CalendarDays size={15} />
               </button>
@@ -1017,6 +1047,7 @@ function MobileSettings({ ctx }) {
 function MobileChat({ ctx }) {
   const { chatOpen, setChatOpen, messages, chatInput, setChatInput, chatLoading, sendChat,
           microStartMode, setMicroStartMode } = ctx;
+  const [chatSuggestion, setChatSuggestion] = useState("");
   const endRef   = useRef(null);
   const inputRef = useRef(null);
 
@@ -1061,28 +1092,46 @@ function MobileChat({ ctx }) {
         <div ref={endRef} />
       </div>
 
-      <div className="mob-chat-toolbar">
-        <button
-          className={`mob-micro-start-btn${microStartMode ? " active" : ""}`}
-          onClick={() => setMicroStartMode((m) => !m)}>
-          <Zap size={12} /> Micro Start
-        </button>
-      </div>
       <div className="mob-chat-input-bar">
-        <textarea
-          ref={inputRef}
-          className="mob-chat-input"
-          value={chatInput}
-          rows={1}
-          onChange={(e) => {
-            setChatInput(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
-          }}
-          placeholder="Ask NORA anything…" />
+        <button
+          className={`mob-micro-btn${microStartMode ? " on" : ""}`}
+          onClick={() => setMicroStartMode((m) => !m)}
+          title="Micro Start">
+          <Zap size={15} />
+        </button>
+        <div className="mob-chat-input-wrap">
+          {chatSuggestion && (
+            <div className="mob-chat-ghost" aria-hidden="true">
+              {chatInput}<span className="mob-chat-ghost-suggest">{chatSuggestion}</span>
+            </div>
+          )}
+          <textarea
+            ref={inputRef}
+            className="mob-chat-input"
+            value={chatInput}
+            rows={2}
+            onChange={(e) => {
+              const val = e.target.value;
+              setChatInput(val);
+              setChatSuggestion(getChatSuggestion(val));
+              e.target.style.height = "auto";
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+            }}
+            onKeyDown={(e) => {
+              if ((e.key === "Tab" || e.key === "ArrowRight") && chatSuggestion && e.target.selectionStart === chatInput.length) {
+                e.preventDefault();
+                setChatInput(chatInput + chatSuggestion);
+                setChatSuggestion("");
+              } else if (e.key === "Escape") {
+                setChatSuggestion("");
+              } else if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendChat();
+                setChatSuggestion("");
+              }
+            }}
+            placeholder="Ask NORA anything…" />
+        </div>
         <button className="mob-chat-send" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
           {chatLoading ? <span className="dot-spin" /> : <Send size={18} />}
         </button>
