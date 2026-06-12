@@ -3,7 +3,7 @@ import {
   Check, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
   FileText, Trash2, User, RotateCcw, CalendarDays,
   Flag, Coffee, Bell, Activity, Wind, TrendingUp,
-  TrendingDown, Minus, Brain, AlertTriangle,
+  TrendingDown, Minus, AlertTriangle,
   SkipForward, Sparkles, Plus, Settings,
   BarChart2, Zap, List, CheckSquare,
 } from "lucide-react";
@@ -724,7 +724,7 @@ function MobileStatus({ ctx }) {
     energy, setEnergy, relaxation, setRelaxation,
     focus, setFocus, motivation, setMotivation,
     noraState, userConfidence, assessmentSummary, keySignals,
-    momentum, recoveryState, workloadForecast, weekData, weekTrend,
+    recoveryState, workloadForecast, weekTrend,
     adaptiveRecs, deferredTasks, mostAvoided,
     setChatInput, setChatOpen, doneToday, totalToday, pct,
     focusPatterns, adaptivePlanData, behaviorProfile,
