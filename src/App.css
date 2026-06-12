@@ -13,7 +13,7 @@
   --success:      #16a34a;
   --danger:       #dc2626;
   --radius:       16px;
-  --glass-blur:   blur(20px);
+  --glass-blur:   blur(8px);
   --tr:           .18s ease;
 
   /* Light palette */
