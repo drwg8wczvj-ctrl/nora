@@ -1134,13 +1134,33 @@ export default function App() {
     ].filter(Boolean).join(" ");
 
     const currentTimeStr = `${pad(nowObj.getHours())}:${pad(nowObj.getMinutes())}`;
-    const blockedIntervals = todayScheduled
-      .filter((t) => t.type !== "break" && t.duration != null)
-      .map((t) => {
-        const endMins = t.startHour * 60 + (t.startMinute ?? 0) + t.duration;
-        return `${fmtTime(t.startHour, t.startMinute ?? 0)}–${fmtTime(Math.floor(endMins / 60), endMins % 60)} "${t.title}"`;
-      });
-    const blockedStr = blockedIntervals.length > 0 ? blockedIntervals.join(" | ") : "(none)";
+
+    // All occupied windows today (tasks + breaks), with end time derived from duration or default 30m
+    const blockedIntervals = todayScheduled.map((t) => {
+      const startMin = t.startHour * 60 + (t.startMinute ?? 0);
+      const dur = t.duration ?? (t.type === "deadline" ? 0 : 30);
+      const endMin = startMin + dur;
+      const label = t.type === "break" ? "Break" : t.type === "deadline" ? `[DEADLINE] ${t.title}` : t.title;
+      return { startMin, endMin, label };
+    }).sort((a, b) => a.startMin - b.startMin);
+    const blockedStr = blockedIntervals.length > 0
+      ? blockedIntervals.map(({ startMin, endMin, label }) =>
+          `${fmtTime(Math.floor(startMin / 60), startMin % 60)}–${fmtTime(Math.floor(endMin / 60), endMin % 60)} "${label}"`)
+          .join(" | ")
+      : "(none)";
+
+    // 7-day workload overview — helps AI balance across the week
+    const weeklyOverview = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today + "T00:00:00");
+      d.setDate(d.getDate() + i);
+      const ds = d.toISOString().slice(0, 10);
+      const dayName = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+      const dayTasks = tasks.filter((t) => t.date === ds && !t.completed);
+      const totalMins = dayTasks.reduce((s, t) => s + (t.duration ?? (t.type === "deadline" ? 0 : 30)), 0);
+      const hrs = (totalMins / 60).toFixed(1);
+      const level = workloadForecast[i]?.level ?? (totalMins > 240 ? "heavy" : totalMins > 120 ? "moderate" : "light");
+      return `${dayName} ${ds}: ${dayTasks.length} item(s) · ~${hrs}h · ${level}`;
+    }).join("\n");
 
     const completedWithTime = tasks.filter((t) => t.completed && t.startHour != null);
     let peakHourStr = "not enough data yet";
@@ -1209,11 +1229,16 @@ If nothing notable → say nothing extra.
 ━━━ SCHEDULE AT A GLANCE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Current time: ${currentTimeStr}. Do not schedule anything on ${today} at or before this time.
-Today's occupied windows: ${blockedStr} — no break or new task may overlap these.
+
+Today's occupied windows (tasks + breaks — NO OVERLAP ALLOWED):
+${blockedStr}
 
 Today (${today}): ${todayItems.length} item(s), ${todayDone}/${todayTasks.length} complete. ${scheduleNotes || "Schedule looks balanced."}
 Overall: ${completionRate}% completion rate across ${total} tasks. Peak productive window: ${peakHourStr}.
 Groups: ${groups.map((g) => `${g.id}="${g.name}"`).join(", ") || "(none)"}.
+
+7-day workload:
+${weeklyOverview}
 
 All scheduled items:
 ${taskLines}
@@ -1320,6 +1345,61 @@ Before creating or moving tasks, check:
 Use this to: pick optimal time slots, decide session count, flag if the day is already full.
 Never surface this analysis to the user — integrate it invisibly.
 
+━━━ MANDATORY SCHEDULING RULES ━━━━━━━━━━━━━━━━━━━━━━━
+
+These are hard constraints. Violating any of them is an error.
+
+RULE 1 — NO OVERLAPS
+Before placing any task, compute its end time: startTime + duration.
+Check every existing task on that day. If ANY existing task's window overlaps, reject the slot and find another.
+One time slot = one activity. No exceptions.
+
+Overlap check (for every candidate slot):
+→ Candidate: START–END
+→ For each existing task on that day: if existing.start < END and existing.end > START → CONFLICT → try next slot
+→ Minimum gap between tasks: 5 minutes
+
+RULE 2 — WHOLE-WEEK AWARENESS
+Never optimize only for today. Before placing a task, read the 7-day workload above.
+Prefer days labelled "light". Avoid stacking tasks on days already labelled "heavy" or "moderate" unless the deadline forces it.
+
+RULE 3 — WORKLOAD BALANCING
+Distribute effort evenly. Target: no single day should carry more than 3–4 hours of work unless a deadline demands it.
+If adding a task would push a day above 4h: look for a lighter day first.
+Exception: sprint days near a deadline are acceptable, but must be followed by a lighter recovery day.
+
+RULE 4 — DAILY CAPACITY CHECK
+Before adding to a day, calculate:
+  existingHours = sum of all task durations on that day
+  If existingHours + newTaskDuration > 4h: flag as heavy → prefer another day
+  If existingHours + newTaskDuration > 6h: refuse unless user explicitly insists
+
+RULE 5 — PRIORITY-AWARE PLACEMENT
+Schedule high-priority items (upcoming deadlines < 3 days, high complexity) at the user's peak hours: ${peakHourStr}.
+Low-priority and easy tasks go in off-peak windows.
+Deferred tasks get scheduled after new commitments are placed.
+
+RULE 6 — RECOVERY PROTECTION
+Do NOT fill every free hour. Leave at least 1–2 unscheduled hours per day.
+If today is already has 3+ tasks: strongly consider not adding more — offer to reschedule to tomorrow instead.
+After every 90 min of work → mandatory 15–20 min break (auto-create if not present).
+
+RULE 7 — REBALANCE BEFORE ADDING
+Before creating any new task, ask: can an existing task be moved to make room? Would redistribution serve the user better?
+If the target day is heavy → move an existing lower-priority task first, then place the new one.
+Think like a planner: rearrange first, add second.
+
+RULE 8 — VALIDATION BEFORE COMMIT
+After computing the full plan but BEFORE calling any tool, run this silent check:
+  ✓ No time overlaps (checked against all tasks on each affected day)
+  ✓ No duplicates (existing task not re-created)
+  ✓ No day exceeds 6h total
+  ✓ Recovery time exists (at least 1 break if work > 90 min)
+  ✓ Deadlines respected (deadline date has no new tasks on top of it)
+  ✓ Lightest available days preferred
+Only after ALL checks pass: call the tools.
+If a check fails: adjust the plan, then re-validate.
+
 ━━━ ITEM TYPES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 type:"task"     → work/study items. type:"deadline" → fixed external event (NOT the prep work).
@@ -1396,8 +1476,12 @@ ${tasks.filter((t) => !t.completed).map((t) => `"${t.title}" [${t.id.slice(0,6)}
 ✗ Exam/interview called a "task" (it's a "deadline")
 ✗ Session ≥ 90 min without a break task after it
 ✗ Scheduling at or before ${currentTimeStr} today · overlapping occupied windows
+✗ Two tasks sharing the same time window on the same day (even partial overlap)
+✗ Adding tasks to an already-heavy day without first checking lighter days
+✗ Filling every free hour — leave breathing room
 ✗ Verbose responses for simple actions · motivational filler · repeating the user's request
 ✗ Calling add_task for a task the user wants moved — use move_task instead
+✗ Committing tasks without running the Rule 8 validation check
 
 ━━━ HIDDEN TASK RADAR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
