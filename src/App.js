@@ -224,7 +224,7 @@ const AI_TOOLS = [
     type: "function",
     function: {
       name: "move_task",
-      description: "Move a task to a different date/time.",
+      description: "Move or reschedule an existing task to a different date and/or time. Use this — not add_task — whenever the user wants to move, reschedule, or postpone a task that already exists.",
       parameters: {
         type: "object",
         properties: {
@@ -380,10 +380,12 @@ export default function App() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [newGroupName,   setNewGroupName]   = useState("");
   const [newGroupColor,  setNewGroupColor]  = useState("#10b981");
-  const [chatOpen,    setChatOpen]    = useState(false);
-  const [chatInput,   setChatInput]   = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const [inAppAlert,  setInAppAlert]  = useState(null);
+  const [chatOpen,       setChatOpen]       = useState(false);
+  const [chatInput,      setChatInput]      = useState("");
+  const [chatLoading,    setChatLoading]    = useState(false);
+  const [microStartMode,  setMicroStartMode]  = useState(false);
+  const [rescheduleTask,  setRescheduleTask]  = useState(null);
+  const [inAppAlert,      setInAppAlert]      = useState(null);
   const [messages,    setMessages]    = useState([{
     role: "assistant",
     content: "Hi! I'm NORA, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?",
@@ -1032,6 +1034,7 @@ export default function App() {
   };
   const deleteTask = (id) => { setTasks((p) => p.filter((t) => t.id !== id)); setEditingTask(null); };
   const toggleTask = (id) => setTasks((p) => p.map((t) => t.id === id ? { ...t, completed: !t.completed } : t));
+  const saveReschedule = (updated) => { setTasks((p) => p.map((t) => t.id === updated.id ? updated : t)); setRescheduleTask(null); };
   const skipTask   = (id) => {
     const tomorrow = fmtDate(addDays(today, 1));
     setTasks((p) => p.map((t) => t.id === id ? { ...t, date: tomorrow, startHour: null, startMinute: null } : t));
@@ -1173,7 +1176,8 @@ export default function App() {
       focus_mode:        "Standard mode. Be practical and light on structure.",
     }[noraState.key] ?? "Standard mode.";
 
-    return `You are NORA — a calm, intelligent planning butler. Today is ${today}.
+    const todayDayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(today + "T00:00:00").getDay()];
+    return `You are NORA — a calm, intelligent planning butler. Today is ${today} (${todayDayName}).
 You know this person's schedule and genuinely care about how they're doing. Be direct, warm, brief.
 Never start with "Certainly!", "Absolutely!", "Of course!", or "Great question!". Use contractions. Refer to tasks by name.
 
@@ -1260,6 +1264,56 @@ Relaxation ${relaxation}/10 · Energy ${energy}/10
     : "Moderate. One task at a time. Don't overload."
   }
 
+━━━ WELLBEING INVESTIGATION PROTOCOL ━━━━━━━━━━━━━━━━
+
+When user says "no energy", "I'm exhausted", "I'm stressed", "overwhelmed", "burned out", "no motivation", or any wellness concern — DO NOT immediately reschedule or remove tasks.
+
+FIRST investigate with 1–2 focused questions:
+• "What's draining you most right now — the workload, something specific that happened, or physical exhaustion?"
+• "Has this been building over a few days, or is today an exception?"
+• "Is it mental overload or physical tiredness?"
+
+After their answer, THEN decide:
+→ Physical fatigue → defer non-critical, protect afternoon rest
+→ Mental overload → reduce cognitive load, suggest 1 task maximum
+→ Emotional stress → empathy first, ask what would help
+→ Burnout pattern (3+ days) → major restructuring, add recovery blocks
+→ Temporary dip → acknowledge, keep today light, don't reschedule everything
+
+Never assume. Always understand first.
+
+━━━ DATE INTERPRETATION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Today is ${today} (${todayDayName}). Current day-of-week index: ${new Date(today + "T00:00:00").getDay()} (0=Sun).
+
+Weekday scheduling rules — ALWAYS apply:
+• "Plan X on Monday" / "schedule Monday" → if Monday has ALREADY PASSED this week, use the NEXT upcoming Monday.
+• "this Tuesday" → next Tuesday if today is Wednesday or later.
+• "next Monday" → always the Monday AFTER the immediately upcoming one.
+• Only schedule in the past when the user gives an explicit past date string like "May 20" or "last Tuesday".
+
+Quick reference (today = ${todayDayName}):
+${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day, idx) => {
+  const todayIdx = new Date(today + "T00:00:00").getDay();
+  const daysAhead = idx <= todayIdx ? 7 - (todayIdx - idx) : idx - todayIdx;
+  if (idx === todayIdx) return null;
+  const targetDate = new Date(today + "T00:00:00");
+  targetDate.setDate(targetDate.getDate() + daysAhead);
+  return `"${day}" → ${targetDate.toISOString().slice(0, 10)} (${daysAhead}d ahead)`;
+}).filter(Boolean).join("\n")}
+
+━━━ PRE-PLANNING ANALYSIS (run silently before every scheduling action) ━━━
+
+Before creating or moving tasks, check:
+1. Today load: ${workloadForecast[0]?.level ?? "unknown"} (${workloadForecast[0]?.weightedLoad ?? 0} pts vs ${userLoadBaseline.overloadThreshold} overload threshold)
+2. Momentum trend: ${momentum.label} — ${momentum.desc}
+3. Energy/relaxation: ${energy}/10 energy · ${relaxation}/10 relaxation
+4. Completion pattern: ${behaviorProfile.completion_consistency != null ? `${behaviorProfile.completion_consistency}% 14-day avg` : "insufficient data"}
+5. Lightest upcoming day: use workload forecast to find the best slot — don't stack tasks on already-heavy days.
+
+Use this to: pick optimal time slots, decide session count, flag if the day is already full.
+Never surface this analysis to the user — integrate it invisibly.
+
 ━━━ ITEM TYPES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 type:"task"     → work/study items. type:"deadline" → fixed external event (NOT the prep work).
@@ -1308,6 +1362,27 @@ STEP 5 — SUMMARY (required, after all tool calls):
   3. Breakfast 20–30 min. Low energy → banana + PB smoothie. Moderate → oatmeal + berries. Peak → eggs + avocado toast.
   4. Cognitive prime: single most important task, right after breakfast.
 
+━━━ DUPLICATE PREVENTION — CRITICAL ━━━━━━━━━━━━━━━━━━
+
+BEFORE calling add_task: scan the task list above for matching titles.
+
+Rescheduling intent phrases — use move_task, NEVER add_task:
+"move X" / "reschedule X" / "plan X on [day]" / "X another day" / "push X to" / "shift X"
+"postpone X" / "not today" / "later" / "change X to" / "put X on [day]"
+
+Decision rule:
+→ Similar task exists + rescheduling language → call move_task(taskId, newDate) — NO add_task
+→ Similar task exists + unclear intent → ask "Move the existing [title] or add another session?"
+→ User says "another session" / "one more" / "second time" → add_task is correct
+→ No similar task found → add_task is correct
+
+After move_task: confirm with "Moved [title] to [date]."
+After add_task: confirm with "Added [title] on [date]."
+Never leave the original task in its old slot AND add a new one for a move request.
+
+Active task titles (check before creating):
+${tasks.filter((t) => !t.completed).map((t) => `"${t.title}" [${t.id.slice(0,6)}] ${t.date}`).join(" · ") || "(none)"}
+
 ━━━ ANTI-PATTERNS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ✗ Deadline with no preparation tasks · work clustered on deadline day
@@ -1316,14 +1391,36 @@ STEP 5 — SUMMARY (required, after all tool calls):
 ✗ Session ≥ 90 min without a break task after it
 ✗ Scheduling at or before ${currentTimeStr} today · overlapping occupied windows
 ✗ Verbose responses for simple actions · motivational filler · repeating the user's request
+✗ Calling add_task for a task the user wants moved — use move_task instead
 
 ━━━ HIDDEN TASK RADAR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Deadline with no prep tasks, or task implying sub-steps that don't exist → create them silently, then mention in 1 sentence what was added and why.
 
 ━━━ MICRO-START MODE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${microStartMode ? `
+⚡ MICRO START MODE IS EXPLICITLY ACTIVE (user pressed the button).
+Override ALL normal planning behavior for this session.
 
-Activate when: stuck / overwhelmed / procrastinating, task avoided 3+ days, or NORA STATE is High Load / Recovery Day.
+This mode is intentionally different from normal planning. The goal is starting, not finishing.
+
+STRICT RESPONSE FORMAT:
+1. [Action verb + object only] — max 5 min
+2. [Action verb + object only] — max 5 min
+3. [Action verb + object only] — max 5 min
+
+Then end with ONLY: "Want me to add the first step as a 10-minute block?"
+
+Rules — no exceptions:
+✓ Start every step with a physical action verb (Open, Write, Read, Set, Pick up, Close)
+✓ Each step completable in under 5 minutes
+✓ No motivation, encouragement, or framing
+✓ No "think about", "consider", "remember why this matters"
+✓ Don't reveal all 3 at once if user is in conversation — give step 1, wait for response, then step 2
+
+The user needs activation energy reduced, not more information.
+` : `
+Auto-activate when: stuck / overwhelmed / procrastinating, task avoided 3+ days, or NORA STATE is High Load / Recovery Day.
 
 Generate exactly 3 actions. Every action must be:
 ✓ Physical and immediate — verb + object only
@@ -1334,6 +1431,7 @@ Generate exactly 3 actions. Every action must be:
 ✗ "Think about where to start."   ✗ "Consider your approach."   ✗ "Remember why this matters."
 
 End with one offer only: add the first action as a 10-minute calendar block. Nothing else.
+`}
 
 ━━━ RECOVERY AWARENESS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1532,6 +1630,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       addNote: (text) => setNotes((p) => [...p, { id: uid(), content: text, done: false, createdAt: Date.now() }]),
       toggleNote, updateNote, deleteNote, getGroup,
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
+      microStartMode, setMicroStartMode,
+      rescheduleTask, setRescheduleTask, saveReschedule,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
@@ -1842,10 +1942,20 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                               </span>
                               {isNext && <span className="sc-next-badge">Up next</span>}
                             </div>
+                            {tp === "deadline" && !t.completed && (
+                              <div className="sc-actions">
+                                <button className="tca tca-done-dl" onClick={() => toggleTask(t.id)}>
+                                  <Check size={10} /> Mark done
+                                </button>
+                                <button className="tca tca-edit" onClick={() => setEditingTask(t)}>
+                                  <Pencil size={10} /> Edit
+                                </button>
+                              </div>
+                            )}
                             {tp === "task" && !t.completed && (
                               <div className="sc-actions">
-                                <button className="tca tca-resched" onClick={() => askNORAtoReschedule(t)}>
-                                  <RotateCcw size={10} /> Reschedule
+                                <button className="tca tca-resched" onClick={() => setRescheduleTask(t)}>
+                                  <CalendarDays size={10} /> Move
                                 </button>
                                 <button className="tca tca-skip" onClick={() => skipTask(t.id)}>
                                   <SkipForward size={10} /> Skip
@@ -1867,8 +1977,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           {unscheduled.map((t) => {
                             const tp = t.type ?? "task";
                             if (tp === "deadline") return (
-                              <div key={t.id} className="unsched-deadline" onClick={() => setEditingTask(t)}>
-                                <Flag size={11} /><span>{t.title || "Deadline"}</span>
+                              <div key={t.id} className={`unsched-deadline${t.completed ? " unsched-dl-done" : ""}`}>
+                                <Flag size={11} /><span onClick={() => setEditingTask(t)}>{t.title || "Deadline"}</span>
+                                {!t.completed && <button className="dl-done-btn" onClick={() => toggleTask(t.id)}><Check size={11} /></button>}
                               </div>
                             );
                             if (tp === "break") return (
@@ -1876,7 +1987,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                                 <Coffee size={11} /><span>{t.title || "Break"}{t.duration ? ` · ${fmtDur(t.duration)}` : ""}</span>
                               </div>
                             );
-                            return <TaskChip key={t.id} task={t} group={getGroup(t.groupId)} onToggle={toggleTask} onReschedule={askNORAtoReschedule} onSkip={skipTask} onClick={setEditingTask} />;
+                            return <TaskChip key={t.id} task={t} group={getGroup(t.groupId)} onToggle={toggleTask} onReschedule={setRescheduleTask} onSkip={skipTask} onClick={setEditingTask} />;
                           })}
                         </div>
                       </div>
@@ -1935,7 +2046,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                         <Coffee size={11} /><span>{t.title || "Break"}{t.duration ? ` · ${fmtDur(t.duration)}` : ""}</span>
                       </div>
                     );
-                    return <TaskChip key={t.id} task={t} group={getGroup(t.groupId)} onToggle={toggleTask} onReschedule={askNORAtoReschedule} onSkip={skipTask} onClick={setEditingTask} />;
+                    return <TaskChip key={t.id} task={t} group={getGroup(t.groupId)} onToggle={toggleTask} onReschedule={setRescheduleTask} onSkip={skipTask} onClick={setEditingTask} />;
                   })}
                   {addingAt === "unscheduled"
                     ? <input ref={addInputRef} className="slot-input" value={addingTitle}
@@ -1985,14 +2096,16 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   {filteredTodayTasks
                     .filter((t) => t.type === "deadline" && t.startHour != null)
                     .map((t) => (
-                      <div key={t.id} className="tl-deadline"
-                        style={{ top: cTop(t.startHour, t.startMinute ?? 0) }}
-                        onClick={(e) => { e.stopPropagation(); setEditingTask(t); }}>
-                        <div className="tl-deadline-flag"><Flag size={12} /></div>
-                        <div className="tl-deadline-body">
+                      <div key={t.id} className={`tl-deadline${t.completed ? " tl-dl-done" : ""}`}
+                        style={{ top: cTop(t.startHour, t.startMinute ?? 0) }}>
+                        <div className="tl-deadline-flag" onClick={(e) => { e.stopPropagation(); setEditingTask(t); }}><Flag size={12} /></div>
+                        <div className="tl-deadline-body" onClick={(e) => { e.stopPropagation(); setEditingTask(t); }}>
                           <span>{t.title || "Deadline"}</span>
                           <span className="tl-deadline-time">{fmtTime(t.startHour, t.startMinute ?? 0)}</span>
                         </div>
+                        {!t.completed && (
+                          <button className="dl-done-btn" onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}><Check size={11} /></button>
+                        )}
                       </div>
                     ))
                   }
@@ -2050,9 +2163,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           {t.repeat && <RotateCcw size={9} style={{ color: "currentColor", opacity: .65, flexShrink: 0, marginTop: 2 }} />}
                           <div className="tl-actions">
                             {!t.completed && (
-                              <button className="tl-act" title="Reschedule with NORA"
-                                onClick={(e) => { e.stopPropagation(); askNORAtoReschedule(t); }}>
-                                <RotateCcw size={9} />
+                              <button className="tl-act" title="Move task"
+                                onClick={(e) => { e.stopPropagation(); setRescheduleTask(t); }}>
+                                <CalendarDays size={9} />
                               </button>
                             )}
                             {!t.completed && (
@@ -2228,13 +2341,25 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                               </div>
                             </div>
                           </div>
-                          {/* Action row — tasks only */}
+                          {/* Action row */}
+                          {tp === "deadline" && !t.completed && (
+                            <div className="list-task-actions">
+                              <button className="tca tca-done-dl"
+                                onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
+                                <Check size={10} /> Mark done
+                              </button>
+                              <button className="tca tca-edit"
+                                onClick={(e) => { e.stopPropagation(); setEditingTask(t); }}>
+                                <Pencil size={10} /> Edit
+                              </button>
+                            </div>
+                          )}
                           {tp === "task" && (
                             <div className="list-task-actions">
                               {!t.completed && (
                                 <button className="tca tca-resched"
-                                  onClick={(e) => { e.stopPropagation(); askNORAtoReschedule(t); }}>
-                                  <RotateCcw size={10} /> Reschedule
+                                  onClick={(e) => { e.stopPropagation(); setRescheduleTask(t); }}>
+                                  <CalendarDays size={10} /> Move
                                 </button>
                               )}
                               {!t.completed && (
@@ -2602,6 +2727,15 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {chatLoading && <div className="chat-msg assistant"><div className="chat-bubble typing"><span /><span /><span /></div></div>}
           <div ref={chatEndRef} />
         </div>
+        <div className="chat-toolbar">
+          <button
+            className={`micro-start-btn${microStartMode ? " active" : ""}`}
+            onClick={() => setMicroStartMode((m) => !m)}
+            title="Micro Start: break goals into tiny first steps">
+            <Zap size={12} />
+            Micro Start
+          </button>
+        </div>
         <div className="chat-input-row">
           <textarea ref={chatInputRef} className="chat-input" value={chatInput} rows={1}
             onChange={(e) => {
@@ -2626,6 +2760,15 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </div>
           <button className="notif-toast-close" onClick={() => setInAppAlert(null)}><X size={14} /></button>
         </div>
+      )}
+
+      {/* Reschedule modal */}
+      {rescheduleTask && (
+        <RescheduleModal
+          task={rescheduleTask}
+          onSave={saveReschedule}
+          onClose={() => setRescheduleTask(null)}
+        />
       )}
 
       {/* Task edit modal */}
@@ -2811,6 +2954,77 @@ Everything else → as short as possible. If nothing notable to add, don't add i
   );
 }
 
+// ── Reschedule Modal ─────────────────────────────────────────────
+function RescheduleModal({ task, onSave, onClose }) {
+  const HOURS = Array.from({ length: 24 }, (_, i) => i);
+  const pad2  = (n) => String(n).padStart(2, "0");
+  const fmtH  = (h) => h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`;
+
+  const [date,   setDate]   = useState(task.date);
+  const [hour,   setHour]   = useState(task.startHour ?? "");
+  const [minute, setMinute] = useState(task.startMinute ?? 0);
+  const [notes,  setNotes]  = useState(task.notes ?? "");
+
+  const handleSave = () => {
+    onSave({
+      ...task,
+      date,
+      startHour:   hour === "" ? null : Number(hour),
+      startMinute: hour === "" ? null : Number(minute),
+      notes,
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal reschedule-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="reschedule-modal-title">Move task</span>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="reschedule-task-name">{task.title || "Untitled"}</div>
+        <div className="modal-body">
+          <div className="sett-field">
+            <label className="sett-field-lbl">Date</label>
+            <input type="date" className="sett-input" value={date}
+              onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div className="sett-field">
+            <label className="sett-field-lbl">Time</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select className="sett-select reschedule-select"
+                value={hour}
+                onChange={(e) => setHour(e.target.value === "" ? "" : Number(e.target.value))}>
+                <option value="">No time</option>
+                {HOURS.map((h) => <option key={h} value={h}>{fmtH(h)}</option>)}
+              </select>
+              {hour !== "" && (
+                <select className="sett-select reschedule-select"
+                  value={minute}
+                  onChange={(e) => setMinute(Number(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                    <option key={m} value={m}>:{pad2(m)}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+          <div className="sett-field">
+            <label className="sett-field-lbl">Notes</label>
+            <textarea className="sett-input reschedule-notes" rows={3} value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add a note about why it moved…" />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="modal-cancel" onClick={onClose}>Cancel</button>
+          <button className="modal-save" onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TaskChip({ task, group, onToggle, onReschedule, onSkip, onClick }) {
   const cx = task.complexity ? COMPLEXITY[task.complexity] : null;
   const todayLocal = fmtDate(new Date());
@@ -2831,7 +3045,7 @@ function TaskChip({ task, group, onToggle, onReschedule, onSkip, onClick }) {
         {!task.completed && onReschedule && (
           <button className="tca tca-resched"
             onClick={(e) => { e.stopPropagation(); onReschedule(task); }}>
-            <RotateCcw size={10} /> Reschedule
+            <CalendarDays size={10} /> Move
           </button>
         )}
         {!task.completed && onSkip && (

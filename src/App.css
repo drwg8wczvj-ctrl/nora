@@ -2455,6 +2455,83 @@
 }
 .nudge-dismiss:hover { background: var(--surface-2); }
 
+/* ── Reschedule modal ────────────────────────────────────── */
+.reschedule-modal { max-width: 400px; }
+.reschedule-modal-title {
+  font-size: 15px; font-weight: 700; color: var(--text);
+}
+.reschedule-task-name {
+  padding: 0 20px 16px;
+  font-size: 16px; font-weight: 700; color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.reschedule-select { flex: 1; }
+.reschedule-notes { width: 100%; box-sizing: border-box; resize: vertical; }
+.modal-save {
+  padding: 9px 24px; border-radius: 10px;
+  background: var(--grad); color: #fff; border: none;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 0 18px rgba(124,58,237,0.35);
+  transition: opacity .15s;
+}
+.modal-save:hover { opacity: .88; }
+.modal-cancel {
+  padding: 9px 18px; border-radius: 10px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+.modal-cancel:hover { background: var(--surface-2); }
+
+/* ── Deadline done button ─────────────────────────────────── */
+.tca-done-dl {
+  background: rgba(34,197,94,0.12) !important;
+  color: #22c55e !important;
+  border-color: rgba(34,197,94,0.25) !important;
+}
+.tca-done-dl:hover { background: rgba(34,197,94,0.20) !important; }
+
+.dl-done-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid rgba(34,197,94,0.5);
+  background: rgba(34,197,94,0.10);
+  color: #22c55e; cursor: pointer; flex-shrink: 0;
+  transition: background .15s, border-color .15s;
+  margin-left: 6px;
+}
+.dl-done-btn:hover { background: rgba(34,197,94,0.22); }
+
+/* Unscheduled deadline done-state */
+.unsched-deadline { display: flex; align-items: center; gap: 6px; }
+.unsched-dl-done { opacity: 0.45; text-decoration: line-through; }
+
+/* Timeline deadline done */
+.tl-deadline { display: flex; align-items: center; gap: 6px; }
+.tl-dl-done { opacity: 0.45; }
+
+/* ── Micro Start button (desktop chat) ───────────────────── */
+.chat-toolbar {
+  padding: 6px 12px 0;
+  display: flex; gap: 8px;
+}
+.micro-start-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: all .18s;
+}
+.micro-start-btn:hover { border-color: rgba(124,58,237,0.3); color: var(--accent); }
+.micro-start-btn.active {
+  background: rgba(234,179,8,0.15);
+  border-color: rgba(234,179,8,0.4);
+  color: #ca8a04;
+}
+
 /* ── Page transition ── */
 @keyframes pageEnter {
   from { opacity: 0; }

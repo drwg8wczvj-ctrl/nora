@@ -30,7 +30,8 @@ export default function MobileApp({ ctx }) {
   const [mobileView, setMobileView] = useState("plan");
   const [planSubView, setPlanSubView] = useState("day");  // "day" | "month"
   const [dayMode, setDayMode] = useState("list");          // "list" | "grid"
-  const { dark, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert } = ctx;
+  const { dark, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
+          rescheduleTask, setRescheduleTask, saveReschedule } = ctx;
 
   return (
     <div className={`app mob-app${dark ? " dark" : ""}`}>
@@ -70,6 +71,13 @@ export default function MobileApp({ ctx }) {
 
       <MobileChat ctx={ctx} />
       {editingTask && draft && <MobileEditModal ctx={ctx} />}
+      {rescheduleTask && (
+        <MobileRescheduleModal
+          task={rescheduleTask}
+          onSave={saveReschedule}
+          onClose={() => setRescheduleTask(null)}
+        />
+      )}
       {inAppAlert && (
         <div className="notif-toast" role="alert">
           <Bell size={18} className="notif-toast-icon" />
@@ -366,6 +374,11 @@ function MobileGrid({ ctx }) {
                     {t.completed && <Check size={10} strokeWidth={3} />}
                   </button>
                 )}
+                {tp === "deadline" && !t.completed && (
+                  <button className="mob-gb-dl-done" onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
+                    <Check size={10} />
+                  </button>
+                )}
               </div>
             );
           })}
@@ -475,7 +488,7 @@ function MobileMonth({ ctx }) {
 
 // ── Tasks view ───────────────────────────────────────────────
 function MobileTasks({ ctx }) {
-  const { tasks, today, toggleTask, skipTask, askNORAtoReschedule, setEditingTask, groups } = ctx;
+  const { tasks, today, toggleTask, skipTask, setRescheduleTask, setEditingTask, groups } = ctx;
 
   const getGroup = (id) => groups.find((g) => g.id === id);
 
@@ -487,18 +500,39 @@ function MobileTasks({ ctx }) {
     return at - bt;
   });
 
-  const todayItems  = sorted.filter((t) => t.date === today && !t.completed);
-  const upcoming    = sorted.filter((t) => t.date > today && !t.completed);
-  const deferred    = sorted.filter((t) => t.date < today && !t.completed);
-  const completed   = sorted.filter((t) => t.completed).slice(0, 10);
+  const active    = sorted.filter((t) => !t.completed);
+  const completed = sorted.filter((t) => t.completed).slice(0, 10);
 
-  const renderTask = (t, showDate = false) => {
+  // Group active tasks by date
+  const tomorrow = (() => {
+    const d = new Date(today + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const deferred = active.filter((t) => t.date < today);
+  const todayItems = active.filter((t) => t.date === today);
+  const tomorrowItems = active.filter((t) => t.date === tomorrow);
+  const future = active.filter((t) => t.date > tomorrow);
+
+  // Group future tasks by date
+  const futureByDate = [];
+  let lastFutureDate = null;
+  future.forEach((t) => {
+    if (t.date !== lastFutureDate) {
+      futureByDate.push({ date: t.date, items: [] });
+      lastFutureDate = t.date;
+    }
+    futureByDate[futureByDate.length - 1].items.push(t);
+  });
+
+  const renderTask = (t) => {
     const tp    = t.type ?? "task";
     const group = getGroup(t.groupId);
     const gc    = tp === "deadline" ? "#ef4444"
                 : tp === "break"    ? "#94a3b8"
                 : group?.color ?? "var(--accent)";
-    const isDeferred = tp === "task" && !t.completed && t.date < today;
+    const isDeferred = !t.completed && t.date < today;
     return (
       <div key={t.id}
         className={`mob-task-row${t.completed ? " mtr-done" : ""}${isDeferred ? " mtr-deferred" : ""}`}
@@ -511,45 +545,57 @@ function MobileTasks({ ctx }) {
               onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
               {t.completed && <Check size={13} strokeWidth={3} />}
             </button>
+          ) : tp === "deadline" ? (
+            <button className={`mob-check mob-check-dl${t.completed ? " checked" : ""}`}
+              onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
+              {t.completed ? <Check size={13} strokeWidth={3} /> : <Flag size={12} style={{ color: "#ef4444" }} />}
+            </button>
           ) : (
-            <span className="mtr-icon">
-              {tp === "deadline" ? <Flag size={14} style={{ color: "#ef4444" }} />
-                                 : <Coffee size={14} style={{ color: "#94a3b8" }} />}
-            </span>
+            <span className="mtr-icon"><Coffee size={14} style={{ color: "#94a3b8" }} /></span>
           )}
         </div>
 
         <div className="mtr-body">
           <span className="mtr-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
           <span className="mtr-meta">
-            {showDate && <span>{t.date === today ? "Today" : t.date} </span>}
             {t.startHour != null && <span>{fmtTime(t.startHour, t.startMinute ?? 0)} </span>}
             {t.duration && <span>{fmtDur(t.duration)}</span>}
           </span>
         </div>
 
-        {tp === "task" && !t.completed && (
+        {!t.completed && tp !== "break" && (
           <div className="mtr-actions" onClick={(e) => e.stopPropagation()}>
-            <button className="mtr-act" title="Skip to tomorrow" onClick={() => skipTask(t.id)}>
-              <SkipForward size={15} />
-            </button>
-            <button className="mtr-act mtr-act-ai" title="Ask NORA to reschedule" onClick={() => askNORAtoReschedule(t)}>
-              <RotateCcw size={15} />
-            </button>
+            {tp === "task" && (
+              <button className="mtr-act" title="Skip to tomorrow" onClick={() => skipTask(t.id)}>
+                <SkipForward size={15} />
+              </button>
+            )}
+            {tp === "task" && (
+              <button className="mtr-act mtr-act-ai" title="Move task" onClick={() => setRescheduleTask(t)}>
+                <CalendarDays size={15} />
+              </button>
+            )}
           </div>
         )}
       </div>
     );
   };
 
-  const Section = ({ title, items, showDate = false }) => {
+  const DaySection = ({ label, items, accent }) => {
     if (!items.length) return null;
     return (
-      <div className="mob-tasks-section">
-        <div className="mob-section-title">{title}</div>
-        {items.map((t) => renderTask(t, showDate))}
+      <div className="mob-tasks-day-group">
+        <div className={`mob-tasks-day-header${accent ? " mob-day-hdr-accent" : ""}`}>{label}
+          <span className="mob-tasks-day-count">{items.length}</span>
+        </div>
+        {items.map((t) => renderTask(t))}
       </div>
     );
+  };
+
+  const fmt = (ds) => {
+    const d = new Date(ds + "T00:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
   };
 
   return (
@@ -561,10 +607,27 @@ function MobileTasks({ ctx }) {
         </div>
       ) : (
         <>
-          <Section title="Today"    items={todayItems} />
-          <Section title="Pending"  items={deferred} showDate />
-          <Section title="Upcoming" items={upcoming} showDate />
-          <Section title="Done"     items={completed} showDate />
+          {deferred.length > 0 && (
+            <div className="mob-tasks-day-group">
+              <div className="mob-tasks-day-header mob-day-hdr-deferred">
+                Pending <span className="mob-tasks-day-count">{deferred.length}</span>
+              </div>
+              {deferred.map((t) => renderTask(t))}
+            </div>
+          )}
+          <DaySection label="Today" items={todayItems} accent />
+          <DaySection label="Tomorrow" items={tomorrowItems} />
+          {futureByDate.map(({ date, items }) => (
+            <DaySection key={date} label={fmt(date)} items={items} />
+          ))}
+          {completed.length > 0 && (
+            <div className="mob-tasks-day-group">
+              <div className="mob-tasks-day-header mob-day-hdr-done">
+                Completed <span className="mob-tasks-day-count">{completed.length}</span>
+              </div>
+              {completed.map((t) => renderTask(t))}
+            </div>
+          )}
         </>
       )}
 
@@ -923,7 +986,8 @@ function MobileSettings({ ctx }) {
 
 // ── Chat overlay ─────────────────────────────────────────────
 function MobileChat({ ctx }) {
-  const { chatOpen, setChatOpen, messages, chatInput, setChatInput, chatLoading, sendChat } = ctx;
+  const { chatOpen, setChatOpen, messages, chatInput, setChatInput, chatLoading, sendChat,
+          microStartMode, setMicroStartMode } = ctx;
   const endRef   = useRef(null);
   const inputRef = useRef(null);
 
@@ -968,6 +1032,13 @@ function MobileChat({ ctx }) {
         <div ref={endRef} />
       </div>
 
+      <div className="mob-chat-toolbar">
+        <button
+          className={`mob-micro-start-btn${microStartMode ? " active" : ""}`}
+          onClick={() => setMicroStartMode((m) => !m)}>
+          <Zap size={12} /> Micro Start
+        </button>
+      </div>
       <div className="mob-chat-input-bar">
         <textarea
           ref={inputRef}
@@ -986,6 +1057,80 @@ function MobileChat({ ctx }) {
         <button className="mob-chat-send" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
           {chatLoading ? <span className="dot-spin" /> : <Send size={18} />}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Reschedule modal ──────────────────────────────────────────
+function MobileRescheduleModal({ task, onSave, onClose }) {
+  const HOURS = Array.from({ length: 24 }, (_, i) => i);
+  const pad2  = (n) => String(n).padStart(2, "0");
+  const fmtH  = (h) => h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`;
+
+  const [date,   setDate]   = useState(task.date);
+  const [hour,   setHour]   = useState(task.startHour ?? "");
+  const [minute, setMinute] = useState(task.startMinute ?? 0);
+  const [notes,  setNotes]  = useState(task.notes ?? "");
+
+  const handleSave = () => {
+    onSave({
+      ...task,
+      date,
+      startHour:   hour === "" ? null : Number(hour),
+      startMinute: hour === "" ? null : Number(minute),
+      notes,
+    });
+  };
+
+  return (
+    <div className="mob-modal-overlay" onClick={onClose}>
+      <div className="mob-modal mob-reschedule-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="mob-modal-handle" />
+        <div className="mob-modal-header">
+          <span className="mob-reschedule-title">Move task</span>
+          <button className="mob-modal-close" onClick={onClose}><X size={20} /></button>
+        </div>
+        <div className="mob-reschedule-task-name">{task.title || "Untitled"}</div>
+        <div className="mob-modal-body">
+          <div className="mob-modal-field">
+            <label className="mob-modal-label">Date</label>
+            <input type="date" className="mob-modal-select"
+              value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div className="mob-modal-field">
+            <label className="mob-modal-label">Time</label>
+            <div className="mob-time-row">
+              <select className="mob-modal-select mob-time-select"
+                value={hour}
+                onChange={(e) => setHour(e.target.value === "" ? "" : Number(e.target.value))}>
+                <option value="">No time</option>
+                {HOURS.map((h) => <option key={h} value={h}>{fmtH(h)}</option>)}
+              </select>
+              {hour !== "" && (
+                <select className="mob-modal-select mob-min-select"
+                  value={minute}
+                  onChange={(e) => setMinute(Number(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                    <option key={m} value={m}>:{pad2(m)}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+          <div className="mob-modal-field">
+            <label className="mob-modal-label">Notes</label>
+            <textarea className="mob-modal-notes" rows={3}
+              value={notes} onChange={(e) => setNotes(e.target.value)}
+              placeholder="Why did it move?" />
+          </div>
+        </div>
+        <div className="mob-modal-footer">
+          <button className="mob-modal-delete" style={{ color: "var(--text-muted)", borderColor: "var(--border)" }} onClick={onClose}>
+            Cancel
+          </button>
+          <button className="mob-modal-save" onClick={handleSave}>Save</button>
+        </div>
       </div>
     </div>
   );
