@@ -7,9 +7,9 @@
 /* ── 1. TOKEN OVERRIDES ─────────────────────────────────────── */
 
 .glass:not(.dark) {
-  --bg:            linear-gradient(150deg, #ddd8ff 0%, #eaeeff 30%, #e4eeff 60%, #dbe5ff 100%);
-  --surface:       rgba(255,255,255,0.28);
-  --surface-2:     rgba(255,255,255,0.48);
+  --bg:            linear-gradient(150deg, #d4ceff 0%, #e6eaff 30%, #dde8ff 60%, #d2deff 100%);
+  --surface:       rgba(255,255,255,0.24);
+  --surface-2:     rgba(255,255,255,0.44);
   --surface-solid: rgba(255,255,255,0.82);
   --border:        rgba(255,255,255,0.62);
   --border-glow:   rgba(124,58,237,0.60);
@@ -49,45 +49,45 @@
 }
 
 .glass.dark {
-  --bg:            linear-gradient(150deg, #06051a 0%, #0a0820 35%, #060e1c 70%, #070518 100%);
-  --surface:       rgba(255,255,255,0.075);
-  --surface-2:     rgba(255,255,255,0.13);
-  --surface-solid: rgba(12,10,32,0.96);
-  --border:        rgba(255,255,255,0.15);
-  --border-glow:   rgba(167,139,250,0.60);
-  --text-muted:    rgba(232,232,255,0.45);
+  --bg:            linear-gradient(150deg, #05040f 0%, #080618 35%, #050d18 70%, #060415 100%);
+  --surface:       rgba(255,255,255,0.085);
+  --surface-2:     rgba(255,255,255,0.14);
+  --surface-solid: rgba(10,8,28,0.97);
+  --border:        rgba(255,255,255,0.18);
+  --border-glow:   rgba(167,139,250,0.65);
+  --text-muted:    rgba(232,232,255,0.50);
 
   --shadow:
-    0 1px 0 rgba(255,255,255,0.12) inset,
-    0 10px 40px rgba(0,0,0,0.55),
-    0 2px 10px rgba(0,0,0,0.35),
-    0 0 0 0.5px rgba(255,255,255,0.08) inset;
-  --shadow-glow:
     0 1px 0 rgba(255,255,255,0.14) inset,
-    0 0 0 1px rgba(124,58,237,0.38),
-    0 0 48px rgba(124,58,237,0.22),
-    0 10px 50px rgba(0,0,0,0.65);
+    0 12px 48px rgba(0,0,0,0.60),
+    0 2px 10px rgba(0,0,0,0.40),
+    0 0 0 0.5px rgba(255,255,255,0.10) inset;
+  --shadow-glow:
+    0 1px 0 rgba(255,255,255,0.16) inset,
+    0 0 0 1px rgba(124,58,237,0.45),
+    0 0 56px rgba(124,58,237,0.28),
+    0 12px 60px rgba(0,0,0,0.70);
 
-  --header-bg:     rgba(6,5,22,0.70);
-  --sidebar-bg:    rgba(6,5,22,0.76);
-  --modal-bg:      rgba(10,8,28,0.86);
-  --chat-panel-bg: rgba(6,5,22,0.78);
-  --footer-bg:     rgba(6,5,22,0.66);
-  --sacc-bg:       rgba(255,255,255,0.045);
-  --list-hdr-bg:   rgba(255,255,255,0.045);
-  --chat-asst-bg:  rgba(255,255,255,0.09);
-  --chip-base:     rgba(255,255,255,0.07);
+  --header-bg:     rgba(5,4,16,0.72);
+  --sidebar-bg:    rgba(5,4,16,0.80);
+  --modal-bg:      rgba(8,6,24,0.88);
+  --chat-panel-bg: rgba(5,4,16,0.80);
+  --footer-bg:     rgba(5,4,16,0.68);
+  --sacc-bg:       rgba(255,255,255,0.05);
+  --list-hdr-bg:   rgba(255,255,255,0.05);
+  --chat-asst-bg:  rgba(255,255,255,0.10);
+  --chip-base:     rgba(255,255,255,0.08);
 
-  --orb-1: radial-gradient(ellipse, rgba(139,92,246,0.42) 0%, transparent 68%);
-  --orb-2: radial-gradient(ellipse, rgba(59,130,246,0.34) 0%, transparent 68%);
-  --orb-3: radial-gradient(ellipse, rgba(236,72,153,0.18) 0%, transparent 68%);
+  --orb-1: radial-gradient(ellipse, rgba(139,92,246,0.52) 0%, transparent 65%);
+  --orb-2: radial-gradient(ellipse, rgba(59,130,246,0.42) 0%, transparent 65%);
+  --orb-3: radial-gradient(ellipse, rgba(236,72,153,0.22) 0%, transparent 65%);
 
   --radius:     20px;
   --glass-blur: blur(38px);
 
-  --reflect-top:  rgba(255,255,255,0.16);
-  --reflect-mid:  rgba(255,255,255,0.03);
-  --sheen-color:  rgba(255,255,255,0.07);
+  --reflect-top:  rgba(255,255,255,0.18);
+  --reflect-mid:  rgba(255,255,255,0.04);
+  --sheen-color:  rgba(255,255,255,0.08);
 }
 
 /* ── 2. BACKGROUND SYSTEM ───────────────────────────────────── */
@@ -507,6 +507,31 @@
 }
 
 /* ── 18. MOBILE GLASS ────────────────────────────────────────── */
+
+/* Re-enable orbs for mobile — override MobileApp.css display:none with specificity */
+.glass.mob-app::before {
+  display: block;
+  width: 700px; height: 700px;
+  top: -180px; left: -120px;
+  background: var(--orb-1);
+  opacity: 1;
+  filter: blur(90px);
+  animation: glassOrb1 16s ease-in-out infinite;
+  z-index: 0;
+}
+.glass.mob-app::after {
+  display: block;
+  width: 560px; height: 560px;
+  bottom: -120px; right: -100px;
+  background: var(--orb-2);
+  opacity: 1;
+  filter: blur(90px);
+  animation: glassOrb2 20s ease-in-out infinite;
+  z-index: 0;
+}
+
+/* Ensure mobile content sits above orbs */
+.glass.mob-app > * { position: relative; z-index: 1; }
 
 /* Header + bottom nav */
 .glass .mob-header {

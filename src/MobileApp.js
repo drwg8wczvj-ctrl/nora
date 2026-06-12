@@ -36,11 +36,11 @@ export default function MobileApp({ ctx }) {
   const [mobileView, setMobileView] = useState("plan");
   const [planSubView, setPlanSubView] = useState("day");  // "day" | "month"
   const [dayMode, setDayMode] = useState("list");          // "list" | "grid"
-  const { dark, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
+  const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
           rescheduleTask, setRescheduleTask, saveReschedule } = ctx;
 
   return (
-    <div className={`app mob-app${dark ? " dark" : ""}`}>
+    <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
 
       <MobileHeader ctx={ctx} />
 

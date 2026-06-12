@@ -60,40 +60,40 @@
   --danger:       #ef4444;
   --accent-light: rgba(124,58,237,0.18);
 
-  --bg:            #0b0b18;
-  --surface:       rgba(255,255,255,0.04);
-  --surface-2:     rgba(255,255,255,0.07);
-  --surface-solid: #12112a;
-  --border:        rgba(255,255,255,0.09);
-  --border-glow:   rgba(124,58,237,0.4);
-  --text:          #e8e8ff;
-  --text-muted:    rgba(232,232,255,0.45);
-  --shadow:        0 4px 24px rgba(0,0,0,.5), 0 1px 4px rgba(0,0,0,.4);
-  --shadow-glow:   0 0 30px rgba(124,58,237,0.2), 0 4px 24px rgba(0,0,0,.6);
+  --bg:            #0e0d1e;
+  --surface:       rgba(255,255,255,0.06);
+  --surface-2:     rgba(255,255,255,0.10);
+  --surface-solid: #16142c;
+  --border:        rgba(255,255,255,0.11);
+  --border-glow:   rgba(124,58,237,0.45);
+  --text:          #eceeff;
+  --text-muted:    rgba(232,232,255,0.55);
+  --shadow:        0 4px 24px rgba(0,0,0,.42), 0 1px 4px rgba(0,0,0,.32);
+  --shadow-glow:   0 0 30px rgba(124,58,237,0.22), 0 4px 24px rgba(0,0,0,.55);
 
-  --orb-1:            rgba(124,58,237,0.18);
-  --orb-2:            rgba(37,99,235,0.15);
-  --header-bg:        rgba(11,11,24,0.82);
-  --sidebar-bg:       rgba(11,11,24,0.94);
-  --modal-bg:         rgba(13,12,30,0.97);
-  --chat-panel-bg:    rgba(11,11,24,0.9);
-  --footer-bg:        rgba(11,11,24,0.7);
+  --orb-1:            rgba(124,58,237,0.20);
+  --orb-2:            rgba(37,99,235,0.17);
+  --header-bg:        rgba(14,13,28,0.84);
+  --sidebar-bg:       rgba(14,13,28,0.95);
+  --modal-bg:         rgba(16,14,32,0.97);
+  --chat-panel-bg:    rgba(14,13,28,0.92);
+  --footer-bg:        rgba(14,13,28,0.72);
   --tl-hour-line:     rgba(255,255,255,0.06);
   --tl-half-line:     rgba(255,255,255,0.03);
   --month-past-bg:    rgba(0,0,0,0.2);
   --month-today-bg:   rgba(124,58,237,0.1);
   --month-wkday-bg:   rgba(255,255,255,0.025);
-  --sacc-bg:          rgba(255,255,255,0.025);
-  --list-hdr-bg:      rgba(255,255,255,0.025);
-  --chat-asst-bg:     rgba(255,255,255,0.06);
-  --existing-grp-bg:  rgba(255,255,255,0.05);
-  --break-stripe-a:   rgba(255,255,255,0.03);
-  --break-stripe-b:   rgba(255,255,255,0.015);
-  --break-border:     rgba(255,255,255,0.12);
-  --dl-body-bg:       rgba(239,68,68,0.1);
-  --dl-body-hover:    rgba(239,68,68,0.18);
-  --dl-border:        rgba(239,68,68,0.5);
-  --chip-base:        rgba(255,255,255,0.04);
+  --sacc-bg:          rgba(255,255,255,0.04);
+  --list-hdr-bg:      rgba(255,255,255,0.04);
+  --chat-asst-bg:     rgba(255,255,255,0.08);
+  --existing-grp-bg:  rgba(255,255,255,0.07);
+  --break-stripe-a:   rgba(255,255,255,0.04);
+  --break-stripe-b:   rgba(255,255,255,0.02);
+  --break-border:     rgba(255,255,255,0.14);
+  --dl-body-bg:       rgba(239,68,68,0.12);
+  --dl-body-hover:    rgba(239,68,68,0.20);
+  --dl-border:        rgba(239,68,68,0.55);
+  --chip-base:        rgba(255,255,255,0.06);
 }
 
 /* ── Base ──────────────────────────────────────────────── */
