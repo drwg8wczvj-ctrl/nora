@@ -530,8 +530,9 @@
   z-index: 0;
 }
 
-/* Ensure mobile content sits above orbs */
-.glass.mob-app > * { position: relative; z-index: 1; }
+/* Ensure scrollable content sits above orbs — only target non-fixed elements */
+.glass.mob-app > .mob-header,
+.glass.mob-app > .mob-main { position: relative; z-index: 1; }
 
 /* Header + bottom nav */
 .glass .mob-header {
