@@ -2540,14 +2540,14 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {view === "status" && (() => {
             const maxWlLoad = Math.max(...workloadForecast.map((d) => d.load), 1);
             const CHECKIN_DEFS = [
-              { icon: "⚡", title: "Energy",     value: energy,     set: setEnergy,
-                levels: [{e:"😴",l:"Exhausted",v:1},{e:"😕",l:"Tired",v:3},{e:"😐",l:"Okay",v:5},{e:"🙂",l:"Good",v:7},{e:"⚡",l:"High",v:9}] },
-              { icon: "🌬", title: "Stress",     value: relaxation, set: setRelaxation,
-                levels: [{e:"😰",l:"Overwhelmed",v:1},{e:"😟",l:"Stressed",v:3},{e:"😐",l:"Okay",v:5},{e:"😌",l:"Calm",v:7},{e:"✨",l:"Relaxed",v:9}] },
-              { icon: "🎯", title: "Focus",      value: focus,      set: setFocus,
-                levels: [{e:"🌀",l:"Scattered",v:1},{e:"😶",l:"Drifting",v:3},{e:"😐",l:"Okay",v:5},{e:"🎯",l:"Focused",v:7},{e:"💡",l:"Deep",v:9}] },
-              { icon: "🔥", title: "Motivation", value: motivation, set: setMotivation,
-                levels: [{e:"💤",l:"None",v:1},{e:"😴",l:"Low",v:3},{e:"😐",l:"Okay",v:5},{e:"🔥",l:"Driven",v:7},{e:"🚀",l:"Fired Up",v:9}] },
+              { icon: <Zap size={13} />,        title: "Energy",     color: "var(--accent)", value: energy,     set: setEnergy,
+                levels: [{l:"Very low",v:1},{l:"Low",v:3},{l:"Okay",v:5},{l:"Good",v:7},{l:"High",v:9}] },
+              { icon: <Wind size={13} />,       title: "Stress",     color: "#3b82f6",       value: relaxation, set: setRelaxation,
+                levels: [{l:"Overwhelmed",v:1},{l:"Stressed",v:3},{l:"Okay",v:5},{l:"Calm",v:7},{l:"Relaxed",v:9}] },
+              { icon: <Activity size={13} />,   title: "Focus",      color: "#22c55e",       value: focus,      set: setFocus,
+                levels: [{l:"Scattered",v:1},{l:"Drifting",v:3},{l:"Okay",v:5},{l:"Focused",v:7},{l:"Deep",v:9}] },
+              { icon: <TrendingUp size={13} />, title: "Motivation", color: "#f59e0b",       value: motivation, set: setMotivation,
+                levels: [{l:"None",v:1},{l:"Low",v:3},{l:"Okay",v:5},{l:"Driven",v:7},{l:"Fired up",v:9}] },
             ];
             const closestL = (lvls, val) => lvls.reduce((p, c) => Math.abs(c.v - val) < Math.abs(p.v - val) ? c : p);
             return (
@@ -2582,23 +2582,23 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 {/* ── § 2 Daily Check-In ── */}
                 <div className="sv2-card sv2-checkin sv2-right">
                   <div className="sv2-card-title"><Wind size={14} /> Daily Check-In</div>
-                  <div className="sv2-checkin-grid">
-                    {CHECKIN_DEFS.map(({ icon, title, value, set, levels }) => {
+                  <div className="sv2-checkin-list">
+                    {CHECKIN_DEFS.map(({ icon, title, color, value, set, levels }) => {
                       const active = closestL(levels, value);
                       return (
-                        <div key={title} className="sv2-check-card">
-                          <div className="sv2-check-header">
-                            <span className="sv2-check-icon">{icon}</span>
+                        <div key={title} className="sv2-check-row">
+                          <div className="sv2-check-meta">
+                            <span className="sv2-check-icon-wrap" style={{ color }}>{icon}</span>
                             <span className="sv2-check-title">{title}</span>
-                            <span className="sv2-check-current">{active.l}</span>
+                            <span className="sv2-check-current" style={{ color }}>{active.l}</span>
                           </div>
                           <div className="sv2-check-levels">
                             {levels.map((lvl) => (
                               <button key={lvl.v}
                                 className={`sv2-lvl${lvl.v === active.v ? " active" : ""}`}
+                                style={lvl.v === active.v ? { background: `${color}18`, borderColor: `${color}50`, color } : {}}
                                 onClick={() => set(lvl.v)}>
-                                <span className="sv2-lvl-emoji">{lvl.e}</span>
-                                <span className="sv2-lvl-label">{lvl.l}</span>
+                                {lvl.l}
                               </button>
                             ))}
                           </div>

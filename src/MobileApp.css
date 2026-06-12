@@ -40,8 +40,11 @@
 .mob-main {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  overscroll-behavior-y: contain;
+  /* clear fixed bottom nav + FAB + safe area */
+  padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Bottom navigation ───────────────────────────────────── */
@@ -1202,7 +1205,7 @@
    ═══════════════════════════════════════════════════════ */
 
 .mob-status-v2 {
-  padding: 14px 14px 40px;
+  padding: 14px 14px 16px;
   display: flex; flex-direction: column; gap: 12px;
 }
 .mob-sv2-card {
@@ -1236,28 +1239,27 @@
 .mob-assess-rec-lbl { font-weight: 700; color: var(--accent); margin-right: 4px; }
 
 /* Check-in */
-.mob-checkin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
-.mob-check-card {
-  background: var(--surface-2); border-radius: 14px;
-  padding: 10px 12px; border: 1px solid var(--border);
+.mob-checkin-list { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.mob-check-row { display: flex; flex-direction: column; gap: 7px; }
+.mob-check-meta {
+  display: flex; align-items: center; gap: 7px;
 }
-.mob-check-hdr {
-  display: flex; align-items: center; gap: 5px; margin-bottom: 8px;
-  font-size: 11px;
-}
-.mob-check-title { flex: 1; font-weight: 700; color: var(--text); }
-.mob-check-curr { color: var(--text-muted); font-size: 10px; }
-.mob-check-levels { display: flex; gap: 3px; }
+.mob-check-icon-wrap { display: flex; align-items: center; flex-shrink: 0; }
+.mob-check-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+.mob-check-curr { font-size: 12px; font-weight: 600; }
+.mob-check-levels { display: flex; gap: 5px; }
 .mob-check-lvl {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px;
-  padding: 5px 1px; border-radius: 7px;
-  border: 1px solid var(--border); background: var(--surface);
+  flex: 1;
+  padding: 7px 2px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 10px; font-weight: 600;
+  text-align: center;
   cursor: pointer; transition: all .15s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.mob-check-lvl.active {
-  background: var(--accent-light); border-color: rgba(124,58,237,.35);
-}
-.mob-lvl-emoji { font-size: 16px; }
 
 /* Today's Reality */
 .mob-reality-row { display: flex; gap: 0; margin-bottom: 12px; }

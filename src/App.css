@@ -2625,41 +2625,31 @@
 }
 .sv2-rec-lbl { font-weight: 700; color: var(--accent); margin-right: 4px; }
 
-/* Check-in grid */
-.sv2-checkin-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 12px;
+/* Check-in list */
+.sv2-checkin-list { display: flex; flex-direction: column; gap: 10px; }
+.sv2-check-row { display: flex; flex-direction: column; gap: 7px; }
+.sv2-check-meta {
+  display: flex; align-items: center; gap: 7px;
 }
-.sv2-check-card {
-  background: var(--surface-2);
-  border-radius: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-}
-.sv2-check-header {
-  display: flex; align-items: center; gap: 6px;
-  margin-bottom: 10px;
-}
-.sv2-check-icon  { font-size: 16px; }
-.sv2-check-title { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; }
-.sv2-check-current { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+.sv2-check-icon-wrap { display: flex; align-items: center; flex-shrink: 0; }
+.sv2-check-title { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; }
+.sv2-check-current { font-size: 11px; font-weight: 600; }
 
 .sv2-check-levels { display: flex; gap: 4px; }
 .sv2-lvl {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 6px 2px;
-  border-radius: 8px;
+  flex: 1;
+  padding: 5px 2px;
+  border-radius: 7px;
   border: 1px solid var(--border);
   background: var(--surface);
+  color: var(--text-muted);
+  font-size: 9.5px; font-weight: 600;
+  text-align: center;
   cursor: pointer;
   transition: all .15s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sv2-lvl.active {
-  background: var(--accent-light);
-  border-color: rgba(124,58,237,.35);
-}
-.sv2-lvl-emoji { font-size: 15px; }
-.sv2-lvl-label { font-size: 8.5px; color: var(--text-muted); font-weight: 600; text-align: center; }
+.sv2-lvl:hover { border-color: rgba(124,58,237,.25); }
 
 /* Today's Reality */
 .sv2-reality-row { display: flex; gap: 0; margin-bottom: 14px; }

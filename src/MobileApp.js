@@ -735,14 +735,14 @@ function MobileStatus({ ctx }) {
   const maxWl = Math.max(...workloadForecast.map((d) => d.load), 1);
 
   const CHECKIN_DEFS = [
-    { icon:"⚡", title:"Energy",     value:energy,     set:setEnergy,
-      levels:[{e:"😴",l:"Exhausted",v:1},{e:"😕",l:"Tired",v:3},{e:"😐",l:"Okay",v:5},{e:"🙂",l:"Good",v:7},{e:"⚡",l:"High",v:9}] },
-    { icon:"🌬", title:"Stress",     value:relaxation, set:setRelaxation,
-      levels:[{e:"😰",l:"Overwhelmed",v:1},{e:"😟",l:"Stressed",v:3},{e:"😐",l:"Okay",v:5},{e:"😌",l:"Calm",v:7},{e:"✨",l:"Relaxed",v:9}] },
-    { icon:"🎯", title:"Focus",      value:focus,      set:setFocus,
-      levels:[{e:"🌀",l:"Scattered",v:1},{e:"😶",l:"Drifting",v:3},{e:"😐",l:"Okay",v:5},{e:"🎯",l:"Focused",v:7},{e:"💡",l:"Deep",v:9}] },
-    { icon:"🔥", title:"Motivation", value:motivation, set:setMotivation,
-      levels:[{e:"💤",l:"None",v:1},{e:"😴",l:"Low",v:3},{e:"😐",l:"Okay",v:5},{e:"🔥",l:"Driven",v:7},{e:"🚀",l:"Fired Up",v:9}] },
+    { Icon: Zap,        title:"Energy",     color:"var(--accent)", value:energy,     set:setEnergy,
+      levels:[{l:"Very low",v:1},{l:"Low",v:3},{l:"Okay",v:5},{l:"Good",v:7},{l:"High",v:9}] },
+    { Icon: Wind,       title:"Stress",     color:"#3b82f6",       value:relaxation, set:setRelaxation,
+      levels:[{l:"Overwhelmed",v:1},{l:"Stressed",v:3},{l:"Okay",v:5},{l:"Calm",v:7},{l:"Relaxed",v:9}] },
+    { Icon: Activity,   title:"Focus",      color:"#22c55e",       value:focus,      set:setFocus,
+      levels:[{l:"Scattered",v:1},{l:"Drifting",v:3},{l:"Okay",v:5},{l:"Focused",v:7},{l:"Deep",v:9}] },
+    { Icon: TrendingUp, title:"Motivation", color:"#f59e0b",       value:motivation, set:setMotivation,
+      levels:[{l:"None",v:1},{l:"Low",v:3},{l:"Okay",v:5},{l:"Driven",v:7},{l:"Fired up",v:9}] },
   ];
   const closestL = (lvls, val) => lvls.reduce((p, c) => Math.abs(c.v - val) < Math.abs(p.v - val) ? c : p);
 
@@ -774,23 +774,24 @@ function MobileStatus({ ctx }) {
 
       {/* § 2 Daily Check-In */}
       <div className="mob-sv2-card">
-        <div className="mob-status-card-title"><Wind size={14} /> Daily Check-In</div>
-        <div className="mob-checkin-grid">
-          {CHECKIN_DEFS.map(({ icon, title, value, set, levels }) => {
+        <div className="mob-status-card-title"><Activity size={14} /> Daily Check-In</div>
+        <div className="mob-checkin-list">
+          {CHECKIN_DEFS.map(({ Icon, title, color, value, set, levels }) => {
             const active = closestL(levels, value);
             return (
-              <div key={title} className="mob-check-card">
-                <div className="mob-check-hdr">
-                  <span>{icon}</span>
+              <div key={title} className="mob-check-row">
+                <div className="mob-check-meta">
+                  <span className="mob-check-icon-wrap" style={{ color }}><Icon size={13} /></span>
                   <span className="mob-check-title">{title}</span>
-                  <span className="mob-check-curr">{active.l}</span>
+                  <span className="mob-check-curr" style={{ color }}>{active.l}</span>
                 </div>
                 <div className="mob-check-levels">
                   {levels.map((lvl) => (
                     <button key={lvl.v}
                       className={`mob-check-lvl${lvl.v === active.v ? " active" : ""}`}
+                      style={lvl.v === active.v ? { background: `${color}18`, borderColor: `${color}50`, color } : {}}
                       onClick={() => set(lvl.v)}>
-                      <span className="mob-lvl-emoji">{lvl.e}</span>
+                      {lvl.l}
                     </button>
                   ))}
                 </div>
