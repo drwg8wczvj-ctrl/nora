@@ -722,104 +722,162 @@ function MobileNotes({ ctx }) {
 function MobileStatus({ ctx }) {
   const {
     energy, setEnergy, relaxation, setRelaxation,
+    focus, setFocus, motivation, setMotivation,
+    noraState, userConfidence, assessmentSummary, keySignals,
     momentum, recoveryState, workloadForecast, weekData, weekTrend,
-    adaptiveRecs, deferredTasks, askNORAtoReschedule,
+    adaptiveRecs, deferredTasks, mostAvoided,
     setChatInput, setChatOpen, doneToday, totalToday, pct,
-    noraState,
+    focusPatterns, adaptivePlanData, behaviorProfile,
+    weeklyReflection, predictiveSignals,
+    setRescheduleTask,
   } = ctx;
 
   const maxWl = Math.max(...workloadForecast.map((d) => d.load), 1);
 
+  const CHECKIN_DEFS = [
+    { icon:"⚡", title:"Energy",     value:energy,     set:setEnergy,
+      levels:[{e:"😴",l:"Exhausted",v:1},{e:"😕",l:"Tired",v:3},{e:"😐",l:"Okay",v:5},{e:"🙂",l:"Good",v:7},{e:"⚡",l:"High",v:9}] },
+    { icon:"🌬", title:"Stress",     value:relaxation, set:setRelaxation,
+      levels:[{e:"😰",l:"Overwhelmed",v:1},{e:"😟",l:"Stressed",v:3},{e:"😐",l:"Okay",v:5},{e:"😌",l:"Calm",v:7},{e:"✨",l:"Relaxed",v:9}] },
+    { icon:"🎯", title:"Focus",      value:focus,      set:setFocus,
+      levels:[{e:"🌀",l:"Scattered",v:1},{e:"😶",l:"Drifting",v:3},{e:"😐",l:"Okay",v:5},{e:"🎯",l:"Focused",v:7},{e:"💡",l:"Deep",v:9}] },
+    { icon:"🔥", title:"Motivation", value:motivation, set:setMotivation,
+      levels:[{e:"💤",l:"None",v:1},{e:"😴",l:"Low",v:3},{e:"😐",l:"Okay",v:5},{e:"🔥",l:"Driven",v:7},{e:"🚀",l:"Fired Up",v:9}] },
+  ];
+  const closestL = (lvls, val) => lvls.reduce((p, c) => Math.abs(c.v - val) < Math.abs(p.v - val) ? c : p);
+
   return (
-    <div className="mob-status">
+    <div className="mob-status-v2">
 
-      {/* NORA State */}
-      <div className="mob-status-card mob-nora-card" style={{ borderTop: `3px solid ${noraState.color}` }}>
-        <div className="mob-status-card-title"><Sparkles size={15} /> NORA State</div>
-        <div className="mob-momentum-row">
-          <span className="mob-momentum-dot" style={{ background: noraState.color }} />
-          <span className="mob-momentum-label" style={{ color: noraState.color }}>{noraState.label}</span>
-          <span className="mob-state-conf">{noraState.confidence}</span>
-        </div>
-        <p className="mob-status-desc">{({
-          "peak_focus":        "You're in an ideal state for deep, high-quality work.",
-          "building_momentum": "Momentum is building — keep the streak alive.",
-          "steady_flow":       "Consistent and stable. Good conditions for focused progress.",
-          "high_load":         "High cognitive load. Consider prioritising or delegating.",
-          "recovery_day":      "Your system needs rest. Protect your energy today.",
-          "focus_mode":        "Standard mode. Tackle tasks at a comfortable pace.",
-        }[noraState.key] ?? "NORA is monitoring your state.")}</p>
-      </div>
-
-      {/* Wellness */}
-      <div className="mob-status-card">
-        <div className="mob-status-card-title"><Wind size={15} /> How are you feeling?</div>
-        {[
-          { label: "Relaxation", value: relaxation, set: setRelaxation, lo: "Stressed", hi: "Relaxed",
-            cls: "mob-slider-relax" },
-          { label: "Energy", value: energy, set: setEnergy, lo: "Exhausted", hi: "Energized",
-            cls: "mob-slider-energy" },
-        ].map(({ label, value, set, lo, hi, cls }) => (
-          <div key={label} className="mob-wellness-row">
-            <div className="mob-wellness-top">
-              <span className="mob-wellness-lbl">{label}</span>
-              <span className="mob-wellness-val">{value}<span className="mob-wellness-denom">/10</span></span>
-            </div>
-            <input type="range" className={`mob-slider ${cls}`}
-              min={0} max={10} step={1} value={value}
-              onChange={(e) => set(Number(e.target.value))} />
-            <div className="mob-slider-ends"><span>{lo}</span><span>{hi}</span></div>
+      {/* § 1 Assessment */}
+      <div className="mob-sv2-card mob-assessment" style={{ borderTop: `3px solid ${noraState.color}` }}>
+        <div className="mob-assess-header">
+          <div className="mob-assess-state" style={{ color: noraState.color }}>
+            <span className="mob-assess-dot" style={{ background: noraState.color }} />{noraState.label}
           </div>
-        ))}
-      </div>
-
-      {/* Momentum */}
-      <div className="mob-status-card">
-        <div className="mob-status-card-title"><Brain size={15} /> Momentum</div>
-        <div className="mob-momentum-row">
-          <span className="mob-momentum-dot" style={{ background: momentum.color }} />
-          <span className="mob-momentum-label" style={{ color: momentum.color }}>{momentum.label}</span>
+          <span className={`mob-assess-conf mob-conf-${userConfidence?.level ?? "building"}`} style={{ color: userConfidence?.color }}>
+            {userConfidence?.label ?? "Building Confidence"}
+          </span>
         </div>
-        <p className="mob-status-desc">{momentum.desc}</p>
-        {momentum.score != null && (
-          <div className="mob-momentum-bar-wrap">
-            <div className="mob-momentum-fill" style={{ width: `${Math.round(momentum.score * 100)}%`, background: momentum.color }} />
+        <p className="mob-assess-summary">{assessmentSummary}</p>
+        <div className="mob-assess-signals">
+          {(keySignals ?? []).map((s, i) => (
+            <div key={i} className="mob-signal"><span className="mob-signal-dot" />{s}</div>
+          ))}
+        </div>
+        {adaptiveRecs?.[0] && (
+          <div className="mob-assess-rec">
+            <span className="mob-assess-rec-lbl">NORA suggests:</span> {adaptiveRecs[0]}
           </div>
         )}
       </div>
 
-      {/* Recovery signal */}
-      {recoveryState.level !== "stable" && (
-        <div className={`mob-status-card mob-recovery-card recovery-${recoveryState.level}`}>
-          <div className="mob-status-card-title"><AlertTriangle size={15} /> Recovery Signal</div>
-          <div className="mob-momentum-row">
-            <span className="mob-momentum-dot" style={{ background: recoveryState.color }} />
-            <span className="mob-momentum-label" style={{ color: recoveryState.color }}>{recoveryState.label}</span>
-          </div>
-          <p className="mob-status-desc">{recoveryState.desc}</p>
-          {recoveryState.advice && (
-            <p className="mob-recovery-advice">{recoveryState.advice}</p>
-          )}
+      {/* § 2 Daily Check-In */}
+      <div className="mob-sv2-card">
+        <div className="mob-status-card-title"><Wind size={14} /> Daily Check-In</div>
+        <div className="mob-checkin-grid">
+          {CHECKIN_DEFS.map(({ icon, title, value, set, levels }) => {
+            const active = closestL(levels, value);
+            return (
+              <div key={title} className="mob-check-card">
+                <div className="mob-check-hdr">
+                  <span>{icon}</span>
+                  <span className="mob-check-title">{title}</span>
+                  <span className="mob-check-curr">{active.l}</span>
+                </div>
+                <div className="mob-check-levels">
+                  {levels.map((lvl) => (
+                    <button key={lvl.v}
+                      className={`mob-check-lvl${lvl.v === active.v ? " active" : ""}`}
+                      onClick={() => set(lvl.v)}>
+                      <span className="mob-lvl-emoji">{lvl.e}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
 
-      {/* Today's progress */}
-      {totalToday > 0 && (
-        <div className="mob-status-card">
-          <div className="mob-status-card-title"><Activity size={15} /> Today's Progress</div>
-          <div className="mob-progress-stats">
-            <span className="mob-progress-big">{doneToday}/{totalToday}</span>
-            <span className="mob-progress-pct">{pct}% done</span>
-          </div>
+      {/* § 3 Today's Reality */}
+      <div className="mob-sv2-card">
+        <div className="mob-status-card-title"><CalendarDays size={14} /> Today's Reality</div>
+        <div className="mob-reality-row">
+          {[
+            { val: doneToday, lbl: "Done", color: "#22c55e" },
+            { val: Math.max(0, totalToday - doneToday), lbl: "Left", color: "var(--text)" },
+            { val: deferredTasks.length, lbl: "Deferred", color: deferredTasks.length > 0 ? "#f97316" : "var(--text)" },
+            { val: workloadForecast[0]?.level ?? "—", lbl: "Load", color: workloadForecast[0]?.level === "heavy" ? "#ef4444" : "#22c55e" },
+          ].map(({ val, lbl, color }) => (
+            <div key={lbl} className="mob-rstat">
+              <span className="mob-rstat-val" style={{ color }}>{val}</span>
+              <span className="mob-rstat-lbl">{lbl}</span>
+            </div>
+          ))}
+        </div>
+        {totalToday > 0 && (
           <div className="mob-progress-track" style={{ marginTop: 10 }}>
             <div className="mob-progress-fill" style={{ width: `${pct}%` }} />
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Week ahead */}
-      <div className="mob-status-card">
-        <div className="mob-status-card-title"><BarChart2 size={15} /> Week Ahead</div>
+      {/* § 4 Needs Attention */}
+      <div className="mob-sv2-card">
+        <div className="mob-status-card-title"><AlertTriangle size={14} /> Needs Attention</div>
+        {recoveryState.level !== "stable" && (
+          <div className="mob-attn-recovery" style={{ borderLeftColor: recoveryState.color }}>
+            <span className="mob-attn-rec-name" style={{ color: recoveryState.color }}>{recoveryState.label}</span>
+            <p className="mob-attn-rec-desc">{recoveryState.desc}</p>
+          </div>
+        )}
+        {predictiveSignals?.filter((s) => s.confidence === "HIGH").map((s, i) => (
+          <div key={i} className="mob-psignal"><Zap size={11} /> {s.message}</div>
+        ))}
+        {mostAvoided && (
+          <div className="mob-attn-item mob-attn-avoided">
+            <div className="mob-attn-info">
+              <span className="mob-attn-name">{mostAvoided.task.title}</span>
+              <span className="mob-attn-age">Deferred {mostAvoided.daysOverdue}d</span>
+            </div>
+            <p className="mob-attn-note">"{mostAvoided.daysOverdue >= 5 ? "Avoidance, not scheduling." : "5 min starts break the loop."}"</p>
+            <div className="mob-attn-btns">
+              <button className="mob-attn-btn" onClick={() => setRescheduleTask(mostAvoided.task)}><CalendarDays size={11} /> Move</button>
+              <button className="mob-attn-btn mob-attn-micro" onClick={() => { setChatInput(`Help me micro-start "${mostAvoided.task.title}"`); setChatOpen(true); }}><Zap size={11} /> Micro</button>
+            </div>
+          </div>
+        )}
+        {deferredTasks.filter((t) => t.id !== mostAvoided?.task?.id).slice(0, 3).map((t) => (
+          <div key={t.id} className={`mob-attn-item mob-attn-def-${t.urgency}`}>
+            <div className="mob-attn-info">
+              <span className="mob-attn-name">{t.title}</span>
+              <span className="mob-attn-age">{t.daysDeferred}d pending</span>
+            </div>
+            <button className="mob-attn-btn" onClick={() => setRescheduleTask(t)}><CalendarDays size={11} /> Move</button>
+          </div>
+        ))}
+        {recoveryState.level === "stable" && deferredTasks.length === 0 && (
+          <p className="mob-all-clear">✓ Nothing urgent right now.</p>
+        )}
+        {deferredTasks.length > 1 && (
+          <button className="mob-rebalance-btn" onClick={() => {
+            const titles = deferredTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ");
+            setChatInput(`I have ${deferredTasks.length} deferred tasks: ${titles}. Rebalance across this week.`);
+            setChatOpen(true);
+          }}>Rebalance all with NORA</button>
+        )}
+      </div>
+
+      {/* § 5 Week Outlook */}
+      <div className="mob-sv2-card">
+        <div className="mob-status-card-top">
+          <div className="mob-status-card-title" style={{ marginBottom: 0 }}><BarChart2 size={14} /> Week Outlook</div>
+          <span className={`mob-trend-badge mob-trend-${weekTrend}`}>
+            {weekTrend === "improving" ? <TrendingUp size={12} /> : weekTrend === "declining" ? <TrendingDown size={12} /> : <Minus size={12} />}
+            {weekTrend === "new" ? "Starting" : weekTrend.charAt(0).toUpperCase() + weekTrend.slice(1)}
+          </span>
+        </div>
         <div className="mob-workload-row">
           {workloadForecast.map((day) => (
             <div key={day.date} className={`mob-wl-day${day.isToday ? " mob-wl-today" : ""}`}>
@@ -831,79 +889,39 @@ function MobileStatus({ ctx }) {
             </div>
           ))}
         </div>
+        {weeklyReflection?.insights[0] && (
+          <p className="mob-reflect-note">{weeklyReflection.insights[0]}</p>
+        )}
       </div>
 
-      {/* This week sparkline */}
-      <div className="mob-status-card">
-        <div className="mob-status-card-top">
-          <div className="mob-status-card-title" style={{ marginBottom: 0 }}>
-            <Activity size={15} /> This Week
-          </div>
-          <span className={`mob-trend-badge mob-trend-${weekTrend}`}>
-            {weekTrend === "improving" ? <TrendingUp size={12} />
-              : weekTrend === "declining" ? <TrendingDown size={12} />
-              : <Minus size={12} />}
-            {weekTrend === "new" ? "Starting" : weekTrend.charAt(0).toUpperCase() + weekTrend.slice(1)}
-          </span>
-        </div>
-        <div className="mob-sparkline">
-          {weekData.map(({ date, done, total, rate }) => {
-            const d = new Date(date + "T00:00:00");
-            const label = ["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()];
-            const isT = date === ctx.today;
-            const h = rate != null ? Math.max(4, Math.round(rate * 44)) : 4;
-            return (
-              <div key={date} className="mob-spark-col">
-                <div className="mob-spark-bar-wrap">
-                  <div className={`mob-spark-bar${rate == null ? " empty" : ""}${isT ? " today" : ""}`}
-                    style={{ height: h }} />
-                </div>
-                <span className={`mob-spark-lbl${isT ? " today" : ""}`}>{label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Pending deferred tasks */}
-      {deferredTasks.length > 0 && (
-        <div className="mob-status-card mob-deferred-card">
-          <div className="mob-status-card-title"><RotateCcw size={15} /> Pending Focus</div>
-          <p className="mob-status-desc">
-            {deferredTasks.length === 1
-              ? "1 task still active — not failed, just waiting."
-              : `${deferredTasks.length} tasks still active — deferred, not forgotten.`}
-          </p>
-          {deferredTasks.slice(0, 3).map((t) => (
-            <div key={t.id} className={`mob-deferred-row mob-def-${t.urgency}`}>
-              <div className="mob-def-info">
-                <span className="mob-def-name">{t.title}</span>
-                <span className="mob-def-age">{t.daysDeferred}d pending</span>
-              </div>
-              <button className="mob-def-btn" onClick={() => askNORAtoReschedule(t)}>
-                <RotateCcw size={12} />
-              </button>
+      {/* § 6 How You Work Best */}
+      <div className="mob-sv2-card">
+        <div className="mob-status-card-title"><Activity size={14} /> How You Work Best</div>
+        <div className="mob-pattern-stats">
+          {[
+            { lbl: "Peak Focus", val: focusPatterns ? focusPatterns.peak.label : "—" },
+            { lbl: "Avg Session", val: adaptivePlanData?.avgDur ? `${adaptivePlanData.avgDur}m` : "—" },
+            { lbl: "Work Style", val: behaviorProfile?.work_style !== "unknown" ? behaviorProfile?.work_style?.charAt(0).toUpperCase() + behaviorProfile?.work_style?.slice(1) : "—" },
+            { lbl: "Best Day", val: adaptivePlanData?.bestDayName ?? "—" },
+          ].map(({ lbl, val }) => (
+            <div key={lbl} className="mob-pstat">
+              <span className="mob-pstat-lbl">{lbl}</span>
+              <span className="mob-pstat-val">{val}</span>
             </div>
           ))}
-          {deferredTasks.length > 1 && (
-            <button className="mob-rebalance-btn" onClick={() => {
-              const titles = deferredTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ");
-              setChatInput(`I have ${deferredTasks.length} deferred tasks: ${titles}. Help me rebalance them across this week.`);
-              setChatOpen(true);
-            }}>
-              Rebalance all with NORA
-            </button>
-          )}
         </div>
-      )}
+      </div>
 
-      {/* NORA recommendations */}
+      {/* § 7 What NORA Recommends */}
       {adaptiveRecs.length > 0 && (
-        <div className="mob-status-card">
-          <div className="mob-status-card-title"><Zap size={15} /> NORA's Read on You</div>
-          <ul className="mob-reco-list">
-            {adaptiveRecs.map((r, i) => <li key={i} className="mob-reco-item">{r}</li>)}
-          </ul>
+        <div className="mob-sv2-card mob-recs-card">
+          <div className="mob-status-card-title"><Zap size={14} /> What NORA Recommends</div>
+          {adaptiveRecs.slice(0, 3).map((r, i) => (
+            <div key={i} className="mob-rec-item">
+              <span className="mob-rec-num">{i + 1}</span>
+              <span className="mob-rec-text">{r}</span>
+            </div>
+          ))}
         </div>
       )}
 

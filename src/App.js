@@ -413,6 +413,8 @@ export default function App() {
   const [theme,          setTheme]          = useLocalStorage("nora_theme", "default");
   const [relaxation,     setRelaxation]     = useLocalStorage("nora_relaxation", 5);
   const [energy,         setEnergy]         = useLocalStorage("nora_energy", 5);
+  const [focus,          setFocus]          = useLocalStorage("nora_focus", 5);
+  const [motivation,     setMotivation]     = useLocalStorage("nora_motivation", 5);
   const [userProfile,    setUserProfile]    = useState({});
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
@@ -741,6 +743,63 @@ export default function App() {
       })
       .sort((a, b) => b.daysDeferred - a.daysDeferred);
   }, [tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── User Confidence (composite metric) ─────────────────────────
+  const userConfidence = useMemo(() => {
+    let score = 0.50;
+    if (momentum.score != null)          score += (momentum.score - 0.5) * 0.30;
+    if (momentum.state === "rising")     score += 0.08;
+    if (weekTrend === "improving")       score += 0.10;
+    else if (weekTrend === "declining")  score -= 0.10;
+    const avoidRatio = deferredTasks.length / Math.max(1, tasks.filter((t) => !t.completed).length);
+    score -= avoidRatio * 0.15;
+    score = Math.min(1, Math.max(0, score));
+    if (score >= 0.62) return { label: "High Confidence",      color: "#22c55e", level: "high" };
+    if (score >= 0.38) return { label: "Building Confidence",  color: "#f59e0b", level: "building" };
+    return               { label: "Confidence Strained",       color: "#ef4444", level: "strained" };
+  }, [momentum, weekTrend, deferredTasks, tasks]); // eslint-disable-line
+
+  // ── Assessment summary text ─────────────────────────────────────
+  const assessmentSummary = useMemo(() => {
+    if (recoveryState.level === "burnout")
+      return "You've been pushing hard for a sustained period. The priority right now is recovery, not more tasks.";
+    if (recoveryState.level === "recovery")
+      return "Your system is signalling a need to slow down. A lighter approach today will pay off more than pushing through.";
+    if (momentum.state === "overloaded")
+      return "Your workload has exceeded your baseline for several days. Some redistribution would relieve the pressure.";
+    if (momentum.state === "rising" && weekTrend === "improving")
+      return "Momentum is building and the week is trending up — you're in a solid rhythm. Keep the pace without overloading.";
+    if (momentum.state === "rising")
+      return "Things are clicking. Completion is improving and consistency is building.";
+    if (weekTrend === "declining" && deferredTasks.length > 2)
+      return `${deferredTasks.length} tasks have slipped and the week is trending down. Rebalancing would help.`;
+    if (weekTrend === "declining")
+      return "The week has been rough, but there's still time to recover. Small consistent actions outperform big catch-up sessions.";
+    if (weekTrend === "improving")
+      return "You're recovering well from any recent pressure. Steady, balanced progress looks good ahead.";
+    if (momentum.state === "stable")
+      return "You're in a consistent rhythm. A reliable week ahead with no major red flags.";
+    return "NORA is still building your profile. Keep logging completions — patterns emerge quickly.";
+  }, [recoveryState, momentum, weekTrend, deferredTasks]); // eslint-disable-line
+
+  // ── 3 key signals for assessment card ──────────────────────────
+  const keySignals = useMemo(() => {
+    const s = [];
+    if (energy >= 7)          s.push("Energy is high");
+    else if (energy <= 3)     s.push("Energy is low — protect your rest");
+    else                      s.push("Energy is moderate");
+    if (recoveryState.level === "stable") s.push("No burnout risk detected");
+    else if (recoveryState.level === "burnout" || recoveryState.level === "recovery")
+      s.push("Recovery needed — workload has been unsustainably high");
+    else s.push("Mild overload signs — watch the next few days");
+    const peak = workloadForecast.reduce((a, b) => (a.load > b.load ? a : b), workloadForecast[0]);
+    if (peak && peak.level !== "free" && peak.level !== "light")
+      s.push(`${peak.label} currently has the highest workload`);
+    else if (deferredTasks.length > 0)
+      s.push(`${deferredTasks.length} deferred task${deferredTasks.length > 1 ? "s" : ""} still waiting`);
+    else s.push("Schedule is well-balanced this week");
+    return s.slice(0, 3);
+  }, [energy, recoveryState, workloadForecast, deferredTasks]); // eslint-disable-line
 
   const noraState = useMemo(() => {
     const todayForecast   = workloadForecast[0];
@@ -1278,7 +1337,8 @@ Cognitive load (today): ${workloadForecast[0]?.weightedLoad ?? 0} pts · Baselin
 ${prefsBlock}
 ━━━ CURRENT WELLNESS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Relaxation ${relaxation}/10 · Energy ${energy}/10
+Energy ${energy}/10 · Stress relief ${relaxation}/10 · Focus ${focus}/10 · Motivation ${motivation}/10
+Confidence: ${userConfidence.label}
 → ${
     relaxation <= 2 && energy <= 2
       ? "Severely stressed and exhausted. Lead with empathy — 1 sentence. Don't add tasks. Offer to lighten the day."
@@ -1722,6 +1782,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
       microStartMode, setMicroStartMode,
       rescheduleTask, setRescheduleTask, saveReschedule,
+      focus, setFocus, motivation, setMotivation,
+      userConfidence, assessmentSummary, keySignals,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
@@ -2476,260 +2538,230 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {/* ── Notes view ── */}
           {/* ── Status view ── */}
           {view === "status" && (() => {
-            const relaxLabel  = relaxation <= 3 ? "Stressed" : relaxation <= 6 ? "Moderate" : relaxation <= 8 ? "Relaxed" : "Very relaxed";
-            const energyLabel = energy     <= 3 ? "Exhausted" : energy <= 6 ? "Moderate" : energy <= 8 ? "Energized" : "Very energized";
-            const insightText = (() => {
-              if (relaxation <= 3 && energy <= 3) return "You're running on empty. Take a proper break before continuing — even 10 minutes resets focus significantly.";
-              if (relaxation <= 3)  return "Stress is elevated. Try completing one small, easy task to build momentum, then step away briefly.";
-              if (energy <= 3)      return `Energy is low. Focus on just your top ${Math.min(2, totalToday - doneToday)} remaining tasks today and defer the rest.`;
-              if (relaxation >= 7 && energy >= 7) return `You're in peak state${pct >= 60 ? " and already making solid progress" : ""}. This is ideal for your hardest, most important tasks.`;
-              if (pct >= 70)        return "Great progress today. Keep your rhythm and avoid overloading your afternoon.";
-              if (totalToday - doneToday > 0) return `You have ${totalToday - doneToday} task${totalToday - doneToday > 1 ? "s" : ""} left today. Start with the most important one.`;
-              return "No tasks scheduled today. Open NORA chat to plan your day.";
-            })();
             const maxWlLoad = Math.max(...workloadForecast.map((d) => d.load), 1);
+            const CHECKIN_DEFS = [
+              { icon: "⚡", title: "Energy",     value: energy,     set: setEnergy,
+                levels: [{e:"😴",l:"Exhausted",v:1},{e:"😕",l:"Tired",v:3},{e:"😐",l:"Okay",v:5},{e:"🙂",l:"Good",v:7},{e:"⚡",l:"High",v:9}] },
+              { icon: "🌬", title: "Stress",     value: relaxation, set: setRelaxation,
+                levels: [{e:"😰",l:"Overwhelmed",v:1},{e:"😟",l:"Stressed",v:3},{e:"😐",l:"Okay",v:5},{e:"😌",l:"Calm",v:7},{e:"✨",l:"Relaxed",v:9}] },
+              { icon: "🎯", title: "Focus",      value: focus,      set: setFocus,
+                levels: [{e:"🌀",l:"Scattered",v:1},{e:"😶",l:"Drifting",v:3},{e:"😐",l:"Okay",v:5},{e:"🎯",l:"Focused",v:7},{e:"💡",l:"Deep",v:9}] },
+              { icon: "🔥", title: "Motivation", value: motivation, set: setMotivation,
+                levels: [{e:"💤",l:"None",v:1},{e:"😴",l:"Low",v:3},{e:"😐",l:"Okay",v:5},{e:"🔥",l:"Driven",v:7},{e:"🚀",l:"Fired Up",v:9}] },
+            ];
+            const closestL = (lvls, val) => lvls.reduce((p, c) => Math.abs(c.v - val) < Math.abs(p.v - val) ? c : p);
             return (
-              <div className="status-view">
+              <div className="status-view-v2">
 
-                {/* ── Momentum ── */}
-                <div className="status-card momentum-card">
-                  <div className="status-card-title"><Brain size={15} /> Momentum</div>
-                  <div className="momentum-state-row">
-                    <span className="momentum-dot" style={{ background: momentum.color }} />
-                    <span className="momentum-label" style={{ color: momentum.color }}>{momentum.label}</span>
+              <div className="sv2-grid">
+
+                {/* ── § 1 Assessment (hero) ── */}
+                <div className="sv2-card sv2-assessment sv2-left">
+                  <div className="sv2-assess-header">
+                    <div className="sv2-state-row">
+                      <span className="sv2-state-dot" style={{ background: noraState.color }} />
+                      <span className="sv2-state-label" style={{ color: noraState.color }}>{noraState.label}</span>
+                    </div>
+                    <span className={`sv2-confidence sv2-conf-${userConfidence.level}`} style={{ color: userConfidence.color }}>
+                      {userConfidence.label}
+                    </span>
                   </div>
-                  <p className="momentum-desc">{momentum.desc}</p>
-                  {momentum.score != null && (
-                    <div className="momentum-score-row">
-                      <div className="momentum-score-bg">
-                        <div className="momentum-score-fill" style={{ width: `${Math.round(momentum.score * 100)}%`, background: momentum.color }} />
-                      </div>
-                      <span className="momentum-score-pct">{Math.round(momentum.score * 100)}% avg</span>
+                  <p className="sv2-summary">{assessmentSummary}</p>
+                  <div className="sv2-signals">
+                    {keySignals.map((s, i) => (
+                      <div key={i} className="sv2-signal"><span className="sv2-signal-dot" />{s}</div>
+                    ))}
+                  </div>
+                  {adaptiveRecs[0] && (
+                    <div className="sv2-assess-rec">
+                      <span className="sv2-rec-lbl">NORA suggests:</span> {adaptiveRecs[0]}
                     </div>
                   )}
                 </div>
 
-                {/* ── Recovery state ── */}
-                {recoveryState.level !== "stable" && (
-                  <div className={`status-card recovery-card recovery-${recoveryState.level}`}>
-                    <div className="status-card-title"><AlertTriangle size={15} /> Recovery Signal</div>
-                    <div className="recovery-level-row">
-                      <span className="recovery-dot" style={{ background: recoveryState.color }} />
-                      <span className="recovery-label" style={{ color: recoveryState.color }}>{recoveryState.label}</span>
-                    </div>
-                    <p className="recovery-desc">{recoveryState.desc}</p>
-                    {recoveryState.advice && (
-                      <div className="recovery-advice">
-                        <span className="recovery-advice-label">What helps:</span>
-                        {recoveryState.advice}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Pending Focus (deferred tasks) ── */}
-                {deferredTasks.length > 0 && (
-                  <div className="status-card deferred-card">
-                    <div className="status-card-title"><RotateCcw size={15} /> Pending Focus</div>
-                    <p className="deferred-intro">
-                      {deferredTasks.length === 1
-                        ? "1 task is still active — not failed, just waiting for the right moment."
-                        : `${deferredTasks.length} tasks are still active — deferred, not forgotten.`}
-                    </p>
-                    <div className="deferred-list">
-                      {deferredTasks.slice(0, 4).map((t) => (
-                        <div key={t.id} className={`deferred-task-row deferred-${t.urgency}`}>
-                          <div className="deferred-task-info">
-                            <span className="deferred-task-name">{t.title}</span>
-                            <span className="deferred-task-age">{t.daysDeferred}d pending</span>
-                          </div>
-                          <button
-                            className="reschedule-btn"
-                            onClick={() => askNORAtoReschedule(t)}>
-                            <RotateCcw size={10} /> Reschedule
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    {deferredTasks.length > 1 && (
-                      <button
-                        className="rebalance-all-btn"
-                        onClick={() => {
-                          const titles = deferredTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ");
-                          setChatInput(`I have ${deferredTasks.length} deferred tasks: ${titles}. Can you help me rebalance them across this week based on my current load?`);
-                          setChatOpen(true);
-                        }}>
-                        Rebalance all with NORA
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Workload forecast ── */}
-                <div className="status-card">
-                  <div className="status-card-title"><BarChart2 size={15} /> Week Ahead</div>
-                  <div className="workload-row">
-                    {workloadForecast.map((day) => (
-                      <div key={day.date} className={`workload-day${day.isToday ? " wl-today" : ""}`}>
-                        <div className="wl-bar-wrap">
-                          <div className={`wl-bar wl-${day.level}`}
-                            style={{ height: `${Math.max(4, Math.round((day.load / maxWlLoad) * 100))}%` }}
-                            title={`${day.load} task${day.load !== 1 ? "s" : ""}${day.mins ? `, ${Math.round(day.mins / 60)}h` : ""}`} />
-                        </div>
-                        <span className="wl-label">{day.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {(() => {
-                    const heavy = workloadForecast.filter((d) => d.level === "heavy");
-                    return <p className="workload-note">{heavy.length > 0 ? `${heavy.map((d) => d.label).join(", ")} ${heavy.length === 1 ? "looks" : "look"} overloaded.` : workloadForecast.some((d) => d.level !== "free") ? "This week looks manageable — good pacing." : "Light week ahead."}</p>;
-                  })()}
-                </div>
-
-                {/* ── Wellness ── */}
-                <div className="status-card">
-                  <div className="status-card-title"><Wind size={15} /> How are you feeling?</div>
-                  <div className="wellness-row">
-                    <div className="wellness-label-row">
-                      <span className="wellness-name">Relaxation</span>
-                      <span className="wellness-value">{relaxation}<span className="wellness-denom">/10</span></span>
-                    </div>
-                    <span className="wellness-desc">{relaxLabel}</span>
-                    <input type="range" className="wellness-slider" min={0} max={10} step={1}
-                      value={relaxation} onChange={(e) => setRelaxation(Number(e.target.value))} />
-                    <div className="slider-ends"><span>Stressed</span><span>Relaxed</span></div>
-                  </div>
-                  <div className="wellness-row">
-                    <div className="wellness-label-row">
-                      <span className="wellness-name">Energy</span>
-                      <span className="wellness-value energy-val">{energy}<span className="wellness-denom">/10</span></span>
-                    </div>
-                    <span className="wellness-desc">{energyLabel}</span>
-                    <input type="range" className="wellness-slider energy-slider" min={0} max={10} step={1}
-                      value={energy} onChange={(e) => setEnergy(Number(e.target.value))} />
-                    <div className="slider-ends"><span>Exhausted</span><span>Energized</span></div>
-                  </div>
-                </div>
-
-                {/* ── Today's progress ── */}
-                <div className="status-card">
-                  <div className="status-card-title"><Check size={15} /> Today's Progress</div>
-                  <div className="status-stats-row">
-                    <div className="status-stat">
-                      <span className="status-stat-value">{doneToday}</span>
-                      <span className="status-stat-label">Done</span>
-                    </div>
-                    <div className="status-stat">
-                      <span className="status-stat-value">{Math.max(0, totalToday - doneToday)}</span>
-                      <span className="status-stat-label">Pending</span>
-                    </div>
-                    <div className="status-stat">
-                      <span className="status-stat-value">{pct}%</span>
-                      <span className="status-stat-label">Complete</span>
-                    </div>
-                  </div>
-                  {totalToday > 0
-                    ? <div className="status-progress-bg"><div className="status-progress-fill" style={{ width: `${pct}%` }} /></div>
-                    : <p className="status-empty-note">No tasks scheduled for today.</p>
-                  }
-                </div>
-
-                {/* ── Most avoided + micro-start ── */}
-                {mostAvoided && (
-                  <div className="status-card avoided-card">
-                    <div className="status-card-title"><Target size={15} /> Most Avoided Task</div>
-                    <div className="avoided-task-name">{mostAvoided.task.title}</div>
-                    <div className="avoided-meta">
-                      {mostAvoided.daysOverdue} day{mostAvoided.daysOverdue !== 1 ? "s" : ""} overdue
-                      {mostAvoided.count > 1 ? ` · ${mostAvoided.count} tasks waiting` : ""}
-                    </div>
-                    <div className="micro-start-label"><Lightbulb size={12} /> Start with just one of these:</div>
-                    <ul className="micro-start-list">
-                      {mostAvoided.microStarts.map((s, i) => (
-                        <li key={i} className="micro-start-item">{s}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* ── Focus patterns ── */}
-                {focusPatterns && (
-                  <div className="status-card">
-                    <div className="status-card-title"><Activity size={15} /> Focus Patterns</div>
-                    <div className="focus-bands">
-                      {focusPatterns.bands.map((b) => (
-                        <div key={b.key} className={`focus-band${b.key === focusPatterns.peak.key ? " focus-peak" : ""}`}>
-                          <span className="focus-band-label">{b.label}</span>
-                          <div className="focus-band-bar-wrap">
-                            <div className="focus-band-fill" style={{ width: `${focusPatterns.total > 0 ? Math.round((b.count / focusPatterns.total) * 100) : 0}%` }} />
-                          </div>
-                          <span className="focus-band-pct">{focusPatterns.total > 0 ? Math.round((b.count / focusPatterns.total) * 100) : 0}%</span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="focus-peak-note">Peak: {focusPatterns.peak.label} ({focusPatterns.peak.range}) — {focusPatterns.peakPct}% of your completed work</p>
-                  </div>
-                )}
-
-                {/* ── This week sparkline ── */}
-                <div className="status-card">
-                  <div className="status-card-title-row">
-                    <div className="status-card-title" style={{ marginBottom: 0 }}><Activity size={15} /> This Week</div>
-                    <span className={`trend-badge trend-${weekTrend}`}>
-                      {weekTrend === "improving" ? <TrendingUp size={12} />
-                        : weekTrend === "declining" ? <TrendingDown size={12} />
-                        : <Minus size={12} />}
-                      {weekTrend === "new" ? "Getting started" : weekTrend.charAt(0).toUpperCase() + weekTrend.slice(1)}
-                    </span>
-                  </div>
-                  <div className="sparkline">
-                    {weekData.map(({ date, done, total, rate }) => {
-                      const d = new Date(date + "T00:00:00");
-                      const label = ["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()];
-                      const isToday = date === today;
-                      const barH = rate !== null ? Math.max(5, Math.round(rate * 48)) : 5;
+                {/* ── § 2 Daily Check-In ── */}
+                <div className="sv2-card sv2-checkin sv2-right">
+                  <div className="sv2-card-title"><Wind size={14} /> Daily Check-In</div>
+                  <div className="sv2-checkin-grid">
+                    {CHECKIN_DEFS.map(({ icon, title, value, set, levels }) => {
+                      const active = closestL(levels, value);
                       return (
-                        <div key={date} className="spark-col">
-                          <div className="spark-bar-wrap">
-                            <div
-                              className={`spark-bar${rate === null ? " spark-empty" : ""}${isToday ? " spark-today" : ""}`}
-                              style={{ height: `${barH}px` }}
-                              title={total ? `${done}/${total} done` : "No tasks"} />
+                        <div key={title} className="sv2-check-card">
+                          <div className="sv2-check-header">
+                            <span className="sv2-check-icon">{icon}</span>
+                            <span className="sv2-check-title">{title}</span>
+                            <span className="sv2-check-current">{active.l}</span>
                           </div>
-                          <span className={`spark-label${isToday ? " today" : ""}`}>{label}</span>
+                          <div className="sv2-check-levels">
+                            {levels.map((lvl) => (
+                              <button key={lvl.v}
+                                className={`sv2-lvl${lvl.v === active.v ? " active" : ""}`}
+                                onClick={() => set(lvl.v)}>
+                                <span className="sv2-lvl-emoji">{lvl.e}</span>
+                                <span className="sv2-lvl-label">{lvl.l}</span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* ── Weekly reflection ── */}
-                {weeklyReflection && (
-                  <div className="status-card reflection-card">
-                    <div className="status-card-title"><RotateCcw size={15} /> This Week's Patterns</div>
-                    <ul className="reflection-list">
-                      {weeklyReflection.insights.map((ins, i) => (
-                        <li key={i} className={`reflection-item${i === 0 ? " reflection-lead" : ""}`}>{ins}</li>
-                      ))}
-                    </ul>
+                {/* ── § 3 Today's Reality ── */}
+                <div className="sv2-card sv2-today sv2-left">
+                  <div className="sv2-card-title"><CalendarDays size={14} /> Today's Reality</div>
+                  <div className="sv2-reality-row">
+                    {[
+                      { val: doneToday,                          lbl: "Completed", color: "#22c55e" },
+                      { val: Math.max(0, totalToday - doneToday), lbl: "Remaining", color: "var(--text)" },
+                      { val: deferredTasks.length,               lbl: "Deferred",  color: deferredTasks.length > 0 ? "#f97316" : "var(--text)" },
+                      { val: workloadForecast[0]?.level ?? "—",  lbl: "Load",      color: workloadForecast[0]?.level === "heavy" ? "#ef4444" : workloadForecast[0]?.level === "moderate" ? "#f97316" : "#22c55e" },
+                    ].map(({ val, lbl, color }) => (
+                      <div key={lbl} className="sv2-reality-stat">
+                        <span className="sv2-rstat-val" style={{ color }}>{val}</span>
+                        <span className="sv2-rstat-lbl">{lbl}</span>
+                      </div>
+                    ))}
                   </div>
-                )}
-
-                {/* ── Adaptive recommendations ── */}
-                {adaptiveRecs.length > 0 && (
-                  <div className="status-card reco-card">
-                    <div className="status-card-title"><Lightbulb size={15} /> What NORA Sees</div>
-                    <ul className="reco-list">
-                      {adaptiveRecs.map((r, i) => <li key={i} className="reco-item">{r}</li>)}
-                    </ul>
-                  </div>
-                )}
-
-                {/* ── NORA's insight ── */}
-                <div className="status-card status-insight">
-                  <div className="status-card-title"><Zap size={15} /> NORA's read on you</div>
-                  <p className="insight-text">{insightText}</p>
+                  {totalToday > 0 && (
+                    <div className="sv2-today-bar-bg">
+                      <div className="sv2-today-bar-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                  )}
                 </div>
+
+                {/* ── § 4 Needs Attention ── */}
+                <div className="sv2-card sv2-attention sv2-right">
+                  <div className="sv2-card-title"><AlertTriangle size={14} /> Needs Attention</div>
+                  {recoveryState.level !== "stable" && (
+                    <div className={`sv2-recovery-alert sv2-rec-${recoveryState.level}`} style={{ borderLeftColor: recoveryState.color }}>
+                      <span className="sv2-rec-name" style={{ color: recoveryState.color }}>{recoveryState.label}</span>
+                      <p className="sv2-rec-desc">{recoveryState.desc}</p>
+                      {recoveryState.advice && <p className="sv2-rec-advice">{recoveryState.advice}</p>}
+                    </div>
+                  )}
+                  {predictiveSignals.filter((s) => s.confidence === "HIGH").map((s, i) => (
+                    <div key={i} className="sv2-psignal"><Zap size={11} /> {s.message}</div>
+                  ))}
+                  {mostAvoided && (
+                    <div className="sv2-attention-item sv2-avoided">
+                      <div className="sv2-attn-info">
+                        <span className="sv2-attn-name">{mostAvoided.task.title}</span>
+                        <span className="sv2-attn-age">Deferred {mostAvoided.daysOverdue}d</span>
+                      </div>
+                      <p className="sv2-attn-note">"{mostAvoided.daysOverdue >= 5 ? "This is becoming avoidance, not scheduling." : "A 5-minute start breaks the loop."}"</p>
+                      <div className="sv2-attn-btns">
+                        <button className="sv2-attn-btn" onClick={() => setRescheduleTask(mostAvoided.task)}><CalendarDays size={11} /> Move</button>
+                        <button className="sv2-attn-btn sv2-attn-micro" onClick={() => { setChatInput(`Help me micro-start "${mostAvoided.task.title}"`); setChatOpen(true); }}><Zap size={11} /> Micro Start</button>
+                      </div>
+                    </div>
+                  )}
+                  {deferredTasks.filter((t) => t.id !== mostAvoided?.task?.id).slice(0, 3).map((t) => (
+                    <div key={t.id} className={`sv2-attention-item sv2-def-${t.urgency}`}>
+                      <div className="sv2-attn-info">
+                        <span className="sv2-attn-name">{t.title}</span>
+                        <span className="sv2-attn-age">{t.daysDeferred}d pending</span>
+                      </div>
+                      <button className="sv2-attn-btn" onClick={() => setRescheduleTask(t)}><CalendarDays size={11} /> Move</button>
+                    </div>
+                  ))}
+                  {recoveryState.level === "stable" && deferredTasks.length === 0 && predictiveSignals.filter((s) => s.confidence === "HIGH").length === 0 && (
+                    <p className="sv2-all-clear">✓ Nothing urgent right now.</p>
+                  )}
+                  {deferredTasks.length > 1 && (
+                    <button className="sv2-rebalance-btn" onClick={() => {
+                      const titles = deferredTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ");
+                      setChatInput(`I have ${deferredTasks.length} deferred tasks: ${titles}. Rebalance across this week based on my load.`);
+                      setChatOpen(true);
+                    }}>Rebalance all with NORA</button>
+                  )}
+                </div>
+
+                {/* ── § 5 Week Outlook ── */}
+                <div className="sv2-card sv2-week sv2-left">
+                  <div className="sv2-card-title-row">
+                    <div className="sv2-card-title" style={{ marginBottom: 0 }}><BarChart2 size={14} /> Week Outlook</div>
+                    <span className={`trend-badge trend-${weekTrend}`}>
+                      {weekTrend === "improving" ? <TrendingUp size={12} /> : weekTrend === "declining" ? <TrendingDown size={12} /> : <Minus size={12} />}
+                      {weekTrend === "new" ? "Starting" : weekTrend.charAt(0).toUpperCase() + weekTrend.slice(1)}
+                    </span>
+                  </div>
+                  <div className="sv2-outlook-chart">
+                    {workloadForecast.map((day) => (
+                      <div key={day.date} className={`sv2-out-day${day.isToday ? " today" : ""}`}>
+                        <div className="sv2-out-bar-wrap">
+                          <div className={`sv2-out-bar wl-${day.level}`} style={{ height: `${Math.max(4, Math.round((day.load / maxWlLoad) * 64))}px` }} />
+                        </div>
+                        <span className="sv2-out-lbl">{day.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="sv2-outlook-note">{
+                    (() => {
+                      const heavy = workloadForecast.filter((d) => d.level === "heavy");
+                      return heavy.length > 0
+                        ? `Heavy work concentrated on ${heavy.map((d) => d.label).join(" and ")}.`
+                        : workloadForecast.some((d) => d.level !== "free")
+                        ? "This week looks manageable — good pacing."
+                        : "Light week ahead.";
+                    })()
+                  }</p>
+                  {weeklyReflection?.insights[0] && (
+                    <p className="sv2-reflect-note">{weeklyReflection.insights[0]}</p>
+                  )}
+                </div>
+
+                {/* ── § 6 How You Work Best ── */}
+                <div className="sv2-card sv2-patterns sv2-right">
+                  <div className="sv2-card-title"><Activity size={14} /> How You Work Best</div>
+                  <div className="sv2-pattern-stats">
+                    {[
+                      { lbl: "Peak Focus",    val: focusPatterns ? `${focusPatterns.peak.label}` : "—" },
+                      { lbl: "Avg Session",   val: adaptivePlanData?.avgDur ? `${adaptivePlanData.avgDur} min` : "—" },
+                      { lbl: "Work Style",    val: behaviorProfile.work_style !== "unknown" ? behaviorProfile.work_style.charAt(0).toUpperCase() + behaviorProfile.work_style.slice(1) : "—" },
+                      { lbl: "Best Day",      val: adaptivePlanData?.bestDayName ?? "—" },
+                    ].map(({ lbl, val }) => (
+                      <div key={lbl} className="sv2-pstat">
+                        <span className="sv2-pstat-lbl">{lbl}</span>
+                        <span className="sv2-pstat-val">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {focusPatterns && (
+                    <div className="sv2-focus-bands">
+                      {focusPatterns.bands.map((b) => (
+                        <div key={b.key} className={`sv2-fband${b.key === focusPatterns.peak.key ? " peak" : ""}`}>
+                          <span className="sv2-fband-lbl">{b.label}</span>
+                          <div className="sv2-fband-bg">
+                            <div className="sv2-fband-fill" style={{ width: `${focusPatterns.total > 0 ? Math.round((b.count / focusPatterns.total) * 100) : 0}%` }} />
+                          </div>
+                          <span className="sv2-fband-pct">{focusPatterns.total > 0 ? Math.round((b.count / focusPatterns.total) * 100) : 0}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {behaviorProfile.completion_consistency != null && (
+                    <p className="sv2-pattern-note">{behaviorProfile.completion_consistency}% completion · {behaviorProfile.sampleSize} tasks sampled</p>
+                  )}
+                </div>
+
+                {/* ── § 7 What NORA Recommends ── */}
+                {adaptiveRecs.length > 0 && (
+                  <div className="sv2-card sv2-recs sv2-full">
+                    <div className="sv2-card-title"><Lightbulb size={14} /> What NORA Recommends</div>
+                    <div className="sv2-recs-list">
+                      {adaptiveRecs.slice(0, 3).map((r, i) => (
+                        <div key={i} className="sv2-rec-item">
+                          <span className="sv2-rec-num">{i + 1}</span>
+                          <span className="sv2-rec-text">{r}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </div>
 
               </div>
             );
