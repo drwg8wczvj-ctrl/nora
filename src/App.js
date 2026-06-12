@@ -71,15 +71,11 @@ const CHAT_SUGGESTIONS = [
   "What's the best time for deep work today?",
 ];
 
-const getChatSuggestion = (input) => {
-  if (!input || input.trim().length < 3) return "";
-  const lc = input.toLowerCase();
-  for (const s of CHAT_SUGGESTIONS) {
-    if (s.toLowerCase().startsWith(lc) && s.length > input.length) {
-      return s.slice(input.length);
-    }
-  }
-  return "";
+const getChatSuggestions = (input) => {
+  const t = input?.trim() ?? "";
+  if (t.length < 2) return [];
+  const lc = t.toLowerCase();
+  return CHAT_SUGGESTIONS.filter((s) => s.toLowerCase().startsWith(lc)).slice(0, 3);
 };
 
 // ── Helpers ────────────────────────────────────────────
@@ -424,7 +420,7 @@ export default function App() {
   const [chatInput,      setChatInput]      = useState("");
   const [chatLoading,    setChatLoading]    = useState(false);
   const [microStartMode,  setMicroStartMode]  = useState(false);
-  const [chatSuggestion,  setChatSuggestion]  = useState("");
+  const [chatSuggestions, setChatSuggestions] = useState([]);
   const [rescheduleTask,  setRescheduleTask]  = useState(null);
   const [inAppAlert,      setInAppAlert]      = useState(null);
   const [messages,    setMessages]    = useState([{
@@ -1772,10 +1768,10 @@ Everything else → as short as possible. If nothing notable to add, don't add i
   if (showLanding) return (
     <div className={`app landing-page${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
       <div className="landing-content">
-        <div className="landing-logo-mark">
-          <CalendarDays size={36} />
-        </div>
-        <h1 className="landing-hero-name">NORA</h1>
+        <img
+          src={dark ? "/logo-dark.png" : "/logo-light.png"}
+          className="landing-hero-logo"
+          alt="NORA" />
         <p className="landing-tagline">Your intelligent personal planner</p>
         <ul className="landing-features">
           <li><Check size={14} /> Timeline planner with drag &amp; drop</li>
@@ -1832,8 +1828,10 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       <aside className={`sidebar${sidebarOpen ? " open" : ""}`}>
         <div className="sidebar-top">
           <div className="sidebar-brand">
-            <div className="sidebar-logo"><CalendarDays size={18} /></div>
-            <span className="sidebar-app-name">NORA</span>
+            <img
+              src={dark ? "/logo-dark.png" : "/logo-light.png"}
+              className="sidebar-brand-logo"
+              alt="NORA" />
           </div>
           <button className="sidebar-close" onClick={() => setSidebarOpen(false)}><X size={18} /></button>
         </div>
@@ -2884,38 +2882,38 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {chatLoading && <div className="chat-msg assistant"><div className="chat-bubble typing"><span /><span /><span /></div></div>}
           <div ref={chatEndRef} />
         </div>
+        {chatSuggestions.length > 0 && (
+          <div className="chat-suggestions">
+            {chatSuggestions.map((s, i) => (
+              <button key={i} className="chat-chip" onClick={() => {
+                setChatInput(s); setChatSuggestions([]); chatInputRef.current?.focus();
+              }}>{s}</button>
+            ))}
+          </div>
+        )}
         <div className="chat-input-row">
           <button
             className={`chat-micro-btn${microStartMode ? " on" : ""}`}
-            onClick={() => setMicroStartMode((m) => !m)}
-            title={microStartMode ? "Micro Start: ON — click to disable" : "Micro Start: break goals into tiny first steps"}>
+            onClick={() => setMicroStartMode((m) => !m)}>
             <Zap size={14} />
+            <span className="chat-micro-label">{microStartMode ? "Active" : "Micro Start"}</span>
           </button>
           <div className="chat-input-wrap">
-            {chatSuggestion && (
-              <div className="chat-ghost" aria-hidden="true">
-                {chatInput}<span className="chat-ghost-suggest">{chatSuggestion}</span>
-              </div>
-            )}
             <textarea ref={chatInputRef} className="chat-input" value={chatInput} rows={2}
               onChange={(e) => {
                 const val = e.target.value;
                 setChatInput(val);
-                setChatSuggestion(getChatSuggestion(val));
+                setChatSuggestions(getChatSuggestions(val));
                 e.target.style.height = "auto";
                 e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
               }}
               onKeyDown={(e) => {
-                if ((e.key === "Tab" || e.key === "ArrowRight") && chatSuggestion && e.target.selectionStart === chatInput.length) {
-                  e.preventDefault();
-                  setChatInput(chatInput + chatSuggestion);
-                  setChatSuggestion("");
-                } else if (e.key === "Escape") {
-                  setChatSuggestion("");
+                if (e.key === "Escape") {
+                  setChatSuggestions([]);
                 } else if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   sendChat();
-                  setChatSuggestion("");
+                  setChatSuggestions([]);
                 }
               }}
               placeholder="Ask NORA anything…" />

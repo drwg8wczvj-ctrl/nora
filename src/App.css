@@ -162,18 +162,8 @@
   flex-shrink: 0;
 }
 .sidebar-brand { display: flex; align-items: center; gap: 10px; }
-.sidebar-logo {
-  width: 36px; height: 36px; border-radius: 10px;
-  background: var(--grad);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; flex-shrink: 0;
-  box-shadow: 0 0 18px rgba(124,58,237,0.4);
-}
-.sidebar-app-name {
-  font-size: 22px; font-weight: 900; letter-spacing: -0.5px;
-  background: var(--grad);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
+.sidebar-brand-logo {
+  height: 38px; width: auto; object-fit: contain; display: block;
 }
 .sidebar-close {
   width: 30px; height: 30px; border-radius: 8px;
@@ -915,22 +905,63 @@
   display: flex; gap: 8px; align-items: flex-end;
 }
 
-/* Micro Start icon button — inline left of textarea */
+/* Suggestion bubbles — appear above the input row */
+.chat-suggestions {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 8px 14px 2px;
+  border-top: 1px solid var(--border);
+}
+.chat-chip {
+  padding: 5px 13px; border-radius: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+  transition: all .15s;
+  animation: chipIn 0.18s cubic-bezier(0.25, 1, 0.35, 1) both;
+}
+@keyframes chipIn {
+  from { opacity: 0; transform: translateY(5px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.chat-chip:hover {
+  background: var(--accent-light);
+  border-color: rgba(124,58,237,0.35);
+  color: var(--accent);
+}
+
+/* Micro Start button — expands to show label on hover / when active */
 .chat-micro-btn {
-  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  height: 36px; border-radius: 10px; flex-shrink: 0;
   border: 1px solid var(--border); background: var(--surface-2);
   color: var(--text-muted); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all .18s;
+  display: flex; align-items: center; justify-content: center; gap: 0;
+  padding: 0 10px;
+  max-width: 36px; overflow: hidden;
+  transition: max-width 0.28s cubic-bezier(0.25,1,0.35,1),
+              gap 0.20s ease,
+              background 0.18s, border-color 0.18s, color 0.18s;
 }
-.chat-micro-btn:hover { border-color: var(--accent); color: var(--accent); }
+.chat-micro-btn:hover, .chat-micro-btn.on {
+  max-width: 130px; gap: 6px; padding: 0 12px;
+}
 .chat-micro-btn.on {
   background: rgba(34,197,94,0.12);
   border-color: rgba(34,197,94,0.40);
   color: #16a34a;
 }
+.chat-micro-btn:hover:not(.on) { border-color: var(--accent); color: var(--accent); }
+.chat-micro-label {
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  opacity: 0; max-width: 0;
+  transition: opacity 0.18s 0.06s, max-width 0.20s;
+}
+.chat-micro-btn:hover .chat-micro-label,
+.chat-micro-btn.on .chat-micro-label { opacity: 1; max-width: 90px; }
 
-/* Ghost text wrapper — holds background/border; textarea is transparent inside */
+/* Input wrapper */
 .chat-input-wrap {
   position: relative; flex: 1;
   background: var(--surface-2);
@@ -941,18 +972,6 @@
   border-color: rgba(124,58,237,0.45);
   box-shadow: 0 0 0 2px rgba(124,58,237,0.1);
 }
-
-/* Ghost div — same geometry as textarea; typed text transparent, suggestion visible */
-.chat-ghost {
-  position: absolute; inset: 0;
-  padding: 10px 13px;
-  font-size: 13px; font-family: inherit; line-height: 1.45;
-  white-space: pre-wrap; word-break: break-word;
-  pointer-events: none; color: transparent;
-  overflow: hidden; border-radius: 12px;
-}
-.chat-ghost-suggest { color: var(--text-muted); opacity: 0.55; }
-
 .chat-input {
   display: block; width: 100%; padding: 10px 13px;
   border: none; border-radius: 12px;
@@ -960,7 +979,7 @@
   font-size: 13px; font-family: inherit;
   resize: none; outline: none; line-height: 1.45;
   max-height: 160px; overflow-y: auto; min-height: 46px;
-  position: relative; z-index: 1; box-sizing: border-box;
+  box-sizing: border-box;
 }
 .chat-input::placeholder { color: var(--text-muted); font-size: 12px; }
 .chat-send {
@@ -1535,21 +1554,10 @@
   position: relative; z-index: 1;
 }
 
-.landing-logo-mark {
-  width: 72px; height: 72px; border-radius: 20px;
-  background: var(--grad);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff;
-  box-shadow: 0 0 40px rgba(124,58,237,0.5), 0 8px 32px rgba(0,0,0,.2);
+.landing-hero-logo {
+  width: 200px; height: auto; object-fit: contain; display: block;
+  filter: drop-shadow(0 0 30px rgba(124,58,237,0.35));
   margin-bottom: 4px;
-}
-
-.landing-hero-name {
-  font-size: 72px; font-weight: 900; letter-spacing: -3px; line-height: 1;
-  background: var(--grad);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 30px rgba(124,58,237,0.4));
 }
 
 .landing-tagline {
@@ -1984,17 +1992,11 @@
 }
 
 .auth-brand {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; justify-content: center;
 }
-.auth-logo {
-  width: 36px; height: 36px; border-radius: 10px;
-  background: var(--grad);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 18px; font-weight: 900; letter-spacing: -.02em;
-}
-.auth-app-name {
-  font-size: 22px; font-weight: 900; letter-spacing: -.03em;
-  background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+.auth-brand-logo {
+  height: 80px; width: auto; object-fit: contain; display: block;
+  filter: drop-shadow(0 0 20px rgba(124,58,237,0.30));
 }
 .auth-tagline {
   font-size: 13px; color: var(--text-muted); margin-top: -10px;

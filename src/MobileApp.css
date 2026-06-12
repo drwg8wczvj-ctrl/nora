@@ -663,7 +663,34 @@
   color: #16a34a;
 }
 
-/* Ghost text wrapper */
+/* Suggestion bubbles */
+.mob-chat-suggestions {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 8px 14px 2px;
+  border-top: 1px solid var(--border);
+  background: var(--header-bg);
+}
+.mob-chat-chip {
+  padding: 7px 14px; border-radius: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  max-width: 80vw; overflow: hidden; text-overflow: ellipsis;
+  animation: chipIn 0.18s cubic-bezier(0.25, 1, 0.35, 1) both;
+}
+@keyframes chipIn {
+  from { opacity: 0; transform: translateY(5px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.mob-chat-chip:active {
+  background: var(--accent-light);
+  border-color: rgba(124,58,237,0.35);
+  color: var(--accent);
+}
+
+/* Input wrapper */
 .mob-chat-input-wrap {
   position: relative; flex: 1;
   background: var(--surface);
@@ -672,23 +699,13 @@
 }
 .mob-chat-input-wrap:focus-within { border-color: var(--accent); }
 
-.mob-chat-ghost {
-  position: absolute; inset: 0;
-  padding: 12px 14px;
-  font-size: 14px; font-family: inherit; line-height: 1.4;
-  white-space: pre-wrap; word-break: break-word;
-  pointer-events: none; color: transparent;
-  overflow: hidden; border-radius: 14px;
-}
-.mob-chat-ghost-suggest { color: var(--text-muted); opacity: 0.50; }
-
 .mob-chat-input {
   display: block; width: 100%; padding: 12px 14px;
   border: none; border-radius: 14px;
   background: transparent; color: var(--text);
   font-size: 14px; resize: none; outline: none;
   font-family: inherit; max-height: 120px; min-height: 46px;
-  position: relative; z-index: 1; box-sizing: border-box;
+  box-sizing: border-box;
 }
 .mob-chat-input::placeholder { font-size: 13px; color: var(--text-muted); }
 .mob-chat-send {

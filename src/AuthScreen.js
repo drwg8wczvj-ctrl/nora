@@ -88,8 +88,10 @@ export default function AuthScreen({ dark, glass }) {
       <div className="auth-card">
 
         <div className="auth-brand">
-          <div className="auth-logo">N</div>
-          <span className="auth-app-name">NORA</span>
+          <img
+            src={dark ? "/logo-dark.png" : "/logo-light.png"}
+            className="auth-brand-logo"
+            alt="NORA" />
         </div>
         <p className="auth-tagline">Your personal productivity assistant</p>
 
