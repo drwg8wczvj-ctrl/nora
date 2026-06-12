@@ -853,12 +853,9 @@
   background: var(--grad-subtle);
 }
 .chat-header-info { display: flex; align-items: center; gap: 10px; }
-.chat-avatar {
-  width: 34px; height: 34px; border-radius: 10px;
-  background: var(--grad);
-  color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .04em;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 14px rgba(124,58,237,0.45);
+.chat-avatar-logo {
+  height: 34px; width: auto; object-fit: contain; display: block;
+  flex-shrink: 0;
 }
 .chat-title    { font-size: 14px; font-weight: 700; color: var(--text); }
 .chat-subtitle { font-size: 11px; color: var(--text-muted); }

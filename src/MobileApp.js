@@ -126,14 +126,14 @@ export default function MobileApp({ ctx }) {
 
 // ── Header ───────────────────────────────────────────────────
 function MobileHeader({ ctx }) {
-  const { today, dark } = ctx;
+  const { today } = ctx;
   const d = new Date(today + "T00:00:00");
   const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
   const dateText = `${dayName}, ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]} ${d.getDate()}`;
   return (
     <header className="mob-header">
       <img
-        src={dark ? "/logo-dark.png" : "/logo-light.png"}
+        src="/logo-light.png"
         className="mob-brand-logo"
         alt="NORA" />
       <span className="mob-header-date">{dateText}</span>
@@ -1063,7 +1063,7 @@ function MobileChat({ ctx }) {
     <div className={`mob-chat${chatOpen ? " mob-chat-open" : ""}`}>
       <div className="mob-chat-header">
         <div className="mob-chat-brand">
-          <div className="mob-chat-avatar">N</div>
+          <img src="/logo-light.png" className="mob-chat-avatar-logo" alt="NORA" />
           <div>
             <div className="mob-chat-title-text">NORA</div>
             <div className="mob-chat-sub">Your productivity assistant</div>

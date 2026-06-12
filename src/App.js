@@ -2894,7 +2894,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       <div className={`chat-panel${chatOpen ? " open" : ""}`}>
         <div className="chat-header">
           <div className="chat-header-info">
-            <div className="chat-avatar">AI</div>
+            <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="chat-avatar-logo" alt="NORA" />
             <div><div className="chat-title">NORA</div><div className="chat-subtitle">Your productivity coach</div></div>
           </div>
           <button className="chat-close" onClick={() => setChatOpen(false)}><X size={16} /></button>
