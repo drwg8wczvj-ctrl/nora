@@ -1053,6 +1053,27 @@ export default function App() {
   useEffect(() => { if (addingAt !== null) addInputRef.current?.focus(); }, [addingAt]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
+
+  // Liquid Glass pointer reactivity — tracks mouse to shift ambient light
+  useEffect(() => {
+    if (theme !== "liquid_glass") return;
+    const root = document.documentElement;
+    let raf;
+    const onMove = (e) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        root.style.setProperty("--gl-x", `${e.clientX}px`);
+        root.style.setProperty("--gl-y", `${e.clientY}px`);
+        // Subtle orb parallax: shift orbs slightly toward cursor
+        const nx = (e.clientX / window.innerWidth  - 0.5) * 24;
+        const ny = (e.clientY / window.innerHeight - 0.5) * 16;
+        root.style.setProperty("--gl-px", `${nx}px`);
+        root.style.setProperty("--gl-py", `${ny}px`);
+      });
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => { window.removeEventListener("mousemove", onMove); cancelAnimationFrame(raf); };
+  }, [theme]);
   useEffect(() => {
     const el = chatInputRef.current;
     if (!el) return;
@@ -1822,6 +1843,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
   // ── Desktop render ────────────────────────────────────
   return (
     <div className={`app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
+
+      {/* Pointer-reactive ambient light for Liquid Glass */}
+      <div className="glass-pointer-light" aria-hidden="true" />
 
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
