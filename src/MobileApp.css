@@ -32,8 +32,6 @@
 .mob-brand-logo {
   height: 36px; width: auto; object-fit: contain; display: block;
 }
-/* In dark mode the white background of logo-light.png disappears via screen blend */
-.dark .mob-brand-logo { mix-blend-mode: screen; }
 .mob-header-date {
   font-size: 12px; color: var(--text-muted); font-weight: 500;
 }
@@ -597,9 +595,6 @@
 .mob-chat-avatar-logo {
   height: 36px; width: auto; object-fit: contain; display: block;
   flex-shrink: 0;
-}
-.dark .mob-chat-avatar-logo { mix-blend-mode: screen; }
-.mob-chat-avatar-logo {
 }
 .mob-chat-title-text { font-size: 16px; font-weight: 800; color: var(--text); }
 .mob-chat-sub  { font-size: 11px; color: var(--text-muted); }

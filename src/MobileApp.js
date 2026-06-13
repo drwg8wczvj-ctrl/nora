@@ -136,14 +136,14 @@ export default function MobileApp({ ctx }) {
 
 // ── Header ───────────────────────────────────────────────────
 function MobileHeader({ ctx }) {
-  const { today } = ctx;
+  const { today, dark } = ctx;
   const d = new Date(today + "T00:00:00");
   const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
   const dateText = `${dayName}, ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]} ${d.getDate()}`;
   return (
     <header className="mob-header">
       <img
-        src="/logo-light.png"
+        src={dark ? "/logo-dark.png" : "/logo-light.png"}
         className="mob-brand-logo"
         alt="NORA" />
       <span className="mob-header-date">{dateText}</span>
@@ -1054,7 +1054,7 @@ function MobileSettings({ ctx }) {
 // ── Chat overlay ─────────────────────────────────────────────
 function MobileChat({ ctx }) {
   const { chatOpen, setChatOpen, messages, chatInput, setChatInput, chatLoading, sendChat,
-          microStartMode, setMicroStartMode } = ctx;
+          microStartMode, setMicroStartMode, dark } = ctx;
   const [chatSuggestions, setChatSuggestions] = useState([]);
   const [chatGhost,       setChatGhost]       = useState("");
   const endRef   = useRef(null);
@@ -1074,7 +1074,7 @@ function MobileChat({ ctx }) {
     <div className={`mob-chat${chatOpen ? " mob-chat-open" : ""}`}>
       <div className="mob-chat-header">
         <div className="mob-chat-brand">
-          <img src="/logo-light.png" className="mob-chat-avatar-logo" alt="NORA" />
+          <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="mob-chat-avatar-logo" alt="NORA" />
           <div>
             <div className="mob-chat-title-text">NORA</div>
             <div className="mob-chat-sub">Your productivity assistant</div>
