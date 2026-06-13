@@ -702,13 +702,26 @@
 }
 .mob-chat-input-wrap:focus-within { border-color: var(--accent); }
 
+.mob-chat-ghost {
+  position: absolute; inset: 0;
+  padding: 12px 14px;
+  font-size: 14px; font-family: inherit; line-height: 1.4;
+  white-space: pre-wrap; word-break: break-word;
+  pointer-events: none; overflow: hidden;
+  border-radius: 14px; box-sizing: border-box;
+  color: transparent;
+}
+.mob-chat-ghost-text {
+  color: var(--text-muted);
+  opacity: 0.50;
+}
 .mob-chat-input {
   display: block; width: 100%; padding: 12px 14px;
   border: none; border-radius: 14px;
   background: transparent; color: var(--text);
   font-size: 14px; resize: none; outline: none;
   font-family: inherit; max-height: 120px; min-height: 46px;
-  box-sizing: border-box;
+  position: relative; z-index: 1; box-sizing: border-box;
 }
 .mob-chat-input::placeholder { font-size: 13px; color: var(--text-muted); }
 .mob-chat-send {

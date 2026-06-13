@@ -969,6 +969,33 @@
   border-color: rgba(124,58,237,0.45);
   box-shadow: 0 0 0 2px rgba(124,58,237,0.1);
 }
+
+/* Ghost text layer — must exactly match textarea font/padding */
+.chat-ghost {
+  position: absolute; inset: 0;
+  padding: 10px 13px;
+  font-size: 13px; font-family: inherit; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word;
+  pointer-events: none; overflow: hidden;
+  border-radius: 12px; box-sizing: border-box;
+  color: transparent; /* typed text hidden — textarea shows it on top */
+}
+.chat-ghost-text {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+.chat-ghost-hint {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 5px; border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
 .chat-input {
   display: block; width: 100%; padding: 10px 13px;
   border: none; border-radius: 12px;
@@ -976,7 +1003,7 @@
   font-size: 13px; font-family: inherit;
   resize: none; outline: none; line-height: 1.45;
   max-height: 160px; overflow-y: auto; min-height: 46px;
-  box-sizing: border-box;
+  position: relative; z-index: 1; box-sizing: border-box;
 }
 .chat-input::placeholder { color: var(--text-muted); font-size: 12px; }
 .chat-send {

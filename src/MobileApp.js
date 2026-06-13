@@ -36,11 +36,21 @@ const CHAT_SUGGESTIONS = [
   "Add a break to my afternoon",
   "Help me start this task step by step",
 ];
-const getChatSuggestions = (input) => {
-  const t = input?.trim() ?? "";
-  if (t.length < 2) return [];
-  const lc = t.toLowerCase();
-  return CHAT_SUGGESTIONS.filter((s) => s.toLowerCase().startsWith(lc)).slice(0, 3);
+const getChatGhost = (input) => {
+  if (!input || input.length < 2) return "";
+  const lc = input.toLowerCase();
+  for (const s of CHAT_SUGGESTIONS) {
+    if (s.toLowerCase().startsWith(lc) && s.length > input.length) return s.slice(input.length);
+  }
+  return "";
+};
+const getChatAlternatives = (input, ghost) => {
+  if (!input || input.trim().length < 2) return [];
+  const lc = input.toLowerCase();
+  const ghostFull = input + ghost;
+  return CHAT_SUGGESTIONS
+    .filter((s) => s.toLowerCase().startsWith(lc) && s !== ghostFull && s.length > input.length)
+    .slice(0, 2);
 };
 
 const shortTitle = (title) => {
@@ -1046,6 +1056,7 @@ function MobileChat({ ctx }) {
   const { chatOpen, setChatOpen, messages, chatInput, setChatInput, chatLoading, sendChat,
           microStartMode, setMicroStartMode } = ctx;
   const [chatSuggestions, setChatSuggestions] = useState([]);
+  const [chatGhost,       setChatGhost]       = useState("");
   const endRef   = useRef(null);
   const inputRef = useRef(null);
 
@@ -1094,7 +1105,8 @@ function MobileChat({ ctx }) {
         <div className="mob-chat-suggestions">
           {chatSuggestions.map((s, i) => (
             <button key={i} className="mob-chat-chip" onClick={() => {
-              setChatInput(s); setChatSuggestions([]); inputRef.current?.focus();
+              setChatInput(s); setChatGhost(""); setChatSuggestions([]);
+              inputRef.current?.focus();
             }}>{s}</button>
           ))}
         </div>
@@ -1106,6 +1118,11 @@ function MobileChat({ ctx }) {
           <Zap size={15} />
         </button>
         <div className="mob-chat-input-wrap">
+          {chatGhost && (
+            <div className="mob-chat-ghost" aria-hidden="true">
+              {chatInput}<span className="mob-chat-ghost-text">{chatGhost}</span>
+            </div>
+          )}
           <textarea
             ref={inputRef}
             className="mob-chat-input"
@@ -1114,17 +1131,19 @@ function MobileChat({ ctx }) {
             onChange={(e) => {
               const val = e.target.value;
               setChatInput(val);
-              setChatSuggestions(getChatSuggestions(val));
+              const ghost = getChatGhost(val);
+              setChatGhost(ghost);
+              setChatSuggestions(getChatAlternatives(val, ghost));
               e.target.style.height = "auto";
               e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
             }}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
-                setChatSuggestions([]);
+                setChatGhost(""); setChatSuggestions([]);
               } else if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 sendChat();
-                setChatSuggestions([]);
+                setChatGhost(""); setChatSuggestions([]);
               }
             }}
             placeholder="Ask NORA anything…" />

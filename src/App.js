@@ -48,34 +48,87 @@ const LABEL_W = 60; // px for time label column
 
 const calcTop = (hour, minute, hh = HOUR_H) => (hour - HOURS[0]) * hh + (minute / 60) * hh;
 
-// ── Chat autocomplete suggestions ──────────────────────
+// ── Chat inline autocomplete ──────────────────────────
 const CHAT_SUGGESTIONS = [
   "Plan my day for today",
+  "Plan my week ahead",
+  "Plan my morning routine",
+  "Plan my study sessions for",
+  "Plan a productive evening",
   "What should I focus on right now?",
+  "What should I work on next?",
+  "What's my most important task today?",
+  "What can I do with 30 minutes?",
+  "What can I do with 1 hour?",
+  "What's the best time for deep work?",
+  "What's keeping me from being productive?",
   "How's my week looking?",
   "How is my workload this week?",
-  "Help me reschedule my tasks this week",
+  "How am I doing this week?",
+  "How many tasks do I have today?",
   "Help me prioritize today",
-  "Help me start this task step by step",
+  "Help me reschedule my tasks this week",
+  "Help me rebalance my schedule",
+  "Help me break down this task into steps",
+  "Help me find time for",
+  "Help me start this task",
+  "Help me plan for next week",
   "I'm feeling overwhelmed, can you help?",
   "I'm feeling stressed today",
+  "I'm having trouble focusing",
   "I have no energy today, what should I do?",
-  "Rebalance my schedule this week",
-  "Schedule my most important task for today",
-  "Move my tasks to a lighter day",
-  "What can I do with 30 minutes?",
+  "I don't know where to start",
+  "I need to prepare for",
+  "I want to be more productive",
+  "Add a task for tomorrow",
   "Add a break to my afternoon",
-  "Plan my morning routine",
+  "Move my tasks to a lighter day",
+  "Reschedule my tasks for this week",
+  "Schedule my most important task for today",
+  "Schedule a study session for",
+  "Rebalance my schedule this week",
   "Show me my workload for the week",
   "Can you prioritize my tasks for today?",
-  "What's the best time for deep work today?",
+  "Can you help me plan today?",
 ];
 
-const getChatSuggestions = (input) => {
-  const t = input?.trim() ?? "";
-  if (t.length < 2) return [];
-  const lc = t.toLowerCase();
-  return CHAT_SUGGESTIONS.filter((s) => s.toLowerCase().startsWith(lc)).slice(0, 3);
+// Returns a single inline completion (ghost text)
+const getChatGhost = (input) => {
+  if (!input || input.length < 2) return "";
+  const lc = input.toLowerCase();
+  // 1. Exact prefix match
+  for (const s of CHAT_SUGGESTIONS) {
+    if (s.toLowerCase().startsWith(lc) && s.length > input.length) {
+      return s.slice(input.length);
+    }
+  }
+  // 2. Mid-word match: typed word appears as the start of a word inside a suggestion
+  const words = lc.trim().split(/\s+/);
+  if (words.length >= 2) {
+    const lastWord = words[words.length - 1];
+    if (lastWord.length >= 2) {
+      for (const s of CHAT_SUGGESTIONS) {
+        const slc = s.toLowerCase();
+        const idx = slc.indexOf(" " + lastWord);
+        if (idx !== -1) {
+          // User has typed up to a word mid-sentence — suggest the rest
+          const fullStart = slc.lastIndexOf(lc.slice(0, lc.lastIndexOf(lastWord)).trim());
+          if (fullStart !== -1) return s.slice(input.length);
+        }
+      }
+    }
+  }
+  return "";
+};
+
+// Returns alternative suggestions (chips) — excludes the ghost suggestion
+const getChatAlternatives = (input, ghost) => {
+  if (!input || input.trim().length < 2) return [];
+  const lc = input.toLowerCase();
+  const ghostFull = input + ghost;
+  return CHAT_SUGGESTIONS
+    .filter((s) => s.toLowerCase().startsWith(lc) && s !== ghostFull && s.length > input.length)
+    .slice(0, 2);
 };
 
 // ── Helpers ────────────────────────────────────────────
@@ -421,6 +474,7 @@ export default function App() {
   const [chatLoading,    setChatLoading]    = useState(false);
   const [microStartMode,  setMicroStartMode]  = useState(false);
   const [chatSuggestions, setChatSuggestions] = useState([]);
+  const [chatGhost,       setChatGhost]       = useState("");
   const [rescheduleTask,  setRescheduleTask]  = useState(null);
   const [inAppAlert,      setInAppAlert]      = useState(null);
   const [messages,    setMessages]    = useState([{
@@ -2910,7 +2964,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           <div className="chat-suggestions">
             {chatSuggestions.map((s, i) => (
               <button key={i} className="chat-chip" onClick={() => {
-                setChatInput(s); setChatSuggestions([]); chatInputRef.current?.focus();
+                setChatInput(s); setChatGhost(""); setChatSuggestions([]);
+                chatInputRef.current?.focus();
               }}>{s}</button>
             ))}
           </div>
@@ -2923,21 +2978,43 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             <span className="chat-micro-label">{microStartMode ? "Active" : "Micro Start"}</span>
           </button>
           <div className="chat-input-wrap">
+            {chatGhost && (
+              <div className="chat-ghost" aria-hidden="true">
+                {chatInput}<span className="chat-ghost-text">{chatGhost}</span>
+                <span className="chat-ghost-hint">Tab</span>
+              </div>
+            )}
             <textarea ref={chatInputRef} className="chat-input" value={chatInput} rows={2}
               onChange={(e) => {
                 const val = e.target.value;
                 setChatInput(val);
-                setChatSuggestions(getChatSuggestions(val));
+                const ghost = getChatGhost(val);
+                setChatGhost(ghost);
+                setChatSuggestions(getChatAlternatives(val, ghost));
                 e.target.style.height = "auto";
                 e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
               }}
               onKeyDown={(e) => {
-                if (e.key === "Escape") {
+                if (e.key === "Tab" && chatGhost) {
+                  e.preventDefault();
+                  const completed = chatInput + chatGhost;
+                  setChatInput(completed);
+                  setChatGhost(getChatGhost(completed));
                   setChatSuggestions([]);
+                } else if (e.key === "ArrowRight" && chatGhost &&
+                           e.target.selectionStart === chatInput.length &&
+                           e.target.selectionEnd === chatInput.length) {
+                  e.preventDefault();
+                  const completed = chatInput + chatGhost;
+                  setChatInput(completed);
+                  setChatGhost("");
+                  setChatSuggestions([]);
+                } else if (e.key === "Escape") {
+                  setChatGhost(""); setChatSuggestions([]);
                 } else if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   sendChat();
-                  setChatSuggestions([]);
+                  setChatGhost(""); setChatSuggestions([]);
                 }
               }}
               placeholder="Ask NORA anything…" />
