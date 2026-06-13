@@ -1131,8 +1131,12 @@ export default function App() {
   useEffect(() => {
     const el = chatInputRef.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    if (!chatInput) {
+      el.style.height = "";   // remove inline height → CSS min-height takes over
+    } else {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    }
   }, [chatInput]);
   useEffect(() => { setDraft(editingTask ? { ...editingTask } : null); }, [editingTask]);
 
@@ -1563,8 +1567,44 @@ After computing the full plan but BEFORE calling any tool, run this silent check
   ✓ Recovery time exists (at least 1 break if work > 90 min)
   ✓ Deadlines respected (deadline date has no new tasks on top of it)
   ✓ Lightest available days preferred
+  ✓ TEMPORAL: every preparation task date is strictly BEFORE its target deadline date
+  ✓ CAUSAL: the schedule reads logically forward in time (no preparation after the event it prepares for)
 Only after ALL checks pass: call the tools.
-If a check fails: adjust the plan, then re-validate.
+If any check fails: adjust the plan, re-validate, then commit.
+If the temporal check fails: silently recalculate — never tell the user "I had to fix the dates."
+
+━━━ TEMPORAL LOGIC — CRITICAL ━━━━━━━━━━━━━━━━━━━━━━━━
+
+Preparation tasks MUST be scheduled BEFORE their target event. Never after.
+
+SEMANTIC TRIGGERS — whenever the user says any of these phrases, a target deadline exists:
+"prepare for" / "study for" / "revise for" / "train for" / "get ready for" /
+"practice for" / "work toward" / "plan for [event]" / "get prepared for"
+
+WHEN A PREPARATION TRIGGER IS DETECTED:
+1. Scan the task list above for the matching deadline or event.
+2. Extract its date — that is the hard cutoff. No preparation task may land ON or AFTER that date.
+3. Count the available days: today → (deadline_date − 1). That is your working window.
+4. Distribute all preparation sessions within that window, working backward from the deadline.
+
+TEMPORAL VALIDATION (run before every tool call in a preparation plan):
+  CHECK 1: Does each generated task have a date strictly BEFORE the target deadline date?
+           If any task date ≥ deadline date → REJECT and recalculate.
+  CHECK 2: Is there enough time in the window to build a meaningful plan?
+           If window < 1 day → warn the user: "The deadline is today — I can only suggest a quick review."
+           If window = 1–2 days → sprint mode, be honest about limitations.
+  CHECK 3: Does the overall sequence make logical sense?
+           Foundation first → practice → consolidation → no heavy sessions the day before.
+
+EXAMPLE (today = ${today}):
+If "Austrian GP Preparation" deadline exists on June 29 and user asks to plan prep:
+  → Available window: today through June 28 (the day before).
+  → Tasks on June 29, June 30, or later = INVALID. Reject and recalculate.
+  → Correct plan lands on June 24, 25, 26, 27, 28 at most.
+
+If no matching deadline is found in the task list:
+  → Ask: "I don't see a deadline for this. When is it?"
+  → Create the deadline event first, then build the prep plan.
 
 ━━━ ITEM TYPES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1584,11 +1624,17 @@ MODE 3 — PLANNING: Activate when user mentions deadline · exam · project · 
 
 STEP 1 — INTERPRET: What is the goal? What type of prep? (academic · delivery · practice · physical · creative · professional)
 
-STEP 2 — COUNT DAYS from today (${today}) to deadline.
+STEP 2 — IDENTIFY THE DEADLINE DATE.
+  • Search existing tasks for a matching deadline (type:"deadline") by title similarity.
+  • If found: use its date as the hard cutoff. All prep tasks must be BEFORE that date.
+  • If not found: create the deadline event first with add_task (type:"deadline"), then plan prep.
+  • Count available days: from today (${today}) to deadline_date − 1.
   ≤ 2 days → sprint (2–3 sessions/day) · 3–6 days → 1–2/day · 7–14 days → 1/day · 15+ → milestone weeks
 
-STEP 3 — BACKWARD PLAN. Work back from deadline. Never cluster work near it.
-  Foundation ~40%: easy · Practice ~30%: medium · Consolidation ~20%: hard · Final day: light review only.
+STEP 3 — BACKWARD PLAN from (deadline_date − 1). Work toward today, never past the deadline.
+  Last prep day = deadline_date − 1 (light review only, no new material).
+  Foundation ~40%: easy · Practice ~30%: medium · Consolidation ~20%: hard.
+  The plan must start at today and end no later than deadline_date − 1. This is non-negotiable.
 
 STEP 4 — CREATE ALL TASKS (tool calls — no exceptions):
   • add_task for every session. Never list without creating.
@@ -1648,6 +1694,9 @@ ${tasks.filter((t) => !t.completed).map((t) => `"${t.title}" [${t.id.slice(0,6)}
 ✗ Verbose responses for simple actions · motivational filler · repeating the user's request
 ✗ Calling add_task for a task the user wants moved — use move_task instead
 ✗ Committing tasks without running the Rule 8 validation check
+✗ Scheduling preparation tasks ON or AFTER the deadline they prepare for
+✗ Planning prep without first identifying the target deadline date
+✗ Ignoring existing deadline tasks when computing the available prep window
 
 ━━━ HIDDEN TASK RADAR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

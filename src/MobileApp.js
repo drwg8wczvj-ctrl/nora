@@ -1070,6 +1070,15 @@ function MobileChat({ ctx }) {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, chatLoading]);
 
+  // Reset textarea height when input is cleared after send
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    if (!chatInput) {
+      el.style.height = "";   // remove inline height → CSS min-height takes over
+    }
+  }, [chatInput]);
+
   return (
     <div className={`mob-chat${chatOpen ? " mob-chat-open" : ""}`}>
       <div className="mob-chat-header">
