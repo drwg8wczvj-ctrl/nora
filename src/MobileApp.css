@@ -240,57 +240,127 @@
 .mob-nudge-bar:hover { background: rgba(245,158,11,.14); }
 .mob-nudge-bar > span { flex: 1; }
 
-/* Mini agenda */
-.mob-agenda {
-  background: var(--surface);
+/* ── Plan page controls ──────────────────────────────────── */
+.mob-plan-date-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px 4px;
+}
+.mob-date-nav-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.mob-date-nav-btn:active { background: var(--surface); }
+.mob-date-label {
+  flex: 1; text-align: center;
+  font-size: 15px; font-weight: 700; color: var(--text);
+  background: transparent; border: none; cursor: pointer;
+}
+.mob-date-label.is-today { color: var(--accent); }
+
+.mob-day-controls {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 4px 16px;
+}
+.mob-plan-filter-btn {
+  padding: 7px 14px; border-radius: 20px;
   border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 16px;
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: all .15s;
+}
+.mob-plan-filter-btn.active {
+  background: var(--accent-light); border-color: rgba(124,58,237,.35); color: var(--accent);
+}
+
+/* Filter bottom sheet */
+.mob-sheet-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.42);
+  backdrop-filter: blur(4px);
+  z-index: 80;
+  display: flex; align-items: flex-end;
+}
+.mob-sheet {
+  width: 100%;
+  background: var(--modal-bg);
+  border-radius: 22px 22px 0 0;
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.mob-sheet-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 8px;
+}
+.mob-sheet-title {
+  font-size: 16px; font-weight: 800; color: var(--text);
+}
+.mob-sheet-section {
+  padding: 8px 20px; display: flex; flex-direction: column; gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.mob-sheet-section:last-of-type { border-bottom: none; }
+
+.mob-cal-view-day-btn {
+  margin-left: auto; background: transparent; border: none;
+  font-size: 12px; font-weight: 700; color: var(--accent);
+  cursor: pointer; padding: 2px 6px;
+}
+
+/* ── Agenda — individual card items ──────────────────────── */
+.mob-agenda {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 0 16px;
 }
 .mob-agenda-item {
   display: flex; align-items: center; gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gc, var(--border));
+  border-radius: 14px;
   cursor: pointer;
-  border-left: 3px solid transparent;
-  padding-left: 8px;
-  margin-left: -8px;
-  border-radius: 0;
-  transition: background .1s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  transition: transform .12s ease, box-shadow .12s ease;
 }
-.mob-agenda-item:last-child { border-bottom: none; }
-.mob-agenda-item:active { background: var(--surface-2); }
-.mob-agenda-item.mai-done { opacity: .45; }
-.mob-agenda-item.mai-past { opacity: .6; }
-.mob-agenda-item.mai-next { border-left-color: var(--accent); }
-.mob-agenda-item.mai-break { border-left-color: #94a3b8; }
-.mob-agenda-item.mai-dl    { border-left-color: #ef4444; }
+.mob-agenda-item:active { transform: scale(0.99); box-shadow: none; }
+.mob-agenda-item.mai-done { opacity: .42; }
+.mob-agenda-item.mai-past { opacity: .58; }
+.mob-agenda-item.mai-next {
+  border-left-color: var(--accent);
+  box-shadow: 0 2px 12px rgba(124,58,237,0.18);
+}
+.mob-agenda-item.mai-break { background: var(--surface-2); }
 
 .mai-time-col {
   display: flex; flex-direction: column; align-items: flex-end;
-  min-width: 54px; gap: 1px;
+  min-width: 52px; gap: 2px; flex-shrink: 0;
 }
 .mai-time {
   font-size: 12px; font-weight: 700;
   font-variant-numeric: tabular-nums; color: var(--text);
 }
-.mai-dur { font-size: 10.5px; color: var(--text-muted); }
+.mai-dur { font-size: 10px; color: var(--text-muted); font-weight: 500; }
 
 .mai-body {
   flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0;
 }
 .mai-title {
-  font-size: 15px; font-weight: 600; color: var(--text);
+  font-size: 14.5px; font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1;
 }
 .mai-next-tag {
-  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .05em;
   background: var(--accent-light); color: var(--accent);
   padding: 2px 7px; border-radius: 8px; flex-shrink: 0;
 }
 
 .mai-check {
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
   border: 2px solid var(--border);
   background: transparent; cursor: pointer; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
@@ -1011,37 +1081,68 @@
 }
 .mob-grid-blocks {
   position: absolute;
-  top: 0; left: 6px; right: 0; bottom: 0;
+  top: 0; left: 4px; right: 4px; bottom: 0;
 }
+
+/* Task block — clean card matching desktop quality */
 .mob-grid-block {
   position: absolute;
   left: 0; right: 0;
   border-left: 3px solid var(--accent);
-  border-radius: 0 8px 8px 0;
-  padding: 4px 8px;
+  border-radius: 2px 10px 10px 2px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left: 3px solid var(--accent);
+  padding: 6px 28px 6px 10px;
   cursor: pointer;
   overflow: hidden;
-  display: flex; align-items: flex-start; flex-direction: column; justify-content: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity .15s;
+  min-height: 32px;
 }
-.mob-grid-block.mob-gb-done { opacity: 0.45; }
+.mob-grid-block.mob-gb-done {
+  opacity: 0.40;
+}
+
+/* Break block — softer dashed style */
+.mob-grid-block.mob-gb-break {
+  border-left-style: dashed;
+  border-left-width: 2px;
+}
+
 .mob-gb-title {
-  font-size: 12px; font-weight: 600;
-  line-height: 1.3; color: var(--text);
+  font-size: 12.5px; font-weight: 700;
+  line-height: 1.25; color: var(--text);
   overflow: hidden; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  padding-right: 4px;
 }
 .mob-gb-dur {
-  font-size: 10px; color: var(--text-muted); margin-top: 1px;
+  font-size: 10px; font-weight: 500;
+  color: var(--text-muted); letter-spacing: .01em;
 }
+
+/* Completion circle — smaller, top-right */
 .mob-gb-check {
-  position: absolute; top: 4px; right: 6px;
-  width: 18px; height: 18px; border-radius: 50%;
-  border: 1.5px solid var(--border);
-  background: var(--surface); cursor: pointer;
+  position: absolute; top: 6px; right: 8px;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08);
+  cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   color: #fff;
+  flex-shrink: 0;
 }
-.mob-gb-check.checked { background: #22c55e; border-color: #22c55e; }
+.mob-gb-check.checked {
+  background: #22c55e;
+  border-color: #22c55e;
+  box-shadow: 0 0 8px rgba(34,197,94,0.5);
+}
 
 /* ── Month / Calendar ─────────────────────────────────────────── */
 .mob-month-view { display: flex; flex-direction: column; padding-bottom: 24px; }
@@ -1149,6 +1250,24 @@
 }
 .mob-sett-avatar-info { display: flex; flex-direction: column; gap: 2px; }
 .mob-sett-display-name { font-size: 16px; font-weight: 700; color: var(--text); }
+
+/* Mobile inline name editor */
+.mob-name-editor-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mob-name-input {
+  flex: 1; min-width: 0; padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-2); color: var(--text);
+  font-size: 14px; font-family: inherit; outline: none;
+}
+.mob-name-input:focus { border-color: var(--accent); }
+.mob-name-confirm, .mob-name-cancel, .mob-name-pencil {
+  width: 30px; height: 30px; border-radius: 8px; border: none;
+  background: transparent; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+}
+.mob-name-confirm { color: #22c55e; background: rgba(34,197,94,.10); }
+.mob-name-pencil { opacity: 0.55; }
 .mob-sett-email-sm { font-size: 12px; color: var(--text-muted); }
 .mob-sett-label {
   display: block; font-size: 12px; color: var(--text-muted);
@@ -1275,6 +1394,48 @@
   padding: 0 20px 14px;
   font-size: 15px; font-weight: 700; color: var(--accent);
   border-bottom: 1px solid var(--border);
+}
+
+/* ── Mobile task filters ─────────────────────────────────── */
+.mob-filter-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px 4px;
+}
+.mob-filter-toggle {
+  display: flex; align-items: center; gap: 5px;
+  padding: 7px 14px; border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+.mob-filter-toggle.active { border-color: var(--accent); color: var(--accent); }
+.mob-filter-toggle.has-active { background: var(--accent-light); }
+.mob-filter-clear {
+  font-size: 12px; font-weight: 600; color: var(--accent);
+  background: transparent; border: none; cursor: pointer; padding: 4px 8px;
+}
+.mob-filters-panel {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 10px 16px 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.mob-filter-section { display: flex; flex-direction: column; gap: 6px; }
+.mob-filter-lbl { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.mob-filter-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.mob-filter-pill {
+  padding: 5px 12px; border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  display: flex; align-items: center; gap: 3px;
+  transition: all .12s;
+}
+.mob-filter-pill.active {
+  background: var(--accent-light);
+  border-color: rgba(124,58,237,.35);
+  color: var(--accent);
 }
 
 /* ── Task view day grouping ───────────────────────────────── */

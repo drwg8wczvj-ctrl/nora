@@ -2224,6 +2224,34 @@
   font-size: 14px; font-weight: 600; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* Inline name editor */
+.name-editor-row {
+  display: flex; align-items: center; gap: 5px; min-width: 0;
+}
+.name-editor-input {
+  flex: 1; min-width: 0; padding: 3px 8px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface-2); color: var(--text);
+  font-size: 13px; font-family: inherit; outline: none;
+  transition: border-color .15s;
+}
+.name-editor-input:focus { border-color: var(--accent); }
+.name-editor-confirm, .name-editor-cancel, .name-editor-pencil {
+  width: 24px; height: 24px; border-radius: 6px; border: none;
+  background: transparent; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); transition: background .12s, color .12s;
+}
+.name-editor-confirm { color: #22c55e; }
+.name-editor-confirm:hover { background: rgba(34,197,94,.12); }
+.name-editor-cancel { color: var(--text-muted); }
+.name-editor-cancel:hover { background: var(--surface-2); }
+.name-editor-pencil { opacity: 0.55; }
+.name-editor-pencil:hover { opacity: 1; color: var(--accent); }
+
+/* Password reset card */
+.pw-reset-card { max-width: 380px; }
 .acc-email {
   font-size: 11px; color: var(--text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

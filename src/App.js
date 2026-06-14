@@ -407,16 +407,18 @@ function useLocalStorage(key, initial) {
 
 // ── App ────────────────────────────────────────────────
 export default function App() {
-  const [session,     setSession]     = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [session,            setSession]            = useState(null);
+  const [authLoading,        setAuthLoading]        = useState(true);
+  const [isResettingPw,      setIsResettingPw]      = useState(false);
   const isMobile = useMobile();
 
   useEffect(() => {
     supabase.auth.getSession()
       .then(({ data: { session } }) => { setSession(session); setAuthLoading(false); })
       .catch(() => setAuthLoading(false));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session); setAuthLoading(false);
+      if (event === "PASSWORD_RECOVERY") setIsResettingPw(true);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -451,8 +453,14 @@ export default function App() {
         loadRecentChatMessages(),
         getUserPreferences(),
       ]);
+      // Only restore from Supabase if localStorage has no recent history
+      // (Supabase is a cross-device fallback, localStorage is the primary store)
       if (history.length > 0) {
-        setMessages(prev => [prev[0], ...history]);
+        const lsRaw = localStorage.getItem(CHAT_STORE_KEY);
+        const hasLocalHistory = lsRaw && JSON.parse(lsRaw)?.msgs?.length > 1;
+        if (!hasLocalHistory) {
+          setMessages([{ role: "assistant", content: NORA_GREETING }, ...history]);
+        }
       }
       setUserPrefs(prefs);
     })().catch(console.error);
@@ -513,10 +521,27 @@ export default function App() {
   const [chatGhost,       setChatGhost]       = useState("");
   const [rescheduleTask,  setRescheduleTask]  = useState(null);
   const [inAppAlert,      setInAppAlert]      = useState(null);
-  const [messages,    setMessages]    = useState([{
-    role: "assistant",
-    content: "Hi! I'm NORA, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?",
-  }]);
+
+  // ── Persistent chat history (localStorage, 24-hour TTL) ────────
+  const NORA_GREETING = "Hi! I'm NORA, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?";
+  const CHAT_STORE_KEY = "nora_chat_v2";
+  const CHAT_TTL_MS_LOCAL = 24 * 60 * 60 * 1000;
+
+  const [messages, setMessages] = useState(() => {
+    try {
+      const raw = localStorage.getItem(CHAT_STORE_KEY);
+      if (!raw) return [{ role: "assistant", content: NORA_GREETING }];
+      const { msgs, savedAt } = JSON.parse(raw);
+      if (!msgs || Date.now() - savedAt > CHAT_TTL_MS_LOCAL) {
+        localStorage.removeItem(CHAT_STORE_KEY);
+        return [{ role: "assistant", content: NORA_GREETING }];
+      }
+      return msgs.length > 0 ? msgs : [{ role: "assistant", content: NORA_GREETING }];
+    } catch {
+      return [{ role: "assistant", content: NORA_GREETING }];
+    }
+  });
+
   const [userPrefs,   setUserPrefs]   = useState({});
   const chatEndRef   = useRef(null);
   const chatInputRef = useRef(null);
@@ -1210,6 +1235,12 @@ export default function App() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
 
+  // Save chat to localStorage on every change (instant persistence across refreshes)
+  useEffect(() => {
+    if (messages.length <= 1) return; // no need to persist if only the greeting
+    localStorage.setItem(CHAT_STORE_KEY, JSON.stringify({ msgs: messages, savedAt: Date.now() }));
+  }, [messages]); // eslint-disable-line
+
   // Liquid Glass pointer reactivity — tracks mouse to shift ambient light
   useEffect(() => {
     if (theme !== "liquid_glass") return;
@@ -1741,8 +1772,11 @@ If no matching deadline is found in the task list:
 type:"task"     → work/study items. type:"deadline" → fixed external event (NOT the prep work).
 type:"break"    → intentional rest. Title naturally: "Lunch", "Short walk", "Rest".
 
-Break rules: session ≥ 90 min → auto-add 15–20 min break immediately after.
-2+ sessions today with no break → flag it and offer one. Breaks are non-optional.
+Break rules:
+• Session ≥ 90 min → ASK whether to add a 10–15 min break after it. Do NOT force it automatically. If user agrees, add a break immediately after the task ends, then cascade any later tasks.
+• 2+ sessions today with no break → flag it and offer one.
+• Break placement is STRICT: break goes immediately after task 1 ends. Task 2 goes immediately after the break ends. No gaps between task → break → task. Formula: Task2.startTime = Task1.endTime + breakDuration.
+• When user says "add a break between X and Y": move Y to Task1.endTime + breakDuration. Do not leave a gap.
 
 ━━━ AVAILABILITY CONSTRAINT MODE — MODE 4 (NON-OPTIONAL) ━
 
@@ -2122,6 +2156,10 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       <div className="auth-spinner" />
     </div>
   );
+
+  // Password reset flow — triggered when user clicks the email link
+  if (isResettingPw) return <PasswordResetForm dark={dark} glass={theme === "liquid_glass"} onDone={() => setIsResettingPw(false)} />;
+
   if (!session) return <AuthScreen dark={dark} glass={theme === "liquid_glass"} />;
 
   // ── Mobile layout ─────────────────────────────────────
@@ -2247,14 +2285,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   {(accountName?.trim()[0] ?? session?.user?.email?.[0] ?? "U").toUpperCase()}
                 </div>
                 <div className="acc-profile-info">
-                  <span className="acc-display-name">{accountName || "No name set"}</span>
+                  <NameEditor name={accountName} onSave={setAccountName} />
                   <span className="acc-email">{session?.user?.email}</span>
                 </div>
-              </div>
-              <div className="sett-field">
-                <label className="sett-field-lbl">Display Name</label>
-                <input className="sett-input" value={accountName} placeholder="Your name"
-                  onChange={(e) => setAccountName(e.target.value)} />
               </div>
               <button className="sett-signout-btn" onClick={() => supabase.auth.signOut()}>
                 Sign out
@@ -3542,6 +3575,87 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Inline Name Editor ────────────────────────────────────────────
+function NameEditor({ name, onSave }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft,   setDraft]   = React.useState(name ?? "");
+  const inputRef = React.useRef(null);
+
+  const startEdit = () => { setDraft(name ?? ""); setEditing(true); setTimeout(() => inputRef.current?.focus(), 50); };
+  const confirm   = () => { onSave(draft.trim()); setEditing(false); };
+  const cancel    = () => setEditing(false);
+
+  if (editing) return (
+    <div className="name-editor-row">
+      <input ref={inputRef} className="name-editor-input" value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") confirm(); if (e.key === "Escape") cancel(); }}
+        placeholder="Your name" />
+      <button className="name-editor-confirm" onClick={confirm} title="Save"><Check size={13} /></button>
+      <button className="name-editor-cancel"  onClick={cancel}  title="Cancel"><X size={13} /></button>
+    </div>
+  );
+
+  return (
+    <div className="name-editor-row">
+      <span className="acc-display-name">{name || "No name set"}</span>
+      <button className="name-editor-pencil" onClick={startEdit} title="Edit name"><Pencil size={12} /></button>
+    </div>
+  );
+}
+
+// ── Password Reset Form ──────────────────────────────────────────
+function PasswordResetForm({ dark, glass, onDone }) {
+  const [password,  setPassword]  = React.useState("");
+  const [password2, setPassword2] = React.useState("");
+  const [loading,   setLoading]   = React.useState(false);
+  const [error,     setError]     = React.useState("");
+  const [success,   setSuccess]   = React.useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (password !== password2) { setError("Passwords do not match."); return; }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setSuccess(true);
+      setTimeout(() => { supabase.auth.signOut(); onDone(); }, 2500);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className={`app${dark ? " dark" : ""}${glass ? " glass" : ""} auth-wrap`}>
+      <div className="auth-card pw-reset-card">
+        <div className="auth-brand">
+          <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="auth-brand-logo" alt="NORA" />
+        </div>
+        <p className="auth-tagline">Set your new password</p>
+        {success ? (
+          <p className="auth-msg auth-success">Password updated! Signing you out…</p>
+        ) : (
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <input className="auth-input" type="password" placeholder="New password (min 6 chars)"
+              value={password} onChange={e => setPassword(e.target.value)} required minLength={6} autoFocus />
+            <input className="auth-input" type="password" placeholder="Confirm new password"
+              value={password2} onChange={e => setPassword2(e.target.value)} required minLength={6} />
+            {error && <p className="auth-msg auth-error">{error}</p>}
+            <button className="auth-submit" type="submit" disabled={loading}>
+              {loading ? "…" : "Set new password"}
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

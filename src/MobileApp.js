@@ -5,7 +5,7 @@ import {
   Flag, Coffee, Bell, Activity, Wind, TrendingUp,
   TrendingDown, Minus, AlertTriangle, Moon,
   SkipForward, Sparkles, Plus, Settings,
-  BarChart2, Zap, List, CheckSquare,
+  BarChart2, Zap, List, CheckSquare, Pencil,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import "./MobileApp.css";
@@ -153,9 +153,36 @@ function MobileHeader({ ctx }) {
 
 // ── Plan view (Day / Month) ───────────────────────────────────
 function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode }) {
+  const { today, tasks, groups } = ctx;
+  const [planDate,      setPlanDate]      = useState(today);
+  const [filterType,    setFilterType]    = useState(null);
+  const [filterGroup,   setFilterGroup]   = useState(null);
+  const [filterComplex, setFilterComplex] = useState(null);
+  const [showFilters,   setShowFilters]   = useState(false);
+
+  const hasFilters = filterType || filterGroup || filterComplex;
+
+  const shiftDate = (delta) => {
+    const d = new Date(planDate + "T00:00:00");
+    d.setDate(d.getDate() + delta);
+    setPlanDate(d.toISOString().slice(0, 10));
+  };
+
+  const dateLabel = planDate === today ? "Today"
+    : new Date(planDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+  // Filtered tasks for the selected plan date
+  const planTasks = tasks.filter((t) => {
+    if (t.date !== planDate) return false;
+    if (filterType  && (t.type ?? "task") !== filterType)  return false;
+    if (filterGroup && t.groupId !== filterGroup)           return false;
+    if (filterComplex && t.complexity !== filterComplex)    return false;
+    return true;
+  });
+
   return (
     <div className="mob-plan">
-      {/* Sub-view toggle */}
+      {/* Day / Month toggle */}
       <div className="mob-plan-segs">
         <div className={`mob-seg-pill mob-seg-pill-${subView === "day" ? 0 : 1}`} />
         <button className={`mob-seg-btn${subView === "day" ? " active" : ""}`} onClick={() => setSubView("day")}>Day</button>
@@ -164,26 +191,101 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode }) {
 
       {subView === "day" && (
         <>
-          {/* List / Grid toggle inside Day */}
-          <div className="mob-day-mode-row">
-            <button className={`mob-mode-btn${dayMode === "list" ? " active" : ""}`} onClick={() => setDayMode("list")}>
-              <List size={14} /> List
+          {/* Date navigation */}
+          <div className="mob-plan-date-row">
+            <button className="mob-date-nav-btn" onClick={() => shiftDate(-1)}><ChevronLeft size={18} /></button>
+            <button className={`mob-date-label${planDate === today ? " is-today" : ""}`} onClick={() => setPlanDate(today)}>
+              {dateLabel}
             </button>
-            <button className={`mob-mode-btn${dayMode === "grid" ? " active" : ""}`} onClick={() => setDayMode("grid")}>
-              <BarChart2 size={14} /> Grid
+            <button className="mob-date-nav-btn" onClick={() => shiftDate(1)}><ChevronRight size={18} /></button>
+          </div>
+
+          {/* List / Grid + Filters row */}
+          <div className="mob-day-controls">
+            <div className="mob-day-mode-row" style={{ margin: 0 }}>
+              <button className={`mob-mode-btn${dayMode === "list" ? " active" : ""}`} onClick={() => setDayMode("list")}>
+                <List size={13} /> List
+              </button>
+              <button className={`mob-mode-btn${dayMode === "grid" ? " active" : ""}`} onClick={() => setDayMode("grid")}>
+                <BarChart2 size={13} /> Grid
+              </button>
+            </div>
+            <button
+              className={`mob-plan-filter-btn${hasFilters ? " active" : ""}`}
+              onClick={() => setShowFilters(true)}>
+              Filters{hasFilters ? " ●" : ""}
             </button>
           </div>
-          {dayMode === "list" ? <MobileHome ctx={ctx} /> : <MobileGrid ctx={ctx} />}
+
+          {dayMode === "list"
+            ? <MobileHome ctx={ctx} planDate={planDate} planTasks={planTasks} />
+            : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks }} />}
         </>
       )}
 
-      {subView === "month" && <MobileMonth ctx={ctx} />}
+      {subView === "month" && <MobileMonth ctx={ctx} onSelectDate={(d) => { setPlanDate(d); setSubView("day"); }} />}
+
+      {/* Filter bottom sheet */}
+      {showFilters && (
+        <div className="mob-sheet-overlay" onClick={() => setShowFilters(false)}>
+          <div className="mob-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="mob-modal-handle" />
+            <div className="mob-sheet-header">
+              <span className="mob-sheet-title">Filters</span>
+              <button className="mob-modal-close" onClick={() => setShowFilters(false)}><X size={20} /></button>
+            </div>
+
+            <div className="mob-sheet-section">
+              <span className="mob-filter-lbl">Type</span>
+              <div className="mob-filter-pills">
+                {[["All",null],["Task","task"],["Deadline","deadline"],["Break","break"]].map(([l,v]) => (
+                  <button key={l} className={`mob-filter-pill${filterType===v?" active":""}`} onClick={() => setFilterType(v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mob-sheet-section">
+              <span className="mob-filter-lbl">Complexity</span>
+              <div className="mob-filter-pills">
+                {[["All",null],["Easy","easy"],["Medium","medium"],["Hard","hard"]].map(([l,v]) => (
+                  <button key={l} className={`mob-filter-pill${filterComplex===v?" active":""}`} onClick={() => setFilterComplex(v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            {groups.length > 0 && (
+              <div className="mob-sheet-section">
+                <span className="mob-filter-lbl">Group</span>
+                <div className="mob-filter-pills">
+                  <button className={`mob-filter-pill${!filterGroup?" active":""}`} onClick={() => setFilterGroup(null)}>All</button>
+                  {groups.map(g => (
+                    <button key={g.id}
+                      className={`mob-filter-pill${filterGroup===g.id?" active":""}`}
+                      style={filterGroup===g.id ? { background: g.color+"25", borderColor: g.color, color: g.color } : {}}
+                      onClick={() => setFilterGroup(g.id)}>
+                      <span style={{ display:"inline-block", width:7, height:7, borderRadius:"50%", background:g.color, marginRight:4 }} />
+                      {g.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hasFilters && (
+              <button className="mob-filter-clear" style={{ margin: "8px 20px 0", alignSelf: "flex-start" }}
+                onClick={() => { setFilterType(null); setFilterGroup(null); setFilterComplex(null); }}>
+                Clear all filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Home view (Day list mode) ────────────────────────────────
-function MobileHome({ ctx }) {
+function MobileHome({ ctx, planDate, planTasks }) {
   const {
     todayTasks, today, aiFocus, contextMode, deferredTasks,
     doneToday, totalToday, pct, toggleTask, skipTask,
@@ -191,9 +293,13 @@ function MobileHome({ ctx }) {
     groups, nowObj,
   } = ctx;
 
+  // Use planTasks when browsing a different date, otherwise use todayTasks
+  const effectiveDate  = planDate ?? today;
+  const effectiveTasks = planTasks ?? todayTasks;
+
   const nowMins = nowObj.getHours() * 60 + nowObj.getMinutes();
 
-  const scheduled = [...todayTasks]
+  const scheduled = [...effectiveTasks]
     .filter((t) => t.startHour != null)
     .sort((a, b) => a.startHour * 60 + (a.startMinute ?? 0) - (b.startHour * 60 + (b.startMinute ?? 0)));
 
@@ -342,7 +448,7 @@ function MobileHome({ ctx }) {
       <button className="mob-quick-add" onClick={() => {
         ctx.setEditingTask({
           id: uid(), type: "task",
-          title: "", date: today,
+          title: "", date: effectiveDate,
           startHour: null, startMinute: null,
           duration: null, repeat: null, repeatEnd: null,
           completed: false, notes: "", complexity: null,
@@ -403,8 +509,8 @@ function MobileGrid({ ctx }) {
             const color = tp === "deadline" ? "#ef4444" : tp === "break" ? "#94a3b8" : "var(--accent)";
             return (
               <div key={t.id}
-                className={`mob-grid-block${t.completed ? " mob-gb-done" : ""}`}
-                style={{ top, height, borderLeftColor: color, background: `${color}18` }}
+                className={`mob-grid-block${t.completed ? " mob-gb-done" : ""}${tp === "break" ? " mob-gb-break" : ""}`}
+                style={{ top, height, borderLeftColor: color, background: tp === "break" ? `${color}10` : `${color}14` }}
                 onClick={() => setEditingTask(t)}>
                 <span className="mob-gb-title">{shortTitle(t.title) || (tp === "break" ? "Break" : "Deadline")}</span>
                 {t.duration && <span className="mob-gb-dur">{fmtDur(t.duration)}</span>}
@@ -430,7 +536,7 @@ function MobileGrid({ ctx }) {
 }
 
 // ── Month / Calendar view ────────────────────────────────────
-function MobileMonth({ ctx }) {
+function MobileMonth({ ctx, onSelectDate }) {
   const { tasks, today, setEditingTask } = ctx;
   const [cur, setCur] = useState(() => {
     const [y, m] = today.split("-");
@@ -440,7 +546,7 @@ function MobileMonth({ ctx }) {
 
   const { year, month } = cur;
   const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const firstDay = new Date(year, month, 1).getDay();
+  const firstDay = (new Date(year, month, 1).getDay() + 6) % 7; // 0=Mon … 6=Sun
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const taskMap = {};
@@ -476,7 +582,7 @@ function MobileMonth({ ctx }) {
       </div>
 
       <div className="mob-cal-grid">
-        {["Su","Mo","Tu","We","Th","Fr","Sa"].map((d) => (
+        {["Mo","Tu","We","Th","Fr","Sa","Su"].map((d) => (
           <div key={d} className="mob-cal-dow">{d}</div>
         ))}
         {cells.map((cell, i) => {
@@ -505,6 +611,11 @@ function MobileMonth({ ctx }) {
           <CalendarDays size={13} />
           {sel === today ? "Today" : sel}
           <span className="mob-cal-task-count">{selTasks.length} item{selTasks.length !== 1 ? "s" : ""}</span>
+          {onSelectDate && (
+            <button className="mob-cal-view-day-btn" onClick={() => onSelectDate(sel)}>
+              View Day →
+            </button>
+          )}
         </div>
         {selTasks.length === 0 ? (
           <p className="mob-cal-empty-msg">Nothing planned</p>
@@ -530,16 +641,29 @@ function MobileMonth({ ctx }) {
 // ── Tasks view ───────────────────────────────────────────────
 function MobileTasks({ ctx }) {
   const { tasks, today, toggleTask, skipTask, setRescheduleTask, setEditingTask, groups } = ctx;
+  const [filterType, setFilterType]       = useState(null);
+  const [filterGroup, setFilterGroup]     = useState(null);
+  const [filterComplex, setFilterComplex] = useState(null);
+  const [showFilters, setShowFilters]     = useState(false);
 
   const getGroup = (id) => groups.find((g) => g.id === id);
 
-  const sorted = [...tasks].sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    if (a.date !== b.date) return a.date.localeCompare(b.date);
-    const at = a.startHour != null ? a.startHour * 60 + (a.startMinute ?? 0) : 9999;
-    const bt = b.startHour != null ? b.startHour * 60 + (b.startMinute ?? 0) : 9999;
-    return at - bt;
-  });
+  const sorted = [...tasks]
+    .filter((t) => {
+      if (filterType   && (t.type ?? "task") !== filterType)     return false;
+      if (filterGroup  && t.groupId !== filterGroup)              return false;
+      if (filterComplex && t.complexity !== filterComplex)        return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      const at = a.startHour != null ? a.startHour * 60 + (a.startMinute ?? 0) : 9999;
+      const bt = b.startHour != null ? b.startHour * 60 + (b.startMinute ?? 0) : 9999;
+      return at - bt;
+    });
+
+  const hasFilters = filterType || filterGroup || filterComplex;
 
   // Deadlines always stay in their day section even when done
   const active    = sorted.filter((t) => !t.completed || t.type === "deadline");
@@ -648,10 +772,65 @@ function MobileTasks({ ctx }) {
 
   return (
     <div className="mob-tasks">
-      {tasks.length === 0 ? (
+      {/* Filter bar */}
+      <div className="mob-filter-bar">
+        <button
+          className={`mob-filter-toggle${showFilters ? " active" : ""}${hasFilters ? " has-active" : ""}`}
+          onClick={() => setShowFilters(f => !f)}>
+          <List size={14} /> Filters{hasFilters ? " ●" : ""}
+        </button>
+        {hasFilters && (
+          <button className="mob-filter-clear" onClick={() => { setFilterType(null); setFilterGroup(null); setFilterComplex(null); }}>
+            Clear
+          </button>
+        )}
+      </div>
+      {showFilters && (
+        <div className="mob-filters-panel">
+          {/* Type */}
+          <div className="mob-filter-section">
+            <span className="mob-filter-lbl">Type</span>
+            <div className="mob-filter-pills">
+              {[["All", null], ["Task", "task"], ["Deadline", "deadline"], ["Break", "break"]].map(([l, v]) => (
+                <button key={l} className={`mob-filter-pill${filterType === v ? " active" : ""}`}
+                  onClick={() => setFilterType(v)}>{l}</button>
+              ))}
+            </div>
+          </div>
+          {/* Complexity */}
+          <div className="mob-filter-section">
+            <span className="mob-filter-lbl">Complexity</span>
+            <div className="mob-filter-pills">
+              {[["All", null], ["Easy", "easy"], ["Medium", "medium"], ["Hard", "hard"]].map(([l, v]) => (
+                <button key={l} className={`mob-filter-pill${filterComplex === v ? " active" : ""}`}
+                  onClick={() => setFilterComplex(v)}>{l}</button>
+              ))}
+            </div>
+          </div>
+          {/* Groups */}
+          {groups.length > 0 && (
+            <div className="mob-filter-section">
+              <span className="mob-filter-lbl">Group</span>
+              <div className="mob-filter-pills">
+                <button className={`mob-filter-pill${!filterGroup ? " active" : ""}`} onClick={() => setFilterGroup(null)}>All</button>
+                {groups.map(g => (
+                  <button key={g.id} className={`mob-filter-pill${filterGroup === g.id ? " active" : ""}`}
+                    style={filterGroup === g.id ? { background: g.color + "25", borderColor: g.color, color: g.color } : {}}
+                    onClick={() => setFilterGroup(g.id)}>
+                    <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: g.color, marginRight: 4 }} />
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
         <div className="mob-empty-state">
           <CalendarDays size={36} style={{ opacity: .15 }} />
-          <p>No tasks yet.</p>
+          <p>{hasFilters ? "No tasks match these filters." : "No tasks yet."}</p>
         </div>
       ) : (
         <>
@@ -1045,6 +1224,34 @@ function MobileStatus({ ctx }) {
 }
 
 // ── Settings view ────────────────────────────────────────────
+function MobNameEditor({ name, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft,   setDraft]   = useState(name ?? "");
+  const inputRef = useRef(null);
+
+  const startEdit = () => { setDraft(name ?? ""); setEditing(true); setTimeout(() => inputRef.current?.focus(), 60); };
+  const confirm   = () => { onSave(draft.trim()); setEditing(false); };
+  const cancel    = () => setEditing(false);
+
+  if (editing) return (
+    <div className="mob-name-editor-row">
+      <input ref={inputRef} className="mob-name-input" value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") confirm(); if (e.key === "Escape") cancel(); }}
+        placeholder="Your name" />
+      <button className="mob-name-confirm" onClick={confirm}><Check size={14} strokeWidth={3} /></button>
+      <button className="mob-name-cancel"  onClick={cancel}><X size={14} /></button>
+    </div>
+  );
+
+  return (
+    <div className="mob-name-editor-row">
+      <span className="mob-sett-display-name">{name || "No name set"}</span>
+      <button className="mob-name-pencil" onClick={startEdit}><Pencil size={13} /></button>
+    </div>
+  );
+}
+
 function MobileSettings({ ctx }) {
   const {
     accountName, setAccountName,
@@ -1064,16 +1271,10 @@ function MobileSettings({ ctx }) {
             {(accountName?.trim()?.[0] ?? session?.user?.email?.[0] ?? "U").toUpperCase()}
           </div>
           <div className="mob-sett-avatar-info">
-            <span className="mob-sett-display-name">{accountName || "No name set"}</span>
+            <MobNameEditor name={accountName} onSave={setAccountName} />
             <span className="mob-sett-email-sm">{session?.user?.email}</span>
           </div>
         </div>
-        <label className="mob-sett-label">Display name</label>
-        <input
-          className="mob-sett-input"
-          value={accountName}
-          onChange={(e) => setAccountName(e.target.value)}
-          placeholder="Your name" />
       </div>
 
       {/* Appearance */}
