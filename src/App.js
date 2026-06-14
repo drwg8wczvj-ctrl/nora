@@ -19,7 +19,7 @@ import {
   Activity, Zap, Wind, TrendingUp, TrendingDown, Minus,
   ZoomIn, ZoomOut,
   Brain, Target, Lightbulb, BarChart2, AlertTriangle,
-  Pencil, SkipForward, Sparkles, Moon,
+  Pencil, SkipForward, Sparkles, Moon, Sunrise,
 } from "lucide-react";
 import { calculateTaskWeight } from "./utils/taskUtils";
 import "./App.css";
@@ -125,13 +125,25 @@ const getChatGhost = (input) => {
 };
 
 // Returns alternative suggestions (chips) — excludes the ghost suggestion
+// Default suggestions shown when the chat input is empty / very short
+const DEFAULT_CHAT_CHIPS = [
+  "How's my week looking?",
+  "Plan my day for today",
+  "What should I focus on?",
+  "Help me prioritize today",
+  "Rebalance my schedule",
+  "I'm feeling overwhelmed",
+  "Add a break this afternoon",
+  "What can I do in 30 min?",
+];
+
 const getChatAlternatives = (input, ghost) => {
-  if (!input || input.trim().length < 2) return [];
+  if (!input || input.trim().length < 2) return DEFAULT_CHAT_CHIPS;
   const lc = input.toLowerCase();
   const ghostFull = input + ghost;
   return CHAT_SUGGESTIONS
     .filter((s) => s.toLowerCase().startsWith(lc) && s !== ghostFull && s.length > input.length)
-    .slice(0, 2);
+    .slice(0, 6);
 };
 
 // ── Note colors (Apple Stickies palette) ───────────────
@@ -415,6 +427,7 @@ export default function App() {
   const [isResettingPw,      setIsResettingPw]      = useState(false);
   const [morningCheckup,      setMorningCheckup]      = useState(null);
   const [showMorningCheckup,  setShowMorningCheckup]  = useState(false);
+  const [reviewCheckupMode,   setReviewCheckupMode]   = useState(false);
   const [showLongTermInsights,setShowLongTermInsights] = useState(false);
   const [dailyMetrics,        setDailyMetrics]         = useState(() => {
     try { return JSON.parse(localStorage.getItem("nora_daily_metrics") || "{}"); } catch { return {}; }
@@ -534,7 +547,7 @@ export default function App() {
   const [chatInput,      setChatInput]      = useState("");
   const [chatLoading,    setChatLoading]    = useState(false);
   const [microStartMode,  setMicroStartMode]  = useState(false);
-  const [chatSuggestions, setChatSuggestions] = useState([]);
+  const [chatSuggestions, setChatSuggestions] = useState(DEFAULT_CHAT_CHIPS);
   const [chatGhost,       setChatGhost]       = useState("");
   const [rescheduleTask,  setRescheduleTask]  = useState(null);
   const [inAppAlert,      setInAppAlert]      = useState(null);
@@ -2239,6 +2252,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       microStartMode, setMicroStartMode,
       rescheduleTask, setRescheduleTask, saveReschedule,
       morningCheckup, showMorningCheckup, setShowMorningCheckup, handleCheckupComplete,
+      reviewCheckupMode, setReviewCheckupMode,
       showLongTermInsights, setShowLongTermInsights, dailyMetrics,
       sleepState, todaySleepQuality, setSleepQuality,
       focus, setFocus, motivation, setMotivation,
@@ -3247,24 +3261,30 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
                 {/* ── § Morning Check-Up ── */}
                 <div className="sv2-card sv2-checkup sv2-full">
-                  <div className="sv2-card-title"><Moon size={14} /> Morning Check-Up</div>
-                  {morningCheckup ? (
-                    <div className="mcu-status-submitted">
-                      <div className="mcu-status-row">
-                        <span className="mcu-status-badge mcu-status-done">✓ Submitted today</span>
-                        <span className="mcu-readiness-inline" style={{ color: computeReadiness(morningCheckup).color }}>
-                          {computeReadiness(morningCheckup).label} Readiness · {computeReadiness(morningCheckup).pct}%
-                        </span>
+                  <div className="sv2-card-title"><Sunrise size={14} className="mcu-sunrise-icon" /> Morning Check-Up</div>
+                  {morningCheckup ? (() => {
+                    const r = computeReadiness(morningCheckup) ?? { label: "Moderate", color: "#f59e0b", pct: 50 };
+                    return (
+                      <div className="mcu-status-submitted">
+                        <div className="mcu-status-row">
+                          <span className="mcu-status-badge mcu-status-done">✓ Submitted today</span>
+                          <span className="mcu-readiness-inline" style={{ color: r.color }}>
+                            {r.label} readiness{Number.isFinite(r.pct) ? ` · ${r.pct}%` : ""}
+                          </span>
+                        </div>
+                        {morningCheckup.noraSummary && (
+                          <p className="mcu-status-summary">"{morningCheckup.noraSummary}"</p>
+                        )}
+                        <button className="lti-open-btn" style={{ marginTop: 6 }} onClick={() => { setReviewCheckupMode(true); setShowMorningCheckup(true); }}>
+                          Review results →
+                        </button>
                       </div>
-                      {morningCheckup.noraSummary && (
-                        <p className="mcu-status-summary">"{morningCheckup.noraSummary}"</p>
-                      )}
-                    </div>
-                  ) : (
+                    );
+                  })() : (
                     <div className="mcu-status-cta">
                       <p className="mcu-status-cta-text">Help NORA understand your day before planning it.</p>
-                      <button className="mcu-start-btn" onClick={() => setShowMorningCheckup(true)}>
-                        Start Morning Check-Up
+                      <button className="mcu-start-btn" onClick={() => { setReviewCheckupMode(false); setShowMorningCheckup(true); }}>
+                        <Sunrise size={14} /> Start Morning Check-Up
                       </button>
                     </div>
                   )}
@@ -3421,16 +3441,16 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {chatLoading && <div className="chat-msg assistant"><div className="chat-bubble typing"><span /><span /><span /></div></div>}
           <div ref={chatEndRef} />
         </div>
-        {chatSuggestions.length > 0 && (
-          <div className="chat-suggestions">
+        <div className="chat-suggestions">
+          <div className="chat-chips-pill">
             {chatSuggestions.map((s, i) => (
               <button key={i} className="chat-chip" onClick={() => {
-                setChatInput(s); setChatGhost(""); setChatSuggestions([]);
+                setChatInput(s); setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
                 chatInputRef.current?.focus();
               }}>{s}</button>
             ))}
           </div>
-        )}
+        </div>
         <div className="chat-input-row">
           <button
             className={`chat-micro-btn${microStartMode ? " on" : ""}`}
@@ -3461,7 +3481,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   const completed = chatInput + chatGhost;
                   setChatInput(completed);
                   setChatGhost(getChatGhost(completed));
-                  setChatSuggestions([]);
+                  setChatSuggestions(DEFAULT_CHAT_CHIPS);
                 } else if (e.key === "ArrowRight" && chatGhost &&
                            e.target.selectionStart === chatInput.length &&
                            e.target.selectionEnd === chatInput.length) {
@@ -3469,13 +3489,13 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   const completed = chatInput + chatGhost;
                   setChatInput(completed);
                   setChatGhost("");
-                  setChatSuggestions([]);
+                  setChatSuggestions(DEFAULT_CHAT_CHIPS);
                 } else if (e.key === "Escape") {
-                  setChatGhost(""); setChatSuggestions([]);
+                  setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
                 } else if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   sendChat();
-                  setChatGhost(""); setChatSuggestions([]);
+                  setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
                 }
               }}
               placeholder="Ask NORA anything…" />
@@ -3514,8 +3534,11 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           dark={dark}
           glass={theme === "liquid_glass"}
           today={today}
+          todayTasks={todayTasks}
           onComplete={handleCheckupComplete}
-          onClose={() => setShowMorningCheckup(false)}
+          onClose={() => { setShowMorningCheckup(false); setReviewCheckupMode(false); }}
+          viewOnly={reviewCheckupMode && !!morningCheckup}
+          existingData={reviewCheckupMode ? morningCheckup : null}
         />
       )}
 

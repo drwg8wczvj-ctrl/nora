@@ -3,7 +3,7 @@ import {
   Check, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
   FileText, Trash2, User, RotateCcw, CalendarDays,
   Flag, Coffee, Bell, Activity, Wind, TrendingUp,
-  TrendingDown, Minus, AlertTriangle, Moon,
+  TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
   SkipForward, Sparkles, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil,
 } from "lucide-react";
@@ -46,13 +46,24 @@ const getChatGhost = (input) => {
   }
   return "";
 };
+const DEFAULT_CHAT_CHIPS = [
+  "How's my week looking?",
+  "Plan my day for today",
+  "What should I focus on?",
+  "Help me prioritize today",
+  "Rebalance my schedule",
+  "I'm feeling overwhelmed",
+  "Add a break this afternoon",
+  "What can I do in 30 min?",
+];
+
 const getChatAlternatives = (input, ghost) => {
-  if (!input || input.trim().length < 2) return [];
+  if (!input || input.trim().length < 2) return DEFAULT_CHAT_CHIPS;
   const lc = input.toLowerCase();
   const ghostFull = input + ghost;
   return CHAT_SUGGESTIONS
     .filter((s) => s.toLowerCase().startsWith(lc) && s !== ghostFull && s.length > input.length)
-    .slice(0, 2);
+    .slice(0, 6);
 };
 
 const shortTitle = (title) => {
@@ -141,8 +152,11 @@ export default function MobileApp({ ctx }) {
           dark={dark}
           glass={theme === "liquid_glass"}
           today={ctx.today}
+          todayTasks={ctx.todayTasks || []}
           onComplete={ctx.handleCheckupComplete}
-          onClose={() => ctx.setShowMorningCheckup(false)}
+          onClose={() => { ctx.setShowMorningCheckup(false); ctx.setReviewCheckupMode && ctx.setReviewCheckupMode(false); }}
+          viewOnly={ctx.reviewCheckupMode && !!ctx.morningCheckup}
+          existingData={ctx.reviewCheckupMode ? ctx.morningCheckup : null}
         />
       )}
       {rescheduleTask && (
@@ -1239,23 +1253,30 @@ function MobileStatus({ ctx }) {
 
       {/* § Morning Check-Up */}
       <div className="mob-sv2-card mob-checkup-card">
-        <div className="mob-status-card-title"><Moon size={14} /> Morning Check-Up</div>
-        {ctx.morningCheckup ? (
-          <div className="mob-checkup-done">
-            <div className="mob-checkup-done-row">
-              <span className="mob-checkup-badge">✓ Submitted</span>
-              <span style={{ color: computeReadiness(ctx.morningCheckup).color, fontWeight: 700, fontSize: 13 }}>
-                {computeReadiness(ctx.morningCheckup).label} · {computeReadiness(ctx.morningCheckup).pct}%
-              </span>
+        <div className="mob-status-card-title"><Sunrise size={14} className="mcu-sunrise-icon" /> Morning Check-Up</div>
+        {ctx.morningCheckup ? (() => {
+          const r = computeReadiness(ctx.morningCheckup) ?? { label: "Moderate", color: "#f59e0b", pct: 50 };
+          return (
+            <div className="mob-checkup-done">
+              <div className="mob-checkup-done-row">
+                <span className="mob-checkup-badge">✓ Submitted</span>
+                <span style={{ color: r.color, fontWeight: 700, fontSize: 13 }}>
+                  {r.label}{Number.isFinite(r.pct) ? ` · ${r.pct}%` : ""}
+                </span>
+              </div>
+              {ctx.morningCheckup.noraSummary && (
+                <p className="mob-checkup-summary">"{ctx.morningCheckup.noraSummary}"</p>
+              )}
+              <button className="mob-checkup-btn" style={{ marginTop: 8, background: "var(--surface-2)", color: "var(--accent)", boxShadow: "none", border: "1px solid var(--border)" }}
+                onClick={() => { ctx.setReviewCheckupMode(true); ctx.setShowMorningCheckup(true); }}>
+                Review results →
+              </button>
             </div>
-            {ctx.morningCheckup.noraSummary && (
-              <p className="mob-checkup-summary">"{ctx.morningCheckup.noraSummary}"</p>
-            )}
-          </div>
-        ) : (
+          );
+        })() : (
           <div className="mob-checkup-cta">
             <p className="mob-checkup-cta-text">Help NORA understand your day before planning it.</p>
-            <button className="mob-checkup-btn" onClick={() => ctx.setShowMorningCheckup(true)}>
+            <button className="mob-checkup-btn" onClick={() => { ctx.setReviewCheckupMode && ctx.setReviewCheckupMode(false); ctx.setShowMorningCheckup(true); }}>
               Start Morning Check-Up
             </button>
           </div>
@@ -1406,7 +1427,7 @@ function MobileSettings({ ctx }) {
 function MobileChat({ ctx }) {
   const { chatOpen, setChatOpen, messages, chatInput, setChatInput, chatLoading, sendChat,
           microStartMode, setMicroStartMode, dark } = ctx;
-  const [chatSuggestions, setChatSuggestions] = useState([]);
+  const [chatSuggestions, setChatSuggestions] = useState(DEFAULT_CHAT_CHIPS);
   const [chatGhost,       setChatGhost]       = useState("");
   const endRef   = useRef(null);
   const inputRef = useRef(null);
@@ -1461,16 +1482,16 @@ function MobileChat({ ctx }) {
         <div ref={endRef} />
       </div>
 
-      {chatSuggestions.length > 0 && (
-        <div className="mob-chat-suggestions">
+      <div className="mob-chat-suggestions">
+        <div className="mob-chat-chips-pill">
           {chatSuggestions.map((s, i) => (
             <button key={i} className="mob-chat-chip" onClick={() => {
-              setChatInput(s); setChatGhost(""); setChatSuggestions([]);
+              setChatInput(s); setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
               inputRef.current?.focus();
             }}>{s}</button>
           ))}
         </div>
-      )}
+      </div>
       <div className="mob-chat-input-bar">
         <button
           className={`mob-micro-btn${microStartMode ? " on" : ""}`}
@@ -1499,11 +1520,11 @@ function MobileChat({ ctx }) {
             }}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
-                setChatGhost(""); setChatSuggestions([]);
+                setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
               } else if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 sendChat();
-                setChatGhost(""); setChatSuggestions([]);
+                setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
               }
             }}
             placeholder="Ask NORA anything…" />
