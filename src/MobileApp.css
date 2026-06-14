@@ -357,58 +357,101 @@
 /* ══════════════════════════════════════════════════════════ */
 /*  NOTES VIEW                                               */
 /* ══════════════════════════════════════════════════════════ */
-.mob-notes { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+/* ── Sticky Notes (mobile) ──────────────────────────────── */
+.mob-notes-v2 {
+  padding: 14px 14px 40px;
+  display: flex; flex-direction: column; gap: 14px;
+  position: relative;
+}
 
-.mob-notes-add-bar {
-  display: flex; gap: 10px; align-items: flex-end;
+/* Grid of sticker cards */
+.mob-sticky-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
-.mob-notes-input {
-  flex: 1; padding: 12px 14px;
-  border: 1px solid var(--border); border-radius: 14px;
-  background: var(--surface); color: var(--text);
-  font-size: 14px; outline: none; resize: none;
-  font-family: inherit;
-  transition: border-color .15s;
+.mob-sticky-card {
+  aspect-ratio: 1;
+  border-radius: 4px; border: 1px solid;
+  padding: 12px 10px;
+  cursor: pointer; overflow: hidden;
+  box-shadow: 2px 3px 10px rgba(0,0,0,0.13);
+  display: flex; flex-direction: column; gap: 6px;
+  transition: transform .18s ease, box-shadow .18s ease;
+  active-scale: 0.96;
 }
-.mob-notes-input:focus { border-color: var(--accent); }
-.mob-notes-add-btn {
-  width: 46px; height: 46px; border-radius: 13px;
-  border: none; cursor: pointer;
-  background: var(--grad); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  transition: opacity .15s;
+.mob-sticky-card:active { transform: scale(0.97); }
+.mob-sticky-title {
+  font-size: 13px; font-weight: 700; line-height: 1.3;
+  overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
 }
-.mob-notes-add-btn:disabled { opacity: .4; }
+.mob-sticky-preview {
+  font-size: 11px; opacity: 0.6; line-height: 1.35;
+  overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+}
 
-.mob-notes-list { display: flex; flex-direction: column; gap: 8px; }
-.mob-note-card {
-  display: flex; align-items: flex-start; gap: 10px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 14px; padding: 12px 14px;
+/* New note buttons */
+.mob-sticky-new-row {
+  display: flex; gap: 10px; justify-content: center;
 }
-.mob-note-card.done { opacity: .5; }
-.mob-note-check {
-  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
-  border: 2px solid var(--border);
-  background: transparent; cursor: pointer;
+.mob-sticky-new-btn {
+  width: 56px; height: 56px; border-radius: 4px;
+  border: 2px dashed;
   display: flex; align-items: center; justify-content: center;
-  color: var(--accent);
+  cursor: pointer; opacity: 0.65;
+  box-shadow: 1px 2px 6px rgba(0,0,0,0.10);
+  transition: opacity .15s, transform .15s;
 }
-.mob-note-check.checked { background: var(--accent); border-color: var(--accent); color: #fff; }
-.mob-note-text {
+.mob-sticky-new-btn:active { opacity: 1; transform: scale(0.96); }
+
+/* Expanded note bottom sheet */
+.mob-sticky-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.40);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 100;
+  display: flex; align-items: flex-end;
+}
+.mob-sticky-sheet {
+  width: 100%;
+  border-radius: 20px 20px 0 0;
+  border: 1.5px solid; border-bottom: none;
+  padding: 12px 20px 40px;
+  box-shadow: 0 -8px 40px rgba(0,0,0,0.20);
+  display: flex; flex-direction: column; gap: 12px;
+  min-height: 50vh;
+}
+.mob-sticky-sheet-top {
+  display: flex; align-items: center; gap: 8px;
+}
+.mob-sticky-sheet-title {
   flex: 1; background: transparent; border: none; outline: none;
-  color: var(--text); font-size: 14px; line-height: 1.55;
-  resize: none; font-family: inherit; padding: 0;
-  min-height: 20px;
+  font-size: 18px; font-weight: 800; font-family: inherit;
 }
-.mob-note-del {
-  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
-  border: 1px solid var(--border); background: transparent; cursor: pointer;
-  color: var(--text-muted); display: flex; align-items: center; justify-content: center;
-  transition: background .15s, color .15s;
+.mob-sticky-sheet-title::placeholder { opacity: 0.38; }
+.mob-sticky-color-row {
+  display: flex; align-items: center; gap: 10px;
 }
-.mob-note-del:hover { background: rgba(220,38,38,.1); color: #dc2626; }
+.mob-sticky-color-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid; cursor: pointer;
+  outline: 2px solid transparent; outline-offset: 2px;
+  transition: outline-color .15s, transform .15s;
+}
+.mob-sticky-color-dot.active { outline-color: currentColor; transform: scale(1.3); }
+.mob-sticky-del {
+  margin-left: auto; background: transparent; border: none;
+  cursor: pointer; opacity: 0.38; padding: 4px;
+}
+.mob-sticky-del:active { opacity: 1; color: #dc2626; }
+.mob-sticky-content {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-size: 15px; font-family: inherit; line-height: 1.65;
+  resize: none; min-height: 200px;
+}
+.mob-sticky-content::placeholder { opacity: 0.38; }
 
 /* ══════════════════════════════════════════════════════════ */
 /*  STATUS VIEW                                              */
@@ -1186,6 +1229,41 @@
   background: var(--surface-2);
   padding: 2px 7px; border-radius: 6px;
   letter-spacing: .06em;
+}
+
+/* ── Sleep & Recovery card (mobile) ─────────────────────── */
+.mob-sleep-card { border-left: 3px solid #818cf8 !important; }
+.mob-sleep-body { display: flex; flex-direction: column; gap: 12px; }
+
+.mob-sleep-checkin { display: flex; flex-direction: column; gap: 8px; }
+.mob-sleep-checkin-lbl { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.mob-sleep-q-row { display: flex; gap: 8px; }
+.mob-sleep-q-btn {
+  flex: 1; padding: 8px 6px; border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+.mob-sq-poor.active  { background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.35);  color: #ef4444; }
+.mob-sq-okay.active  { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.35); color: #f59e0b; }
+.mob-sq-good.active  { background: rgba(34,197,94,.12);  border-color: rgba(34,197,94,.35);  color: #22c55e; }
+
+.mob-sleep-signals { display: flex; flex-direction: column; gap: 8px; }
+.mob-sleep-signal-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; color: var(--text-muted);
+}
+.mob-sleep-badge {
+  font-size: 11px; font-weight: 700;
+  padding: 3px 11px; border-radius: 20px;
+}
+.mob-sleep-suggestion {
+  font-size: 12px; line-height: 1.55; color: var(--text-muted);
+  padding: 9px 12px; border-radius: 10px;
+  background: rgba(129,140,248,.08);
+  border-left: 3px solid #818cf8;
+  margin-top: 4px;
 }
 
 /* ── Mobile reschedule modal ─────────────────────────────── */

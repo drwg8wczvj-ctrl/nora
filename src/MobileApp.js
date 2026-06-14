@@ -3,7 +3,7 @@ import {
   Check, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
   FileText, Trash2, User, RotateCcw, CalendarDays,
   Flag, Coffee, Bell, Activity, Wind, TrendingUp,
-  TrendingDown, Minus, AlertTriangle,
+  TrendingDown, Minus, AlertTriangle, Moon,
   SkipForward, Sparkles, Plus, Settings,
   BarChart2, Zap, List, CheckSquare,
 } from "lucide-react";
@@ -694,62 +694,99 @@ function MobileTasks({ ctx }) {
 }
 
 // ── Notes view ───────────────────────────────────────────────
-function MobileNotes({ ctx }) {
-  const { notes, setNotes, toggleNote, updateNote, deleteNote } = ctx;
-  const [text, setText] = useState("");
-  const inputRef = useRef(null);
+const MOB_NOTE_COLORS = {
+  yellow: { bg: "#fef9c3", border: "#fde68a", text: "#78350f" },
+  pink:   { bg: "#fce7f3", border: "#f9a8d4", text: "#701a75" },
+  blue:   { bg: "#dbeafe", border: "#93c5fd", text: "#1e3a8a" },
+  green:  { bg: "#dcfce7", border: "#86efac", text: "#14532d" },
+};
 
-  const addNote = () => {
-    if (!text.trim()) return;
-    setNotes((p) => [...p, { id: uid(), content: text.trim(), done: false, createdAt: Date.now() }]);
-    setText("");
-    inputRef.current?.focus();
+function MobileNotes({ ctx }) {
+  const { notes, setNotes, deleteNote, patchNote } = ctx;
+  const [openId, setOpenId] = useState(null);
+
+  const openNote = notes.find(n => n.id === openId);
+  const nc = (color) => MOB_NOTE_COLORS[color ?? "yellow"];
+
+  const handleCreate = (color) => {
+    const n = { id: uid(), title: "", content: "", color, done: false, createdAt: Date.now() };
+    setNotes(p => [...p, n]);
+    setOpenId(n.id);
   };
 
   return (
-    <div className="mob-notes">
-      <div className="mob-notes-add-bar">
-        <textarea
-          ref={inputRef}
-          className="mob-notes-input"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addNote(); } }}
-          placeholder="Write a note…"
-          rows={2} />
-        <button className="mob-notes-add-btn" onClick={addNote} disabled={!text.trim()}>
-          <Plus size={20} />
-        </button>
-      </div>
-
+    <div className="mob-notes-v2">
       {notes.length === 0 ? (
-        <div className="mob-empty-state">
+        <div className="mob-empty-state" style={{ padding: "40px 0" }}>
           <FileText size={36} style={{ opacity: .15 }} />
-          <p>No notes yet.</p>
+          <p>No notes yet. Tap a colour to create one.</p>
         </div>
       ) : (
-        <div className="mob-notes-list">
-          {[...notes].reverse().map((note) => (
-            <div key={note.id} className={`mob-note-card${note.done ? " done" : ""}`}>
-              <button
-                className={`mob-note-check${note.done ? " checked" : ""}`}
-                onClick={() => toggleNote(note.id)}>
-                {note.done && <Check size={12} strokeWidth={3} />}
-              </button>
-              <textarea
-                className="mob-note-text"
-                value={note.content}
-                onChange={(e) => updateNote(note.id, e.target.value)}
-                rows={1}
-                onInput={(e) => {
-                  e.target.style.height = "auto";
-                  e.target.style.height = e.target.scrollHeight + "px";
-                }} />
-              <button className="mob-note-del" onClick={() => deleteNote(note.id)}>
-                <Trash2 size={14} />
+        <div className="mob-sticky-grid">
+          {[...notes].reverse().map((note) => {
+            const c = nc(note.color);
+            return (
+              <div key={note.id} className="mob-sticky-card"
+                style={{ background: c.bg, borderColor: c.border }}
+                onClick={() => setOpenId(note.id)}>
+                <div className="mob-sticky-title" style={{ color: c.text }}>
+                  {note.title || note.content?.split("\n")[0] || "Untitled"}
+                </div>
+                {note.content && (
+                  <div className="mob-sticky-preview" style={{ color: c.text }}>
+                    {note.content.slice(0, 60)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Color palette to create new notes */}
+      <div className="mob-sticky-new-row">
+        {Object.entries(MOB_NOTE_COLORS).map(([color, val]) => (
+          <button key={color} className="mob-sticky-new-btn"
+            style={{ background: val.bg, borderColor: val.border }}
+            onClick={() => handleCreate(color)}>
+            <Plus size={18} style={{ color: val.text }} />
+          </button>
+        ))}
+      </div>
+
+      {/* Expanded note bottom sheet */}
+      {openNote && (
+        <div className="mob-sticky-overlay" onClick={() => setOpenId(null)}>
+          <div className="mob-sticky-sheet"
+            style={{ background: nc(openNote.color).bg, borderColor: nc(openNote.color).border }}
+            onClick={e => e.stopPropagation()}>
+            <div className="mob-modal-handle" />
+            <div className="mob-sticky-sheet-top">
+              <input className="mob-sticky-sheet-title"
+                style={{ color: nc(openNote.color).text }}
+                value={openNote.title ?? ""}
+                onChange={e => patchNote(openNote.id, { title: e.target.value })}
+                placeholder="Note title" />
+              <button className="mob-modal-close" onClick={() => setOpenId(null)}>
+                <X size={20} />
               </button>
             </div>
-          ))}
+            <div className="mob-sticky-color-row">
+              {Object.entries(MOB_NOTE_COLORS).map(([key, val]) => (
+                <button key={key} className={`mob-sticky-color-dot${openNote.color === key ? " active" : ""}`}
+                  style={{ background: val.bg, borderColor: val.border, outlineColor: val.text }}
+                  onClick={() => patchNote(openNote.id, { color: key })} />
+              ))}
+              <button className="mob-sticky-del" onClick={() => { deleteNote(openNote.id); setOpenId(null); }}>
+                <Trash2 size={15} />
+              </button>
+            </div>
+            <textarea className="mob-sticky-content"
+              style={{ color: nc(openNote.color).text }}
+              value={openNote.content ?? ""}
+              onChange={e => patchNote(openNote.id, { content: e.target.value })}
+              placeholder="Write your note…" />
+          </div>
         </div>
       )}
     </div>
@@ -768,6 +805,7 @@ function MobileStatus({ ctx }) {
     focusPatterns, adaptivePlanData, behaviorProfile,
     weeklyReflection, predictiveSignals,
     setRescheduleTask,
+    sleepState, todaySleepQuality, setSleepQuality,
   } = ctx;
 
   const maxWl = Math.max(...workloadForecast.map((d) => d.load), 1);
@@ -837,6 +875,44 @@ function MobileStatus({ ctx }) {
             );
           })}
         </div>
+      </div>
+
+      {/* § Sleep & Recovery */}
+      <div className="mob-sv2-card mob-sleep-card">
+        <div className="mob-status-card-title"><Moon size={14} /> Sleep &amp; Recovery</div>
+        <div className="mob-sleep-body">
+          {/* Check-in */}
+          <div className="mob-sleep-checkin">
+            <span className="mob-sleep-checkin-lbl">How was your sleep?</span>
+            <div className="mob-sleep-q-row">
+              {[["poor","Poor"],["okay","Okay"],["good","Good"]].map(([val, label]) => (
+                <button key={val}
+                  className={`mob-sleep-q-btn mob-sq-${val}${todaySleepQuality === val ? " active" : ""}`}
+                  onClick={() => setSleepQuality(val)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Signals */}
+          <div className="mob-sleep-signals">
+            <div className="mob-sleep-signal-row">
+              <span>Sleep Pressure</span>
+              <span className="mob-sleep-badge" style={{ color: sleepState?.pressureColor, background: `${sleepState?.pressureColor}15` }}>
+                {sleepState?.pressure ?? "—"}
+              </span>
+            </div>
+            <div className="mob-sleep-signal-row">
+              <span>Tonight's Risk</span>
+              <span className="mob-sleep-badge" style={{ color: sleepState?.riskColor, background: `${sleepState?.riskColor}15` }}>
+                {sleepState?.tonightRisk ?? "—"}
+              </span>
+            </div>
+          </div>
+        </div>
+        {sleepState?.suggestion && (
+          <div className="mob-sleep-suggestion">{sleepState.suggestion}</div>
+        )}
       </div>
 
       {/* § 3 Today's Reality */}

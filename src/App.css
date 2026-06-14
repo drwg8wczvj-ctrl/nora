@@ -1476,94 +1476,146 @@
 }
 
 /* ── Notes view ───────────────────────────────────────── */
-.notes-view {
-  display: flex; flex-direction: column; gap: 12px;
-}
+/* ── Sleep & Recovery card (desktop) ───────────────────── */
+.sv2-sleep { border-left: 3px solid #818cf8; }
+.sleep-body { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
 
-.notes-add-bar {
-  display: flex; gap: 10px; align-items: center;
-  padding: 14px 18px;
-  background: var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-radius: var(--radius);
+.sleep-checkin-section { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.sleep-checkin-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.sleep-q-row { display: flex; gap: 6px; }
+.sleep-q-btn {
+  padding: 5px 14px; border-radius: 20px;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
 }
-.notes-add-input {
-  flex: 1; padding: 9px 13px;
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--surface-2); color: var(--text);
-  font-size: 14px; font-family: inherit; outline: none;
-  transition: border-color var(--tr), box-shadow var(--tr);
-}
-.notes-add-input:focus {
-  border-color: rgba(124,58,237,0.45);
-  box-shadow: 0 0 0 2px rgba(124,58,237,0.1);
-}
-.notes-add-input::placeholder { color: var(--text-muted); }
-.notes-add-btn {
-  width: 40px; height: 40px; border-radius: 10px;
-  border: none; background: var(--grad); color: #fff;
-  cursor: pointer; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  transition: opacity var(--tr), box-shadow var(--tr);
-  box-shadow: 0 0 14px rgba(124,58,237,0.35);
-}
-.notes-add-btn:hover:not(:disabled) { opacity: .85; }
-.notes-add-btn:disabled { opacity: .3; cursor: not-allowed; box-shadow: none; }
+.sleep-q-btn:hover { border-color: #818cf8; color: #818cf8; }
+.sleep-q-poor.active  { background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.35);  color: #ef4444; }
+.sleep-q-okay.active  { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.35); color: #f59e0b; }
+.sleep-q-good.active  { background: rgba(34,197,94,.12);  border-color: rgba(34,197,94,.35);  color: #22c55e; }
 
-.notes-list {
+.sleep-signals { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 180px; }
+.sleep-signal-row { display: flex; align-items: center; justify-content: space-between; }
+.sleep-signal-label { font-size: 12px; color: var(--text-muted); }
+.sleep-badge {
+  font-size: 11px; font-weight: 700; padding: 3px 10px;
+  border-radius: 20px; border: 1px solid;
+  letter-spacing: .03em;
+}
+.sleep-suggestion {
+  margin-top: 10px; padding: 9px 13px;
+  border-radius: 10px; font-size: 12px; line-height: 1.5;
+  background: rgba(129,140,248,.08); color: var(--text-muted);
+  border-left: 3px solid #818cf8;
+  display: flex; align-items: flex-start; gap: 7px;
+}
+
+/* ── Sticky Notes (desktop) ─────────────────────────────── */
+.notes-view { position: relative; }
+
+.sticky-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+
+.sticky-card {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  border: 1px solid;
+  padding: 14px 12px;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 2px 3px 10px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
   display: flex; flex-direction: column; gap: 8px;
 }
-
-.note-card {
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 14px 16px;
-  background: var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  transition: border-color var(--tr), box-shadow var(--tr), opacity var(--tr);
+.sticky-card:hover {
+  transform: translateY(-3px) rotate(0.4deg);
+  box-shadow: 4px 8px 20px rgba(0,0,0,0.18);
 }
-.note-card:hover { border-color: rgba(124,58,237,0.25); box-shadow: var(--shadow-glow); }
-.note-card.done  { opacity: .5; }
-
-.note-check {
-  width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px;
-  border-radius: 50%;
+.sticky-card-title {
+  font-size: 13px; font-weight: 700; line-height: 1.35;
+  overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+}
+.sticky-card-preview {
+  font-size: 11px; opacity: 0.65; line-height: 1.4;
+  overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 4; -webkit-box-orient: vertical;
 }
 
-.note-text {
-  flex: 1; min-width: 0;
-  background: transparent; border: none; outline: none;
-  color: var(--text); font-size: 14px; font-family: inherit;
-  line-height: 1.6; resize: none; overflow: hidden;
-  padding: 0;
+/* New note button — one per color */
+.sticky-add-card {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  border: 2px dashed;
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.55;
+  transition: opacity 0.15s, transform 0.15s;
 }
-.note-card.done .note-text { text-decoration: line-through; color: var(--text-muted); }
+.sticky-add-card:hover { opacity: 1; transform: scale(1.04); }
 
-.note-delete {
-  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
-  border: none; background: transparent; color: var(--text-muted);
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background var(--tr), color var(--tr);
-  margin-top: 1px;
+/* Expanded note modal */
+.sticky-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.38);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 500;
+  display: flex; align-items: center; justify-content: center;
 }
-.note-delete:hover { background: rgba(220,38,38,0.1); color: var(--danger); }
-
-.notes-empty {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 14px; padding: 60px 20px;
-  background: var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-radius: var(--radius); border: 1px solid var(--border);
-  box-shadow: var(--shadow); color: var(--text-muted); text-align: center;
+.sticky-modal {
+  width: 360px; min-height: 400px;
+  border-radius: 6px;
+  border: 1.5px solid;
+  padding: 20px 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.28);
+  display: flex; flex-direction: column; gap: 12px;
 }
-.notes-empty p { font-size: 14px; }
+.sticky-modal-top {
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.sticky-modal-title {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-size: 17px; font-weight: 800; font-family: inherit;
+  line-height: 1.3; min-width: 0;
+}
+.sticky-modal-title::placeholder { opacity: 0.4; }
+.sticky-modal-close {
+  background: transparent; border: none; cursor: pointer;
+  opacity: 0.45; padding: 2px; flex-shrink: 0;
+  transition: opacity .15s;
+}
+.sticky-modal-close:hover { opacity: 0.9; }
+.sticky-color-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.sticky-color-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid; cursor: pointer;
+  outline: 2px solid transparent; outline-offset: 2px;
+  transition: outline-color .15s, transform .15s;
+}
+.sticky-color-dot.active {
+  outline-color: currentColor;
+  transform: scale(1.25);
+}
+.sticky-modal-delete {
+  margin-left: auto; background: transparent; border: none;
+  cursor: pointer; opacity: 0.35; padding: 2px;
+  transition: opacity .15s, color .15s;
+}
+.sticky-modal-delete:hover { opacity: 1; color: #dc2626; }
+.sticky-modal-content {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-size: 14px; font-family: inherit; line-height: 1.7;
+  resize: none; min-height: 260px;
+}
+.sticky-modal-content::placeholder { opacity: 0.4; }
 
 /* ── Landing page ──────────────────────────────────────── */
 .landing-page {

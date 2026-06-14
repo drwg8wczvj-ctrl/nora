@@ -16,7 +16,7 @@ import {
   Activity, Zap, Wind, TrendingUp, TrendingDown, Minus,
   ZoomIn, ZoomOut,
   Brain, Target, Lightbulb, BarChart2, AlertTriangle,
-  Pencil, SkipForward, Sparkles,
+  Pencil, SkipForward, Sparkles, Moon,
 } from "lucide-react";
 import { calculateTaskWeight } from "./utils/taskUtils";
 import "./App.css";
@@ -131,6 +131,14 @@ const getChatAlternatives = (input, ghost) => {
     .slice(0, 2);
 };
 
+// ── Note colors (Apple Stickies palette) ───────────────
+const NOTE_COLORS = {
+  yellow: { bg: "#fef9c3", border: "#fde68a", text: "#78350f" },
+  pink:   { bg: "#fce7f3", border: "#f9a8d4", text: "#701a75" },
+  blue:   { bg: "#dbeafe", border: "#93c5fd", text: "#1e3a8a" },
+  green:  { bg: "#dcfce7", border: "#86efac", text: "#14532d" },
+};
+
 // ── Helpers ────────────────────────────────────────────
 const uid      = () => Math.random().toString(36).slice(2);
 const pad      = (n) => String(n).padStart(2, "0");
@@ -223,6 +231,18 @@ const isRepeatMatch = (task, date) => {
 const executeAiTool = (name, input, currentTasks) => {
   switch (name) {
     case "add_task": {
+      // DUPLICATE PREVENTION — reject if same title + date already active
+      const normTitle = (input.title ?? "").toLowerCase().trim();
+      const existing = currentTasks.find(
+        (t) => t.title.toLowerCase().trim() === normTitle && t.date === input.date && !t.completed
+      );
+      if (existing) {
+        return {
+          result: `Duplicate prevented: "${input.title}" on ${input.date} already exists (id: ${existing.id}). Use move_task to reschedule it or delete_task to remove it first.`,
+          nextTasks: currentTasks,
+        };
+      }
+
       if (input.startHour != null) {
         const now = new Date();
         const todayDate = fmtDate(now);
@@ -350,6 +370,22 @@ const AI_TOOLS = [
         type: "object",
         properties: { taskId: { type: "string" } },
         required: ["taskId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "save_insight",
+      description: "Save a coaching insight about the user that should persist across sessions to improve future planning. Call this when you learn something meaningful about how the user works, their recurring goals, preferred times, stress patterns, or important commitments.",
+      parameters: {
+        type: "object",
+        properties: {
+          key:   { type: "string", description: "Insight category — e.g. 'preferred_study_time', 'recurring_goal', 'stress_trigger', 'training_schedule', 'focus_window', 'typical_session_length', 'avoidance_pattern'" },
+          value: { type: "string", description: "The insight value — be specific and useful for future planning" },
+          note:  { type: "string", description: "Brief reason why this matters for future planning (optional)" },
+        },
+        required: ["key", "value"],
       },
     },
   },
@@ -487,7 +523,9 @@ export default function App() {
 
   const [showLanding,    setShowLanding]    = useState(true);
   const [notes,          setNotes]          = useLocalStorage("nora_notes", []);
-  const [newNote,        setNewNote]        = useState("");
+  // eslint-disable-next-line no-unused-vars
+  const [newNote, setNewNote] = useState("");
+  // eslint-disable-next-line no-unused-vars
   const newNoteRef = useRef(null);
 
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
@@ -500,6 +538,7 @@ export default function App() {
   const [energy,         setEnergy]         = useLocalStorage("nora_energy", 5);
   const [focus,          setFocus]          = useLocalStorage("nora_focus", 5);
   const [motivation,     setMotivation]     = useLocalStorage("nora_motivation", 5);
+  const [sleepCheckIn, setSleepCheckIn]    = useLocalStorage("nora_sleep_checkin", { date: null, quality: null });
   const [userProfile,    setUserProfile]    = useState({});
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
@@ -521,6 +560,9 @@ export default function App() {
   const today       = fmtDate(tick);
   const currentHour = tick.getHours();
   const nowMins     = tick.getHours() * 60 + tick.getMinutes();
+  // Sleep check-in — depends on today
+  const todaySleepQuality = sleepCheckIn.date === today ? sleepCheckIn.quality : null;
+  const setSleepQuality   = (q) => setSleepCheckIn({ date: today, quality: q });
 
   // Sync all app data to Supabase 1 s after the last change
   useEffect(() => {
@@ -828,6 +870,66 @@ export default function App() {
       })
       .sort((a, b) => b.daysDeferred - a.daysDeferred);
   }, [tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sleep Intelligence ─────────────────────────────────────────
+  const sleepState = useMemo(() => {
+    // Tonight's tasks (after 20:00, not completed)
+    const tonightTasks = tasks.filter(
+      (t) => t.date === today && t.startHour != null && t.startHour >= 20 && !t.completed
+    );
+    const tonightLoad  = tonightTasks.reduce((s, t) => s + (t.duration ?? 60), 0);
+    const hasLateTasks = tonightTasks.length > 0;
+    const hasVeryLate  = tonightTasks.some((t) => t.startHour >= 22);
+
+    // Late-work pattern: count past 7 days with tasks after 20:00
+    const lateNights = Array.from({ length: 7 }, (_, i) => {
+      const d = fmtDate(addDays(today, -(i + 1)));
+      return tasks.some((t) => t.date === d && (t.startHour ?? 0) >= 20);
+    }).filter(Boolean).length;
+    const hasLatePattern = lateNights >= 3;
+
+    // Sleep pressure score
+    let score = 0;
+    if (energy <= 3)                                    score += 3;
+    else if (energy <= 5)                               score += 1;
+    if (relaxation <= 3)                                score += 2;
+    else if (relaxation <= 5)                           score += 1;
+    if (recoveryState.level === "burnout")              score += 3;
+    else if (recoveryState.level === "recovery")        score += 2;
+    else if (recoveryState.level === "high")            score += 1;
+    if (todaySleepQuality === "poor")                   score += 2;
+    else if (todaySleepQuality === "okay")              score += 1;
+
+    const pressure      = score >= 5 ? "High" : score >= 3 ? "Moderate" : "Low";
+    const pressureColor = pressure === "High" ? "#ef4444" : pressure === "Moderate" ? "#f59e0b" : "#22c55e";
+
+    // Tonight's risk
+    let tonightRisk  = "Calm";
+    let riskLevel    = "calm";
+    if (hasVeryLate || (hasLateTasks && tonightLoad > 90)) { tonightRisk = "Late Work Risk"; riskLevel = "high"; }
+    else if (hasLateTasks || workloadForecast[0]?.level === "heavy") { tonightRisk = "Loaded"; riskLevel = "moderate"; }
+
+    const riskColor = riskLevel === "high" ? "#ef4444" : riskLevel === "moderate" ? "#f59e0b" : "#22c55e";
+
+    // Contextual suggestion
+    let suggestion = null;
+    if (pressure === "High" && hasVeryLate)
+      suggestion = "Tonight needs protecting. Move the late tasks to tomorrow — your recovery matters more right now.";
+    else if (pressure === "High" && hasLateTasks)
+      suggestion = "Keep only the essential tonight and defer the rest. Recovery first.";
+    else if (hasVeryLate)
+      suggestion = "Move tasks after 22:00 to tomorrow morning — late cognitive work cuts into recovery.";
+    else if (hasLatePattern)
+      suggestion = "Late work is becoming a pattern. One early evening this week would help a lot.";
+    else if (hasLateTasks && pressure === "Moderate")
+      suggestion = "Tonight has some late work. Keep it to essentials if possible.";
+    else if (pressure === "Moderate")
+      suggestion = "Decent balance. Aim to wind down by 22:00 if you can.";
+    else if (riskLevel === "calm" && !hasLatePattern)
+      suggestion = "Recovery looks protected tonight. Good position.";
+
+    return { pressure, pressureColor, tonightRisk, riskLevel, riskColor, suggestion, hasLateTasks, hasVeryLate, hasLatePattern, tonightTasks, lateNights };
+  }, [tasks, today, energy, relaxation, recoveryState, todaySleepQuality, workloadForecast]); // eslint-disable-line
 
   // ── User Confidence (composite metric) ─────────────────────────
   const userConfidence = useMemo(() => {
@@ -1239,15 +1341,18 @@ export default function App() {
   const shiftDate  = (n) => setSelectedDate(fmtDate(addDays(selectedDate, n)));
   const shiftMo    = (n) => setSelectedDate(shiftMonth(selectedDate, n));
 
-  const addNote    = () => {
-    if (!newNote.trim()) return;
-    setNotes((p) => [...p, { id: uid(), content: newNote.trim(), done: false, createdAt: Date.now() }]);
-    setNewNote("");
-    newNoteRef.current?.focus();
+  const [openNoteId, setOpenNoteId] = useState(null);
+  const createStickyNote = (color = "yellow") => {
+    const n = { id: uid(), title: "", content: "", color, done: false, createdAt: Date.now() };
+    setNotes((p) => [...p, n]);
+    setOpenNoteId(n.id);
   };
-  const toggleNote = (id) => setNotes((p) => p.map((n) => n.id === id ? { ...n, done: !n.done } : n));
-  const updateNote = (id, content) => setNotes((p) => p.map((n) => n.id === id ? { ...n, content } : n));
-  const deleteNote = (id) => setNotes((p) => p.filter((n) => n.id !== id));
+  const patchNote  = (id, fields) => setNotes((p) => p.map((n) => n.id === id ? { ...n, ...fields } : n));
+  // eslint-disable-next-line no-unused-vars
+  const addNote    = () => { /* kept for mobileCtx compat */ };
+  const toggleNote = (id) => patchNote(id, { done: !notes.find(n => n.id === id)?.done });
+  const updateNote = (id, content) => patchNote(id, { content });
+  const deleteNote = (id) => { setNotes((p) => p.filter((n) => n.id !== id)); if (openNoteId === id) setOpenNoteId(null); };
 
   const createGroup = () => {
     if (!newGroupName.trim()) return;
@@ -1358,9 +1463,18 @@ export default function App() {
     if (userPrefs.work_style && userPrefs.work_style !== "flexible")
                                            prefsLines.push(`Work style: ${userPrefs.work_style}`);
     if (userPrefs.goals)                   prefsLines.push(`User goals: ${userPrefs.goals}`);
+
+    // Include all coaching insights saved via save_insight tool
+    const SYSTEM_KEYS = new Set(["load_baseline","peak_hours","preferred_session_mins","work_style","goals","behavior_profile","completion_consistency"]);
+    const coachingInsights = Object.entries(userPrefs)
+      .filter(([k]) => !SYSTEM_KEYS.has(k) && !k.endsWith("_note"))
+      .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
+      .slice(0, 12);
+    if (coachingInsights.length > 0) prefsLines.push(...coachingInsights);
+
     const prefsBlock = prefsLines.length > 0
-      ? `\n━━━ PERSISTENT USER CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━━━\n\n${prefsLines.join("\n")}\n\nApply these silently — never re-ask for what you already know.\n`
-      : "";
+      ? `\n━━━ PERSISTENT USER CONTEXT (coaching memory) ━━━━━━━━━\n\n${prefsLines.join("\n")}\n\nApply these silently when planning. Never re-ask for information already stored here.\nWhen you learn new relevant information (habits, recurring goals, schedules, preferences), call save_insight to remember it.\n`
+      : `\n(No coaching insights saved yet. Use save_insight when you learn something useful about how this user works.)\n`;
 
     const noraStateGuidance = {
       recovery_day:      "Protect the user today. No new tasks. Offer to defer or remove items only.",
@@ -1464,6 +1578,21 @@ Confidence: ${userConfidence.label}
       ? "Good state. Steady blocks. No need for extra encouragement."
     : "Moderate. One task at a time. Don't overload."
   }
+
+━━━ SLEEP INTELLIGENCE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sleep Pressure: ${sleepState.pressure} · Tonight's Risk: ${sleepState.tonightRisk}
+Late tasks tonight (after 20:00): ${sleepState.tonightTasks.length > 0 ? sleepState.tonightTasks.map((t) => `"${t.title}" at ${fmtTime(t.startHour, t.startMinute ?? 0)}`).join(", ") : "none"}
+Late-work pattern: ${sleepState.hasLatePattern ? `Yes — ${sleepState.lateNights}/7 recent nights had late tasks.` : "No concerning pattern"}
+Sleep quality today: ${todaySleepQuality ?? "not reported"}
+
+Sleep-aware planning rules:
+• Avoid heavy cognitive tasks after 21:00 unless a deadline urgently requires it.
+• Sleep Pressure = High → actively suggest moving evening tasks to tomorrow before adding more.
+• Tonight's Risk = Late Work Risk → warn once and offer to trim/reschedule.
+• Late-work pattern detected → mention it once, calmly. Never repeat it in the same conversation.
+• Tone: "Tonight may need protecting" / "This could affect recovery" / "Let's reduce late pressure." Never: "You should sleep earlier" / "This is unhealthy."
+• When real obligations exist (exam, deadline): respect them — suggest the minimum viable late workload only.
 
 ━━━ WELLBEING INVESTIGATION PROTOCOL ━━━━━━━━━━━━━━━━
 
@@ -1569,6 +1698,7 @@ After computing the full plan but BEFORE calling any tool, run this silent check
   ✓ Lightest available days preferred
   ✓ TEMPORAL: every preparation task date is strictly BEFORE its target deadline date
   ✓ CAUSAL: the schedule reads logically forward in time (no preparation after the event it prepares for)
+  ✓ AVAILABILITY: if a constraint was given (e.g. "available from 11"), no task sits before that time
 Only after ALL checks pass: call the tools.
 If any check fails: adjust the plan, re-validate, then commit.
 If the temporal check fails: silently recalculate — never tell the user "I had to fix the dates."
@@ -1614,11 +1744,49 @@ type:"break"    → intentional rest. Title naturally: "Lunch", "Short walk", "R
 Break rules: session ≥ 90 min → auto-add 15–20 min break immediately after.
 2+ sessions today with no break → flag it and offer one. Breaks are non-optional.
 
+━━━ AVAILABILITY CONSTRAINT MODE — MODE 4 (NON-OPTIONAL) ━
+
+Trigger phrases — activate immediately when user says any of:
+"I can't start until X" / "I won't be free until X" / "I'm busy until X" /
+"Move everything after X" / "I only have time after X" / "I won't manage before X" /
+"I have [event] until X" / "Start my tasks from X" / "not available before X" /
+"I'll be ready at X" / "only free from X"
+
+When triggered — MANDATORY STEPS (no exceptions):
+
+STEP A — Parse the constraint. Extract the unavailability end time (call it T).
+  T is in minutes from midnight. E.g. "11:00" → T = 660.
+
+STEP B — Find all affected tasks.
+  Scan today's scheduled tasks. Collect every task where:
+  startHour * 60 + (startMinute ?? 0) < T AND type = "task" (not deadlines or fixed events).
+  Sort affected tasks by their current start time, ascending.
+
+STEP C — Cascade rescheduling. Place tasks sequentially starting at T with no overlaps:
+  • slot = T
+  • For each affected task (in order):
+      - Call move_task(taskId, date=today, startHour=floor(slot/60), startMinute=slot%60)
+      - slot = slot + (task.duration ?? 60) + 5  [5-min gap between tasks]
+  • If slot extends past midnight → warn user some tasks couldn't fit.
+  • Tasks already AFTER T → leave exactly where they are unless new tasks now overlap.
+
+STEP D — Overlap check. After moving, verify no task now overlaps another. If overlap detected, cascade again.
+
+STEP E — Confirm with reality. Reply with exactly what changed:
+  "Moved [task A] to 11:00, [task B] to 12:05, [task C] to 13:10. Your evening [task D] at 9 PM stays unchanged."
+
+CRITICAL RULES:
+✗ Never say "I'll adjust your schedule" without calling move_task for every affected task.
+✗ Never claim changes were made unless tool calls succeeded.
+✗ Never move a deadline or break without explicit user instruction.
+✓ If user later says "move X further" — use the NEW schedule (post-constraint) as the baseline.
+
 ━━━ OPERATING MODES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 MODE 1 — TASK OPS: Execute with tools. 1 sentence after. Only mention the schedule if something genuinely matters.
 MODE 2 — COACHING: 2 sentences max. Personal, evidence-based. No textbook language, no pep talk.
 MODE 3 — PLANNING: Activate when user mentions deadline · exam · project · submission · interview · launch · goal · study · prepare. Non-optional — all steps below are required.
+MODE 4 — AVAILABILITY CONSTRAINT: Activate on trigger phrases above. Non-optional cascade rescheduling required.
 
 ━━━ PLANNING ENGINE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1697,6 +1865,9 @@ ${tasks.filter((t) => !t.completed).map((t) => `"${t.title}" [${t.id.slice(0,6)}
 ✗ Scheduling preparation tasks ON or AFTER the deadline they prepare for
 ✗ Planning prep without first identifying the target deadline date
 ✗ Ignoring existing deadline tasks when computing the available prep window
+✗ Acknowledging an availability constraint in text without calling move_task for every affected task
+✗ Moving one task for an availability constraint but leaving later tasks in overlapping positions
+✗ Using the pre-constraint schedule as a reference after the user has updated their availability
 
 ━━━ HIDDEN TASK RADAR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1753,6 +1924,30 @@ ${adaptivePlanData ? `
 Profile (${adaptivePlanData.sampleSize} completions): best hours ${adaptivePlanData.topHours.slice(0, 2).map((h) => fmtTime(h, 0)).join(", ")} · avg session ~${adaptivePlanData.avgDur ?? 60} min · best day ${adaptivePlanData.bestDayName ?? "?"} · hard task rate ${adaptivePlanData.hardRate != null ? `${adaptivePlanData.hardRate}%` : "?"}${adaptivePlanData.hardRate != null && adaptivePlanData.hardRate < 50 ? " (break into sub-steps)" : ""} · long sessions ${adaptivePlanData.longTasksFail ? "cap at 60–75 min" : "fine"}
 ` : "No behavioral data yet — use defaults: 60 min sessions, 9 AM and 2 PM."}
 Rules: schedule demanding work at best hours · if long sessions fail, cap at 60 min · if hard tasks fail, simplify · elevated recovery = fewer sessions.
+
+━━━ COACHING MEMORY — WHEN TO CALL save_insight ━━━━━━━
+
+Call save_insight whenever you learn something useful and recurring about the user. Examples:
+• "I train football on Tuesdays and Thursdays" → key: "training_schedule", value: "football Tue+Thu"
+• "I study better in the evening" → key: "preferred_focus_time", value: "evening (after 6 PM)"
+• "I'm preparing for a mathematics exam" → key: "recurring_goal", value: "mathematics exam preparation"
+• "I tend to avoid long tasks" → key: "avoidance_pattern", value: "tasks over 2h often deferred"
+• "I like 45-minute sessions" → key: "preferred_session_length", value: "45 minutes"
+• User mentions regular commitments, stress patterns, recurring events → save them.
+
+Save at most 1–2 insights per conversation turn. Only save what's genuinely useful for future planning.
+Never save one-time task details. Never repeat an insight already in the persistent context.
+
+━━━ CONVERSATIONAL CONTEXT AWARENESS ━━━━━━━━━━━━━━━━━
+
+You receive the last 20 messages of this conversation. USE THEM CONTINUOUSLY:
+• If you just moved a task, factor the updated schedule into any new planning.
+• If the user said "plan X and Y for today", don't plan Y for tomorrow.
+• If you already scheduled something in this conversation, do not add it again.
+• After any schedule change, re-read the full task list before adding more.
+
+Think of the conversation as a continuous session, not isolated messages.
+Before each tool call, mentally verify: "Given everything said and done in this conversation, is this action still correct?"
 
 ━━━ TASK PURPOSE (notes field) ━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1825,9 +2020,20 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         const toolResults = [];
         for (const tc of msg.tool_calls) {
           const input = JSON.parse(tc.function.arguments);
-          const { result, nextTasks } = executeAiTool(tc.function.name, input, workingTasks);
-          workingTasks = nextTasks;
-          toolResults.push({ role: "tool", tool_call_id: tc.id, content: result });
+          // save_insight is handled client-side — doesn't modify tasks
+          if (tc.function.name === "save_insight") {
+            const { key, value, note } = input;
+            setUserPrefs((prev) => {
+              const updated = { ...prev, [key]: value };
+              if (note) updated[`${key}_note`] = note;
+              return updated;
+            });
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Insight saved: ${key} = "${value}"${note ? ` (${note})` : ""}` });
+          } else {
+            const { result, nextTasks } = executeAiTool(tc.function.name, input, workingTasks);
+            workingTasks = nextTasks;
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: result });
+          }
         }
         setTasks(workingTasks);
         apiMsgs = [...apiMsgs, ...toolResults];
@@ -1932,11 +2138,12 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       adaptiveRecs, weeklyReflection, mostAvoided, focusPatterns,
       doneToday, totalToday, pct,
       toggleTask, skipTask, askNORAtoReschedule, saveTask, deleteTask,
-      addNote: (text) => setNotes((p) => [...p, { id: uid(), content: text, done: false, createdAt: Date.now() }]),
-      toggleNote, updateNote, deleteNote, getGroup,
+      addNote: (text) => setNotes((p) => [...p, { id: uid(), title: "", content: text, color: "yellow", done: false, createdAt: Date.now() }]),
+      toggleNote, updateNote, deleteNote, patchNote, createStickyNote, getGroup,
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
       microStartMode, setMicroStartMode,
       rescheduleTask, setRescheduleTask, saveReschedule,
+      sleepState, todaySleepQuality, setSleepQuality,
       focus, setFocus, motivation, setMotivation,
       userConfidence, assessmentSummary, keySignals,
     };
@@ -2768,6 +2975,46 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   </div>
                 </div>
 
+                {/* ── § Sleep & Recovery ── */}
+                <div className="sv2-card sv2-sleep sv2-full">
+                  <div className="sv2-card-title"><Moon size={14} /> Sleep &amp; Recovery</div>
+                  <div className="sleep-body">
+                    {/* Check-in */}
+                    <div className="sleep-checkin-section">
+                      <span className="sleep-checkin-label">How was your sleep?</span>
+                      <div className="sleep-q-row">
+                        {[["poor","Poor"],["okay","Okay"],["good","Good"]].map(([val, label]) => (
+                          <button key={val}
+                            className={`sleep-q-btn sleep-q-${val}${todaySleepQuality === val ? " active" : ""}`}
+                            onClick={() => setSleepQuality(val)}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Signals */}
+                    <div className="sleep-signals">
+                      <div className="sleep-signal-row">
+                        <span className="sleep-signal-label">Sleep Pressure</span>
+                        <span className="sleep-badge" style={{ color: sleepState.pressureColor, background: `${sleepState.pressureColor}15`, borderColor: `${sleepState.pressureColor}30` }}>
+                          {sleepState.pressure}
+                        </span>
+                      </div>
+                      <div className="sleep-signal-row">
+                        <span className="sleep-signal-label">Tonight's Risk</span>
+                        <span className="sleep-badge" style={{ color: sleepState.riskColor, background: `${sleepState.riskColor}15`, borderColor: `${sleepState.riskColor}30` }}>
+                          {sleepState.tonightRisk}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {sleepState.suggestion && (
+                    <div className="sleep-suggestion">
+                      <Moon size={11} /> {sleepState.suggestion}
+                    </div>
+                  )}
+                </div>
+
                 {/* ── § 3 Today's Reality ── */}
                 <div className="sv2-card sv2-today sv2-left">
                   <div className="sv2-card-title"><CalendarDays size={14} /> Today's Reality</div>
@@ -2927,52 +3174,74 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             );
           })()}
 
-          {view === "notes" && (
-            <div className="notes-view">
-              <div className="notes-add-bar">
-                <input
-                  ref={newNoteRef}
-                  className="notes-add-input"
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addNote(); } }}
-                  placeholder="Write a new note…" />
-                <button className="notes-add-btn" onClick={addNote} disabled={!newNote.trim()}>
-                  <Plus size={16} />
-                </button>
-              </div>
-              {notes.length === 0 ? (
-                <div className="notes-empty">
-                  <FileText size={40} style={{ opacity: .2 }} />
-                  <p>No notes yet. Type above and press Enter.</p>
-                </div>
-              ) : (
-                <div className="notes-list">
-                  {[...notes].reverse().map((note) => (
-                    <div key={note.id} className={`note-card${note.done ? " done" : ""}`}>
-                      <button
-                        className={`chip-check note-check${note.done ? " checked" : ""}`}
-                        onClick={() => toggleNote(note.id)}>
-                        {note.done && <Check size={10} strokeWidth={3} />}
-                      </button>
-                      <textarea
-                        className="note-text"
-                        value={note.content}
-                        onChange={(e) => updateNote(note.id, e.target.value)}
-                        rows={1}
-                        onInput={(e) => {
-                          e.target.style.height = "auto";
-                          e.target.style.height = e.target.scrollHeight + "px";
-                        }} />
-                      <button className="note-delete" onClick={() => deleteNote(note.id)}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+          {view === "notes" && (() => {
+            const openNote = notes.find(n => n.id === openNoteId);
+            const nc = (color) => NOTE_COLORS[color ?? "yellow"];
+            return (
+              <div className="notes-view">
+                <div className="sticky-grid">
+                  {[...notes].reverse().map((note) => {
+                    const c = nc(note.color);
+                    return (
+                      <div key={note.id} className="sticky-card"
+                        style={{ background: c.bg, borderColor: c.border }}
+                        onClick={() => setOpenNoteId(note.id)}>
+                        <div className="sticky-card-title" style={{ color: c.text }}>
+                          {note.title || note.content?.split("\n")[0] || "Untitled"}
+                        </div>
+                        {note.content && (
+                          <div className="sticky-card-preview" style={{ color: c.text }}>
+                            {note.content.slice(0, 80)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {Object.keys(NOTE_COLORS).map((color) => (
+                    <button key={color} className="sticky-add-card"
+                      style={{ borderColor: NOTE_COLORS[color].border, color: NOTE_COLORS[color].text }}
+                      onClick={() => createStickyNote(color)}>
+                      <Plus size={20} />
+                    </button>
                   ))}
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* Expanded note modal */}
+                {openNote && (
+                  <div className="sticky-modal-overlay" onClick={() => setOpenNoteId(null)}>
+                    <div className="sticky-modal" style={{ background: nc(openNote.color).bg, borderColor: nc(openNote.color).border }}
+                      onClick={e => e.stopPropagation()}>
+                      <div className="sticky-modal-top">
+                        <input className="sticky-modal-title"
+                          style={{ color: nc(openNote.color).text }}
+                          value={openNote.title ?? ""}
+                          onChange={e => patchNote(openNote.id, { title: e.target.value })}
+                          placeholder="Note title" />
+                        <button className="sticky-modal-close" onClick={() => setOpenNoteId(null)}>
+                          <X size={16} />
+                        </button>
+                      </div>
+                      <div className="sticky-color-row">
+                        {Object.entries(NOTE_COLORS).map(([key, val]) => (
+                          <button key={key} className={`sticky-color-dot${openNote.color === key ? " active" : ""}`}
+                            style={{ background: val.bg, borderColor: val.border, outlineColor: val.text }}
+                            onClick={() => patchNote(openNote.id, { color: key })} />
+                        ))}
+                        <button className="sticky-modal-delete" onClick={() => deleteNote(openNote.id)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                      <textarea className="sticky-modal-content"
+                        style={{ color: nc(openNote.color).text }}
+                        value={openNote.content ?? ""}
+                        onChange={e => patchNote(openNote.id, { content: e.target.value })}
+                        placeholder="Write your note…" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           </div>{/* page-anim */}
         </div>
 
