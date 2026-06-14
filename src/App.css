@@ -16,6 +16,15 @@
   --glass-blur:   blur(8px);
   --tr:           .18s ease;
 
+  /* ── NORA Motion Tokens ── */
+  --ease-spring:  cubic-bezier(0.25, 1, 0.35, 1);
+  --ease-out:     cubic-bezier(0.0, 0.0, 0.2, 1);
+  --ease-in-out:  cubic-bezier(0.4, 0.0, 0.2, 1);
+  --dur-instant:  0.08s;
+  --dur-fast:     0.16s;
+  --dur-base:     0.26s;
+  --dur-slow:     0.42s;
+
   /* Light palette — clean, neutral, premium */
   --bg:            #f3f2fa;
   --surface:       rgba(255,255,255,0.94);
@@ -1646,6 +1655,11 @@
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
 }
+/* Mobile: slide up from bottom */
+@media (max-width: 640px) {
+  .mcu-overlay { align-items: flex-end; padding: 0; }
+  .mcu-modal { border-radius: 26px 26px 0 0 !important; max-height: 95dvh !important; max-width: 100% !important; }
+}
 /* Sunrise glow decoration */
 .mcu-sunrise-glow {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
@@ -3173,3 +3187,153 @@
   font-size: 11px; font-weight: 800; flex-shrink: 0;
 }
 .sv2-rec-text { font-size: 13px; color: var(--text); line-height: 1.5; padding-top: 3px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   NORA MOTION SYSTEM — Premium, calm, futuristic
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Reduced motion: respect user preference ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Core keyframes ── */
+@keyframes noraEnter {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes noraFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes noraSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes noraSlideRight {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes noraPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.20); }
+  70%  { transform: scale(0.93); }
+  100% { transform: scale(1); }
+}
+@keyframes noraGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); }
+  50%       { box-shadow: 0 0 22px 4px rgba(124,58,237,0.28); }
+}
+@keyframes noraPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+
+/* ── Page content entrance ── */
+.page-anim {
+  display: flex; flex-direction: column; gap: 16px;
+  animation: noraEnter 0.28s var(--ease-spring) both;
+}
+
+/* ── Card entrances ── */
+.task-card    { animation: noraEnter var(--dur-base) var(--ease-spring) both; }
+.smart-card   { animation: noraEnter 0.22s var(--ease-spring) both; }
+.stat-card    { animation: noraEnter var(--dur-base) var(--ease-spring) both; }
+.status-card  { animation: noraEnter var(--dur-base) var(--ease-spring) both; }
+
+/* Status page stagger */
+.sv2-grid > .sv2-card:nth-child(1) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.00s both; }
+.sv2-grid > .sv2-card:nth-child(2) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.05s both; }
+.sv2-grid > .sv2-card:nth-child(3) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.10s both; }
+.sv2-grid > .sv2-card:nth-child(4) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.15s both; }
+.sv2-grid > .sv2-card:nth-child(5) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.20s both; }
+.sv2-grid > .sv2-card:nth-child(6) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.25s both; }
+.sv2-grid > .sv2-card:nth-child(7) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.30s both; }
+
+/* Insights stagger */
+.lti-content > .lti-card:nth-child(1) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.00s both; }
+.lti-content > .lti-card:nth-child(2) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.06s both; }
+.lti-content > .lti-card:nth-child(3) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.12s both; }
+.lti-content > .lti-card:nth-child(4) { animation: noraEnter var(--dur-base) var(--ease-spring) 0.18s both; }
+.lti-metrics-grid > .lti-metric-card { animation: noraEnter var(--dur-fast) var(--ease-spring) both; }
+
+/* ── Task completion pop ── */
+.chip-check.checked { animation: noraPop 0.32s var(--ease-spring) both; }
+
+/* ── Modals & overlays ── */
+.modal                  { animation: noraEnter 0.28s var(--ease-spring) both; }
+.reschedule-modal       { animation: noraEnter 0.26s var(--ease-spring) both; }
+.sticky-modal           { animation: noraEnter 0.24s var(--ease-spring) both; }
+.sticky-modal-overlay   { animation: noraFadeIn var(--dur-fast) ease both; }
+.lti-overlay            { animation: noraFadeIn var(--dur-fast) ease both; }
+.mcu-overlay            { animation: noraFadeIn var(--dur-fast) ease both; }
+
+/* ── Chat panel ── */
+.chat-panel {
+  transition: transform var(--dur-base) var(--ease-spring),
+              opacity var(--dur-fast) ease;
+}
+.chat-msg { animation: noraSlideRight 0.22s var(--ease-spring) both; }
+.chat-msg.user { animation: noraSlideRight 0.20s var(--ease-spring) both; }
+.chat-chips-pill { animation: noraSlideUp 0.20s var(--ease-spring) both; }
+
+/* ── Morning Check-Up steps ── */
+.mcu-body .mcu-step       { animation: noraEnter 0.26s var(--ease-spring) both; }
+.mcu-sleep-card.active    { animation: noraPop 0.24s var(--ease-spring); }
+.mcu-focus-bubble.active  { animation: noraPop 0.22s var(--ease-spring); }
+.mcu-scale-btn.active     { animation: noraPop 0.18s var(--ease-spring); }
+
+/* ── Buttons & controls ── */
+button:not(:disabled):active {
+  transform: scale(0.96) !important;
+  transition: transform var(--dur-instant) ease !important;
+}
+.add-btn:hover:not(:disabled),
+.mcu-next-btn:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+.mob-btn:active { transform: scale(0.96); }
+
+/* Segmented controls */
+.tab-slider, .mob-seg-pill {
+  transition: left 0.32s var(--ease-spring), width 0.22s var(--ease-spring) !important;
+}
+
+/* ── Progress bars ── */
+.mcu-progress-fill,
+.mob-progress-fill,
+.sv2-today-bar-fill,
+.mob-momentum-fill,
+.status-progress-fill {
+  transition: width 0.55s var(--ease-spring) !important;
+}
+
+/* ── Filter/chip animations ── */
+.mob-filter-pill {
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease,
+              border-color var(--dur-fast) ease, transform var(--dur-fast) var(--ease-spring);
+}
+.mob-filter-pill.active { animation: noraPop 0.20s var(--ease-spring); }
+
+/* ── Calendar month cells ── */
+.mob-cal-cell { transition: background 0.18s var(--ease-spring); }
+.mob-cal-cell.mob-cal-today { transition: none; }
+.month-day { transition: background 0.15s ease; }
+
+/* ── NORA state badge pulse (when state changes) ── */
+.mob-assess-state, .sv2-state-label {
+  transition: color 0.3s ease;
+}
+
+/* ── Notification toast entrance ── */
+.notif-toast { animation: noraSlideRight 0.28s var(--ease-spring) both; }
+
+/* ── Check-up readiness ring ── */
+.mcu-ring-svg circle:last-child {
+  transition: stroke-dasharray 0.7s var(--ease-spring);
+}

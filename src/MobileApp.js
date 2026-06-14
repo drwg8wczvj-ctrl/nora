@@ -304,7 +304,7 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
           <div className="mob-day-controls">
             <div className="mob-day-mode-row" style={{ margin: 0 }}>
               <button className={`mob-mode-btn${dayMode === "list" ? " active" : ""}`} onClick={() => setDayMode("list")}>
-                <List size={13} /> List
+                <Sparkles size={13} /> Smart
               </button>
               <button className={`mob-mode-btn${dayMode === "grid" ? " active" : ""}`} onClick={() => setDayMode("grid")}>
                 <BarChart2 size={13} /> Grid
@@ -555,7 +555,7 @@ function MobileGrid({ ctx }) {
             return (
               <div key={t.id}
                 className={`mob-grid-block${t.completed ? " mob-gb-done" : ""}${tp === "break" ? " mob-gb-break" : ""}`}
-                style={{ top, height, borderLeftColor: color, background: tp === "break" ? `${color}10` : `${color}14` }}
+                style={{ top, height, "--gc": color, background: tp === "break" ? `${color}10` : `${color}14` }}
                 onClick={() => setEditingTask(t)}>
                 <span className="mob-gb-title">{shortTitle(t.title) || (tp === "break" ? "Break" : "Deadline")}</span>
                 {t.duration && <span className="mob-gb-dur">{fmtDur(t.duration)}</span>}
@@ -1347,14 +1347,26 @@ function MobNameEditor({ name, onSave }) {
   );
 }
 
+const GROUP_PRESET_COLORS = ["#7c3aed","#2563eb","#0891b2","#059669","#d97706","#dc2626","#db2777","#7c3aed","#4f46e5"];
+
 function MobileSettings({ ctx }) {
   const {
     accountName, setAccountName,
     dark, setDark,
     theme, setTheme,
     reminderMins, setReminderMins,
-    session,
+    session, groups, setGroups,
   } = ctx;
+
+  const [newGroupName,  setNewGroupName]  = useState("");
+  const [newGroupColor, setNewGroupColor] = useState(GROUP_PRESET_COLORS[0]);
+
+  const addGroup = () => {
+    if (!newGroupName.trim()) return;
+    setGroups(g => [...g, { id: uid(), name: newGroupName.trim(), color: newGroupColor }]);
+    setNewGroupName("");
+  };
+  const deleteGroup = (id) => setGroups(g => g.filter(x => x.id !== id));
 
   return (
     <div className="mob-settings">
@@ -1408,6 +1420,42 @@ function MobileSettings({ ctx }) {
             <option value={30}>30 min before</option>
             <option value={60}>1 hour before</option>
           </select>
+        </div>
+      </div>
+
+      {/* Groups */}
+      <div className="mob-sett-card">
+        <div className="mob-sett-card-title"><Activity size={15} /> Task Groups</div>
+        {/* Existing groups */}
+        {(groups || []).map(g => (
+          <div key={g.id} className="mob-group-row">
+            <span className="mob-group-dot" style={{ background: g.color }} />
+            <span className="mob-group-name">{g.name}</span>
+            <button className="mob-group-del" onClick={() => deleteGroup(g.id)}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+        {/* Add new group */}
+        <div className="mob-group-add-row">
+          <div className="mob-group-colors">
+            {GROUP_PRESET_COLORS.map(c => (
+              <button key={c} className={`mob-group-color-dot${newGroupColor === c ? " active" : ""}`}
+                style={{ background: c, outlineColor: c }}
+                onClick={() => setNewGroupColor(c)} />
+            ))}
+          </div>
+          <div className="mob-group-input-row">
+            <input className="mob-sett-input" value={newGroupName}
+              onChange={e => setNewGroupName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addGroup(); }}
+              placeholder="New group name" />
+            <button className="mob-group-add-btn"
+              style={{ background: newGroupColor, opacity: newGroupName.trim() ? 1 : 0.4 }}
+              onClick={addGroup} disabled={!newGroupName.trim()}>
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
       </div>
 

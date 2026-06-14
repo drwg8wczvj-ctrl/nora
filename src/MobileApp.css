@@ -285,7 +285,7 @@
 }
 .mob-sheet {
   width: 100%;
-  max-height: 75vh;
+  max-height: 85vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--modal-bg);
@@ -1114,10 +1114,9 @@
 .mob-grid-block {
   position: absolute;
   left: 0; right: 0;
-  border-left: 3px solid var(--accent);
   border-radius: 2px 10px 10px 2px;
   border: 1px solid rgba(255,255,255,0.08);
-  border-left: 3px solid var(--accent);
+  border-left: 4px solid var(--gc, var(--accent));  /* must come AFTER border shorthand */
   padding: 6px 28px 6px 10px;
   cursor: pointer;
   overflow: hidden;
@@ -1137,8 +1136,7 @@
 
 /* Break block — softer dashed style */
 .mob-grid-block.mob-gb-break {
-  border-left-style: dashed;
-  border-left-width: 2px;
+  border-left: 2px dashed var(--gc, #94a3b8);
 }
 
 .mob-gb-title {
@@ -1396,15 +1394,8 @@
   box-shadow: 0 4px 14px rgba(124,58,237,0.35);
 }
 
-/* Morning Check-Up full-screen on mobile */
-.mcu-overlay {
-  position: fixed; inset: 0; z-index: 300;
-  background: rgba(10,8,24,0.85);
-  backdrop-filter: blur(20px) saturate(1.5);
-  display: flex; align-items: flex-end;
-}
+/* Morning Check-Up — mobile handled via media query in App.css */
 .mcu-modal {
-  width: 100%; max-height: 95dvh; border-radius: 24px 24px 0 0;
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--modal-bg); border-top: 1px solid var(--border);
   box-shadow: 0 -8px 40px rgba(0,0,0,0.30);
@@ -1485,17 +1476,47 @@
 .mob-filter-lbl { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
 .mob-filter-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .mob-filter-pill {
-  padding: 5px 12px; border-radius: 16px;
+  padding: 9px 18px; border-radius: 22px;
   border: 1px solid var(--border);
   background: var(--surface-2); color: var(--text-muted);
-  font-size: 12px; font-weight: 500; cursor: pointer;
-  display: flex; align-items: center; gap: 3px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
   transition: all .12s;
 }
 .mob-filter-pill.active {
   background: var(--accent-light);
   border-color: rgba(124,58,237,.35);
   color: var(--accent);
+}
+
+/* ── Mobile Settings — Groups ─────────────────────────── */
+.mob-group-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.mob-group-row:last-of-type { border-bottom: none; }
+.mob-group-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+.mob-group-name { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+.mob-group-del {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.mob-group-add-row { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.mob-group-colors { display: flex; gap: 8px; flex-wrap: wrap; }
+.mob-group-color-dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: none; cursor: pointer;
+  outline: 2px solid transparent; outline-offset: 3px;
+  transition: outline-color .15s, transform .15s;
+}
+.mob-group-color-dot.active { outline-color: currentColor; transform: scale(1.2); }
+.mob-group-input-row { display: flex; gap: 8px; }
+.mob-group-add-btn {
+  width: 46px; height: 46px; border-radius: 12px; border: none;
+  color: #fff; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .15s;
 }
 
 /* ── Task view day grouping ───────────────────────────────── */
@@ -1663,3 +1684,95 @@
 }
 .mob-rec-text { font-size: 13px; color: var(--text); line-height: 1.5; padding-top: 2px; }
 .mob-reflect-note { font-size: 12px; color: var(--text-muted); font-style: italic; margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   NORA MOBILE MOTION
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Sheet & overlay entrances ── */
+.mob-sheet          { animation: noraSlideUp 0.32s var(--ease-spring) both; }
+.mob-sheet-overlay  { animation: noraFadeIn  var(--dur-fast) ease both; }
+.mob-modal          { animation: noraSlideUp 0.30s var(--ease-spring) both; }
+.mob-sticky-sheet   { animation: noraSlideUp 0.28s var(--ease-spring) both; }
+.mob-sticky-overlay { animation: noraFadeIn  var(--dur-fast) ease both; }
+
+/* ── Page / view transitions ── */
+.mob-home, .mob-tasks, .mob-notes-v2,
+.mob-status-v2, .mob-settings, .mob-month-view {
+  animation: noraEnter 0.26s var(--ease-spring) both;
+}
+
+/* ── Card entrances ── */
+.mob-sv2-card, .mob-status-card {
+  animation: noraEnter var(--dur-base) var(--ease-spring) both;
+}
+
+/* Status page stagger */
+.mob-status-v2 > .mob-sv2-card:nth-child(1) { animation-delay: 0.00s; }
+.mob-status-v2 > .mob-sv2-card:nth-child(2) { animation-delay: 0.04s; }
+.mob-status-v2 > .mob-sv2-card:nth-child(3) { animation-delay: 0.08s; }
+.mob-status-v2 > .mob-sv2-card:nth-child(4) { animation-delay: 0.12s; }
+.mob-status-v2 > .mob-sv2-card:nth-child(5) { animation-delay: 0.16s; }
+.mob-status-v2 > .mob-sv2-card:nth-child(6) { animation-delay: 0.20s; }
+.mob-status-v2 > .mob-sv2-card:nth-child(7) { animation-delay: 0.24s; }
+
+/* Agenda items */
+.mob-agenda { animation: noraEnter 0.24s var(--ease-spring) both; }
+.mob-agenda-item { animation: noraEnter 0.22s var(--ease-spring) both; }
+.mob-agenda-item:nth-child(1) { animation-delay: 0.02s; }
+.mob-agenda-item:nth-child(2) { animation-delay: 0.06s; }
+.mob-agenda-item:nth-child(3) { animation-delay: 0.10s; }
+.mob-agenda-item:nth-child(4) { animation-delay: 0.14s; }
+.mob-agenda-item:nth-child(5) { animation-delay: 0.18s; }
+
+/* Focus card */
+.mob-focus-card { animation: noraEnter 0.28s var(--ease-spring) both; }
+
+/* Task rows */
+.mob-task-row { animation: noraEnter 0.22s var(--ease-spring) both; }
+.mob-tasks-day-group .mob-task-row:nth-child(1) { animation-delay: 0.00s; }
+.mob-tasks-day-group .mob-task-row:nth-child(2) { animation-delay: 0.04s; }
+.mob-tasks-day-group .mob-task-row:nth-child(3) { animation-delay: 0.08s; }
+
+/* ── Completion animations ── */
+.mob-gb-check.checked { animation: noraPop 0.30s var(--ease-spring) both; }
+.mob-check.checked    { animation: noraPop 0.28s var(--ease-spring) both; }
+.mai-check.checked    { animation: noraPop 0.28s var(--ease-spring) both; }
+
+/* ── Bottom nav active ── */
+.mob-nav-btn.mob-nav-active svg {
+  animation: noraPop 0.22s var(--ease-spring);
+}
+
+/* ── Touch feedback ── */
+.mob-btn:active          { transform: scale(0.96); transition: transform 0.08s ease; }
+.mob-check:active        { transform: scale(0.88); transition: transform 0.08s ease; }
+.mob-agenda-item:active  { transform: scale(0.99); transition: transform 0.08s ease; }
+.mob-sticky-card:active  { transform: scale(0.97); transition: transform 0.12s ease; }
+.mob-cal-cell:active     { transform: scale(0.95); transition: transform 0.08s ease; }
+
+/* ── Chat suggestions ── */
+.mob-chat-chips-pill { animation: noraSlideUp 0.20s var(--ease-spring) both; }
+
+/* ── Morning Check-Up mobile ── */
+.mcu-body .mcu-step { animation: noraEnter 0.26s var(--ease-spring) both; }
+
+/* ── Quick add button entrance ── */
+.mob-quick-add { animation: noraEnter 0.30s var(--ease-spring) 0.20s both; }
+
+/* ── Segment control pill ── */
+.mob-seg-pill {
+  transition: left 0.30s var(--ease-spring), width 0.22s var(--ease-spring) !important;
+}
+
+/* ── Day mode buttons ── */
+.mob-mode-btn {
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease,
+              border-color var(--dur-fast) ease;
+}
+
+/* ── LTI metric cards stagger ── */
+.lti-metrics-grid > .lti-metric-card:nth-child(1) { animation-delay: 0.00s; }
+.lti-metrics-grid > .lti-metric-card:nth-child(2) { animation-delay: 0.05s; }
+.lti-metrics-grid > .lti-metric-card:nth-child(3) { animation-delay: 0.10s; }
+.lti-metrics-grid > .lti-metric-card:nth-child(4) { animation-delay: 0.15s; }

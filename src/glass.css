@@ -181,6 +181,21 @@
 
 .glass * { transition-timing-function: cubic-bezier(0.25, 1, 0.35, 1); }
 
+/* ── Enhanced glass hover motion ── */
+.glass .task-card,
+.glass .stat-card {
+  transition:
+    transform 0.28s cubic-bezier(0.25,1,0.35,1),
+    box-shadow 0.28s ease,
+    border-color 0.22s ease;
+}
+/* Improved sheen sweep timing */
+.glass .task-card::after,
+.glass .status-card::after,
+.glass .ai-focus-panel::after {
+  transition: opacity 0.50s ease, transform 0.65s cubic-bezier(0.25,1,0.35,1);
+}
+
 /* ── 4. NAVIGATION SURFACES — Level 1 glass (structural, most frosted) ── */
 
 .glass .header {
