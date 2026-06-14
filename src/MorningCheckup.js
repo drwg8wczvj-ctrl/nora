@@ -140,11 +140,13 @@ export default function MorningCheckup({
     setStep(TOTAL_STEPS);
   };
 
-  const sd = parseSleepDuration(data.bedtime, data.wakeTime);
+  const sd = parseSleepDuration(data.bedtime ?? "", data.wakeTime ?? "");
   const finalReadiness = step >= TOTAL_STEPS
     ? (computeReadiness({ ...data, sleepDuration: sd }) ?? { label: "Moderate", color: "#f59e0b", pct: 50 })
     : null;
-  const finalSummary = finalReadiness ? generateNoraSummary({ ...data, readiness: finalReadiness }) : null;
+  const finalSummary = finalReadiness
+    ? generateNoraSummary({ ...data, focusChoices: data.focusChoices ?? [], readiness: finalReadiness })
+    : null;
 
   const progressPct = Math.min(step / TOTAL_STEPS, 1) * 100;
 

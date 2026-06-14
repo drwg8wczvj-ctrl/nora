@@ -488,11 +488,32 @@ export default function App() {
     })().catch(console.error);
   }, [session]); // eslint-disable-line
 
+  // Normalize checkup data (Supabase returns snake_case, component expects camelCase)
+  const normalizeCheckup = (raw) => {
+    if (!raw) return null;
+    return {
+      ...raw,
+      sleepQuality:   raw.sleepQuality   ?? raw.sleep_quality   ?? null,
+      bedtime:        raw.bedtime        ?? null,
+      wakeTime:       raw.wakeTime       ?? raw.wake_time        ?? "",
+      sleepDuration:  raw.sleepDuration  ?? raw.sleep_duration   ?? null,
+      restedScore:    raw.restedScore    ?? raw.rested_score     ?? null,
+      energyScore:    raw.energyScore    ?? raw.energy_score     ?? null,
+      clarityScore:   raw.clarityScore   ?? raw.clarity_score    ?? null,
+      dayPressure:    raw.dayPressure    ?? raw.day_pressure     ?? "",
+      focusChoices:   raw.focusChoices   ?? [],
+      readinessScore: raw.readinessScore ?? raw.readiness_score  ?? null,
+      readinessLabel: raw.readinessLabel ?? raw.readiness_label  ?? null,
+      noraSummary:    raw.noraSummary    ?? raw.nora_summary     ?? null,
+      noraTips:       Array.isArray(raw.noraTips) ? raw.noraTips : (raw.nora_tips ?? []),
+    };
+  };
+
   // Load today's morning check-up
   useEffect(() => {
     if (!session) return;
     loadTodayCheckup(todayStr())
-      .then(data => { if (data) setMorningCheckup(data); })
+      .then(data => { if (data) setMorningCheckup(normalizeCheckup(data)); })
       .catch(console.warn);
   }, [session]); // eslint-disable-line
 
@@ -1393,7 +1414,7 @@ export default function App() {
   const saveReschedule = (updated) => { setTasks((p) => p.map((t) => t.id === updated.id ? updated : t)); setRescheduleTask(null); };
 
   const handleCheckupComplete = async (checkup) => {
-    setMorningCheckup(checkup);
+    setMorningCheckup(normalizeCheckup(checkup));
     // Update wellness sliders from check-up data
     if (checkup.energyScore)  setEnergy(checkup.energyScore);
     if (checkup.sleepQuality) setSleepQuality(checkup.sleepQuality);
