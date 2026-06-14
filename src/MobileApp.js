@@ -8,6 +8,8 @@ import {
   BarChart2, Zap, List, CheckSquare, Pencil,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
+import MorningCheckup, { computeReadiness } from "./MorningCheckup";
+import LongTermInsights from "./LongTermInsights";
 import "./MobileApp.css";
 
 // ── Local helpers ────────────────────────────────────────────
@@ -68,11 +70,21 @@ const fmtDur = (min) => {
 
 // ── Root ─────────────────────────────────────────────────────
 export default function MobileApp({ ctx }) {
-  const [mobileView, setMobileView] = useState("plan");
-  const [planSubView, setPlanSubView] = useState("day");  // "day" | "month"
-  const [dayMode, setDayMode] = useState("list");          // "list" | "grid"
+  const [mobileView,    setMobileView]    = useState("plan");
+  const [planSubView,   setPlanSubView]   = useState("day");
+  const [dayMode,       setDayMode]       = useState("list");
+  // Filter state lives here (root level) so the sheet can be rendered above everything
+  const [showFilters,   setShowFilters]   = useState(false);
+  const [filterType,    setFilterType]    = useState(null);
+  const [filterGroup,   setFilterGroup]   = useState(null);
+  const [filterComplex, setFilterComplex] = useState(null);
+  const hasFilters = filterType || filterGroup || filterComplex;
+
   const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
-          rescheduleTask, setRescheduleTask, saveReschedule } = ctx;
+          rescheduleTask, setRescheduleTask, saveReschedule, groups } = ctx;
+
+  const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
+  const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
 
   return (
     <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
@@ -80,7 +92,7 @@ export default function MobileApp({ ctx }) {
       <MobileHeader ctx={ctx} />
 
       <main className="mob-main">
-        {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} />}
+        {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} />}
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
         {mobileView === "status"   && <MobileStatus ctx={ctx} />}
@@ -112,6 +124,27 @@ export default function MobileApp({ ctx }) {
 
       <MobileChat ctx={ctx} />
       {editingTask && draft && <MobileEditModal ctx={ctx} />}
+      {/* Long-Term Insights overlay */}
+      {ctx.showLongTermInsights && (
+        <LongTermInsights
+          dark={dark}
+          glass={theme === "liquid_glass"}
+          metrics={ctx.dailyMetrics || {}}
+          tasks={ctx.tasks || []}
+          onClose={() => ctx.setShowLongTermInsights(false)}
+        />
+      )}
+
+      {/* Morning Check-Up overlay */}
+      {ctx.showMorningCheckup && (
+        <MorningCheckup
+          dark={dark}
+          glass={theme === "liquid_glass"}
+          today={ctx.today}
+          onComplete={ctx.handleCheckupComplete}
+          onClose={() => ctx.setShowMorningCheckup(false)}
+        />
+      )}
       {rescheduleTask && (
         <MobileRescheduleModal
           task={rescheduleTask}
@@ -119,6 +152,64 @@ export default function MobileApp({ ctx }) {
           onClose={() => setRescheduleTask(null)}
         />
       )}
+      {/* Filter sheet — rendered at root to escape stacking context issues */}
+      {showFilters && (
+        <div className="mob-sheet-overlay" onClick={() => setShowFilters(false)}>
+          <div className="mob-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="mob-modal-handle" />
+            <div className="mob-sheet-header">
+              <span className="mob-sheet-title">Filters</span>
+              <button className="mob-modal-close" onClick={() => setShowFilters(false)}><X size={20} /></button>
+            </div>
+            <div className="mob-sheet-section">
+              <span className="mob-filter-lbl">Type</span>
+              <div className="mob-filter-pills">
+                {[["All",null],["Task","task"],["Deadline","deadline"],["Break","break"]].map(([l,v]) => (
+                  <button key={l}
+                    className={`mob-filter-pill${filterType===v?" active":""}`}
+                    style={filterType===v && v ? { background:`${TYPE_COLORS[v]}18`, borderColor:`${TYPE_COLORS[v]}50`, color:TYPE_COLORS[v] } : {}}
+                    onClick={() => setFilterType(v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div className="mob-sheet-section">
+              <span className="mob-filter-lbl">Complexity</span>
+              <div className="mob-filter-pills">
+                {[["All",null],["Easy","easy"],["Medium","medium"],["Hard","hard"]].map(([l,v]) => (
+                  <button key={l}
+                    className={`mob-filter-pill${filterComplex===v?" active":""}`}
+                    style={filterComplex===v && v ? { background:`${COMPLEX_COLORS[v]}18`, borderColor:`${COMPLEX_COLORS[v]}50`, color:COMPLEX_COLORS[v] } : {}}
+                    onClick={() => setFilterComplex(v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {groups.length > 0 && (
+              <div className="mob-sheet-section">
+                <span className="mob-filter-lbl">Group</span>
+                <div className="mob-filter-pills">
+                  <button className={`mob-filter-pill${!filterGroup?" active":""}`} onClick={() => setFilterGroup(null)}>All</button>
+                  {groups.map(g => (
+                    <button key={g.id}
+                      className={`mob-filter-pill${filterGroup===g.id?" active":""}`}
+                      style={filterGroup===g.id ? { background:g.color+"25", borderColor:g.color, color:g.color } : {}}
+                      onClick={() => setFilterGroup(g.id)}>
+                      <span style={{ display:"inline-block",width:7,height:7,borderRadius:"50%",background:g.color,marginRight:4 }} />
+                      {g.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {hasFilters && (
+              <button className="mob-filter-clear" style={{ margin:"8px 20px 12px", alignSelf:"flex-start" }}
+                onClick={() => { setFilterType(null); setFilterGroup(null); setFilterComplex(null); }}>
+                Clear all filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {inAppAlert && (
         <div className="notif-toast" role="alert">
           <Bell size={18} className="notif-toast-icon" />
@@ -152,15 +243,10 @@ function MobileHeader({ ctx }) {
 }
 
 // ── Plan view (Day / Month) ───────────────────────────────────
-function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode }) {
-  const { today, tasks, groups } = ctx;
-  const [planDate,      setPlanDate]      = useState(today);
-  const [filterType,    setFilterType]    = useState(null);
-  const [filterGroup,   setFilterGroup]   = useState(null);
-  const [filterComplex, setFilterComplex] = useState(null);
-  const [showFilters,   setShowFilters]   = useState(false);
-
-  const hasFilters = filterType || filterGroup || filterComplex;
+function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
+                      filterType, filterGroup, filterComplex, hasFilters, onOpenFilters }) {
+  const { today, tasks } = ctx;
+  const [planDate, setPlanDate] = useState(today);
 
   const shiftDate = (delta) => {
     const d = new Date(planDate + "T00:00:00");
@@ -212,7 +298,7 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode }) {
             </div>
             <button
               className={`mob-plan-filter-btn${hasFilters ? " active" : ""}`}
-              onClick={() => setShowFilters(true)}>
+              onClick={onOpenFilters}>
               Filters{hasFilters ? " ●" : ""}
             </button>
           </div>
@@ -225,61 +311,6 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode }) {
 
       {subView === "month" && <MobileMonth ctx={ctx} onSelectDate={(d) => { setPlanDate(d); setSubView("day"); }} />}
 
-      {/* Filter bottom sheet */}
-      {showFilters && (
-        <div className="mob-sheet-overlay" onClick={() => setShowFilters(false)}>
-          <div className="mob-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="mob-modal-handle" />
-            <div className="mob-sheet-header">
-              <span className="mob-sheet-title">Filters</span>
-              <button className="mob-modal-close" onClick={() => setShowFilters(false)}><X size={20} /></button>
-            </div>
-
-            <div className="mob-sheet-section">
-              <span className="mob-filter-lbl">Type</span>
-              <div className="mob-filter-pills">
-                {[["All",null],["Task","task"],["Deadline","deadline"],["Break","break"]].map(([l,v]) => (
-                  <button key={l} className={`mob-filter-pill${filterType===v?" active":""}`} onClick={() => setFilterType(v)}>{l}</button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mob-sheet-section">
-              <span className="mob-filter-lbl">Complexity</span>
-              <div className="mob-filter-pills">
-                {[["All",null],["Easy","easy"],["Medium","medium"],["Hard","hard"]].map(([l,v]) => (
-                  <button key={l} className={`mob-filter-pill${filterComplex===v?" active":""}`} onClick={() => setFilterComplex(v)}>{l}</button>
-                ))}
-              </div>
-            </div>
-
-            {groups.length > 0 && (
-              <div className="mob-sheet-section">
-                <span className="mob-filter-lbl">Group</span>
-                <div className="mob-filter-pills">
-                  <button className={`mob-filter-pill${!filterGroup?" active":""}`} onClick={() => setFilterGroup(null)}>All</button>
-                  {groups.map(g => (
-                    <button key={g.id}
-                      className={`mob-filter-pill${filterGroup===g.id?" active":""}`}
-                      style={filterGroup===g.id ? { background: g.color+"25", borderColor: g.color, color: g.color } : {}}
-                      onClick={() => setFilterGroup(g.id)}>
-                      <span style={{ display:"inline-block", width:7, height:7, borderRadius:"50%", background:g.color, marginRight:4 }} />
-                      {g.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {hasFilters && (
-              <button className="mob-filter-clear" style={{ margin: "8px 20px 0", alignSelf: "flex-start" }}
-                onClick={() => { setFilterType(null); setFilterGroup(null); setFilterComplex(null); }}>
-                Clear all filters
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1204,6 +1235,49 @@ function MobileStatus({ ctx }) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* § Morning Check-Up */}
+      <div className="mob-sv2-card mob-checkup-card">
+        <div className="mob-status-card-title"><Moon size={14} /> Morning Check-Up</div>
+        {ctx.morningCheckup ? (
+          <div className="mob-checkup-done">
+            <div className="mob-checkup-done-row">
+              <span className="mob-checkup-badge">✓ Submitted</span>
+              <span style={{ color: computeReadiness(ctx.morningCheckup).color, fontWeight: 700, fontSize: 13 }}>
+                {computeReadiness(ctx.morningCheckup).label} · {computeReadiness(ctx.morningCheckup).pct}%
+              </span>
+            </div>
+            {ctx.morningCheckup.noraSummary && (
+              <p className="mob-checkup-summary">"{ctx.morningCheckup.noraSummary}"</p>
+            )}
+          </div>
+        ) : (
+          <div className="mob-checkup-cta">
+            <p className="mob-checkup-cta-text">Help NORA understand your day before planning it.</p>
+            <button className="mob-checkup-btn" onClick={() => ctx.setShowMorningCheckup(true)}>
+              Start Morning Check-Up
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* § Long-Term Insights */}
+      <div className="mob-sv2-card mob-lti-card">
+        <div className="mob-status-card-title"><Activity size={14} /> Long-Term Insights</div>
+        {(() => {
+          const entries = Object.entries(ctx.dailyMetrics || {});
+          const hasData = entries.length >= 3;
+          if (!hasData) return <p className="mob-checkup-cta-text">Complete a few check-ins to unlock your trends.</p>;
+          const recent = entries.slice(-7).map(([, v]) => v.energy).filter(Boolean);
+          const trend = recent.length >= 3 && recent.slice(-3).reduce((a, b) => a + b, 0) / 3 > recent.slice(0, 3).reduce((a, b) => a + b, 0) / 3 ? "↑ improving" : "→ stable";
+          return (
+            <div className="mob-lti-preview">
+              <p className="mob-lti-signal">Energy {trend} this week · {entries.length} days tracked</p>
+              <button className="mob-checkup-btn" onClick={() => ctx.setShowLongTermInsights(true)}>Open Insights →</button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* § 7 What NORA Recommends */}

@@ -155,6 +155,30 @@ export async function deleteOldChatMessages() {
     .lt("created_at", cutoff);
 }
 
+// ── Morning Check-Up ──────────────────────────────────────────
+
+export async function saveMorningCheckup(checkup) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase
+    .from("morning_checkups")
+    .upsert({ user_id: user.id, ...checkup }, { onConflict: "user_id,date" });
+  if (error) console.warn("saveMorningCheckup:", error.message);
+}
+
+export async function loadTodayCheckup(date) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from("morning_checkups")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("date", date)
+    .maybeSingle();
+  if (error) { console.warn("loadTodayCheckup:", error.message); return null; }
+  return data;
+}
+
 // ── Persistent user preferences ───────────────────────────────
 
 export async function getUserPreferences() {

@@ -4,9 +4,12 @@ import {
   loadUserData, saveUserData,
   saveChatMessage, loadRecentChatMessages, deleteOldChatMessages,
   getUserPreferences, saveUserPreferences,
+  saveMorningCheckup, loadTodayCheckup,
 } from "./lib/noraApi";
 import AuthScreen from "./AuthScreen";
 import MobileApp from "./MobileApp";
+import MorningCheckup, { computeReadiness } from "./MorningCheckup";
+import LongTermInsights from "./LongTermInsights";
 import { useMobile } from "./hooks/useMobile";
 import {
   Plus, Check, ChevronLeft, ChevronRight, CalendarDays,
@@ -410,6 +413,12 @@ export default function App() {
   const [session,            setSession]            = useState(null);
   const [authLoading,        setAuthLoading]        = useState(true);
   const [isResettingPw,      setIsResettingPw]      = useState(false);
+  const [morningCheckup,      setMorningCheckup]      = useState(null);
+  const [showMorningCheckup,  setShowMorningCheckup]  = useState(false);
+  const [showLongTermInsights,setShowLongTermInsights] = useState(false);
+  const [dailyMetrics,        setDailyMetrics]         = useState(() => {
+    try { return JSON.parse(localStorage.getItem("nora_daily_metrics") || "{}"); } catch { return {}; }
+  });
   const isMobile = useMobile();
 
   useEffect(() => {
@@ -464,6 +473,14 @@ export default function App() {
       }
       setUserPrefs(prefs);
     })().catch(console.error);
+  }, [session]); // eslint-disable-line
+
+  // Load today's morning check-up
+  useEffect(() => {
+    if (!session) return;
+    loadTodayCheckup(todayStr())
+      .then(data => { if (data) setMorningCheckup(data); })
+      .catch(console.warn);
   }, [session]); // eslint-disable-line
 
   // Load user profile (name + birthday) from Supabase on login
@@ -1235,6 +1252,24 @@ export default function App() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
 
+  // Auto-save daily metrics snapshot for long-term trends
+  useEffect(() => {
+    if (!session || !today) return;
+    const snapshot = {
+      energy, stress: relaxation, focus, motivation,
+      sleepQuality: todaySleepQuality,
+      loadLevel: workloadForecast[0]?.level ?? "light",
+      readinessScore: morningCheckup?.readinessScore ?? null,
+      tasksCompleted: doneToday, tasksTotal: totalToday,
+      updatedAt: Date.now(),
+    };
+    setDailyMetrics(prev => {
+      const next = { ...prev, [today]: { ...prev[today], ...snapshot } };
+      localStorage.setItem("nora_daily_metrics", JSON.stringify(next));
+      return next;
+    });
+  }, [energy, relaxation, focus, motivation, doneToday, totalToday, today, session]); // eslint-disable-line
+
   // Save chat to localStorage on every change (instant persistence across refreshes)
   useEffect(() => {
     if (messages.length <= 1) return; // no need to persist if only the greeting
@@ -1343,6 +1378,28 @@ export default function App() {
   const deleteTask = (id) => { setTasks((p) => p.filter((t) => t.id !== id)); setEditingTask(null); };
   const toggleTask = (id) => setTasks((p) => p.map((t) => t.id === id ? { ...t, completed: !t.completed } : t));
   const saveReschedule = (updated) => { setTasks((p) => p.map((t) => t.id === updated.id ? updated : t)); setRescheduleTask(null); };
+
+  const handleCheckupComplete = async (checkup) => {
+    setMorningCheckup(checkup);
+    // Update wellness sliders from check-up data
+    if (checkup.energyScore)  setEnergy(checkup.energyScore);
+    if (checkup.sleepQuality) setSleepQuality(checkup.sleepQuality);
+    // Save coaching insights
+    if (checkup.bedtime)  setUserPrefs(p => ({ ...p, typical_bedtime: checkup.bedtime }));
+    if (checkup.wakeTime) setUserPrefs(p => ({ ...p, typical_wake_time: checkup.wakeTime }));
+    // Persist to Supabase (fails gracefully if table doesn't exist)
+    saveMorningCheckup({
+      date: checkup.date, sleep_quality: checkup.sleepQuality,
+      bedtime: checkup.bedtime || null, wake_time: checkup.wakeTime || null,
+      sleep_duration: checkup.sleepDuration, rested_score: checkup.restedScore,
+      energy_score: checkup.energyScore, clarity_score: checkup.clarityScore,
+      day_pressure: checkup.dayPressure || null,
+      readiness_score: checkup.readinessScore, readiness_label: checkup.readinessLabel,
+      nora_summary: checkup.noraSummary, nora_tips: checkup.noraTips,
+    }).catch(console.warn);
+    // Also cache locally
+    localStorage.setItem(`nora_checkup_${checkup.date}`, JSON.stringify(checkup));
+  };
   const skipTask   = (id) => {
     const tomorrow = fmtDate(addDays(today, 1));
     setTasks((p) => p.map((t) => t.id === id ? { ...t, date: tomorrow, startHour: null, startMinute: null } : t));
@@ -2181,6 +2238,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
       microStartMode, setMicroStartMode,
       rescheduleTask, setRescheduleTask, saveReschedule,
+      morningCheckup, showMorningCheckup, setShowMorningCheckup, handleCheckupComplete,
+      showLongTermInsights, setShowLongTermInsights, dailyMetrics,
       sleepState, todaySleepQuality, setSleepQuality,
       focus, setFocus, motivation, setMotivation,
       userConfidence, assessmentSummary, keySignals,
@@ -3186,6 +3245,57 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   )}
                 </div>
 
+                {/* ── § Morning Check-Up ── */}
+                <div className="sv2-card sv2-checkup sv2-full">
+                  <div className="sv2-card-title"><Moon size={14} /> Morning Check-Up</div>
+                  {morningCheckup ? (
+                    <div className="mcu-status-submitted">
+                      <div className="mcu-status-row">
+                        <span className="mcu-status-badge mcu-status-done">✓ Submitted today</span>
+                        <span className="mcu-readiness-inline" style={{ color: computeReadiness(morningCheckup).color }}>
+                          {computeReadiness(morningCheckup).label} Readiness · {computeReadiness(morningCheckup).pct}%
+                        </span>
+                      </div>
+                      {morningCheckup.noraSummary && (
+                        <p className="mcu-status-summary">"{morningCheckup.noraSummary}"</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mcu-status-cta">
+                      <p className="mcu-status-cta-text">Help NORA understand your day before planning it.</p>
+                      <button className="mcu-start-btn" onClick={() => setShowMorningCheckup(true)}>
+                        Start Morning Check-Up
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── § Long-Term Insights ── */}
+                <div className="sv2-card sv2-lti sv2-full">
+                  <div className="sv2-card-title"><Activity size={14} /> Long-Term Insights</div>
+                  {(() => {
+                    const entries = Object.entries(dailyMetrics).sort((a, b) => a[0].localeCompare(b[0]));
+                    const hasData = entries.length >= 3;
+                    if (!hasData) return (
+                      <div className="lti-status-cta">
+                        <p className="lti-status-text">Complete a few check-ins to unlock your trends.</p>
+                        <button className="mcu-start-btn" onClick={() => setShowLongTermInsights(true)}>View Insights</button>
+                      </div>
+                    );
+                    const recent = entries.slice(-7).map(([, v]) => v.energy).filter(Boolean);
+                    const trend  = recent.length >= 3 ? (recent.slice(-3).reduce((a, b) => a + b, 0) / 3 > recent.slice(0, 3).reduce((a, b) => a + b, 0) / 3 ? "improving" : "stable") : "stable";
+                    return (
+                      <div className="lti-status-preview">
+                        <div className="lti-status-row">
+                          <span className="lti-status-signal">Energy {trend === "improving" ? "↑ improving" : "→ stable"} this week</span>
+                          <span className="lti-status-count">{entries.length} days tracked</span>
+                        </div>
+                        <button className="lti-open-btn" onClick={() => setShowLongTermInsights(true)}>Open Insights →</button>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 {/* ── § 7 What NORA Recommends ── */}
                 {adaptiveRecs.length > 0 && (
                   <div className="sv2-card sv2-recs sv2-full">
@@ -3385,6 +3495,28 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </div>
           <button className="notif-toast-close" onClick={() => setInAppAlert(null)}><X size={14} /></button>
         </div>
+      )}
+
+      {/* Long-Term Insights overlay */}
+      {showLongTermInsights && (
+        <LongTermInsights
+          dark={dark}
+          glass={theme === "liquid_glass"}
+          metrics={dailyMetrics}
+          tasks={tasks}
+          onClose={() => setShowLongTermInsights(false)}
+        />
+      )}
+
+      {/* Morning Check-Up overlay */}
+      {showMorningCheckup && (
+        <MorningCheckup
+          dark={dark}
+          glass={theme === "liquid_glass"}
+          today={today}
+          onComplete={handleCheckupComplete}
+          onClose={() => setShowMorningCheckup(false)}
+        />
       )}
 
       {/* Reschedule modal */}
