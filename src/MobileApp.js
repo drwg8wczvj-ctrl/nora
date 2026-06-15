@@ -281,7 +281,8 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
   const shiftDate = (delta) => {
     const d = new Date(planDate + "T00:00:00");
     d.setDate(d.getDate() + delta);
-    setPlanDate(d.toISOString().slice(0, 10));
+    // Use local date parts to avoid UTC offset shifting the date
+    setPlanDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
   };
 
   const dateLabel = planDate === today ? "Today"
@@ -741,7 +742,7 @@ function MobileTasks({ ctx }) {
   const tomorrow = (() => {
     const d = new Date(today + "T00:00:00");
     d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   })();
 
   const deferred = active.filter((t) => t.date < today);

@@ -639,6 +639,23 @@ export default function App() {
   const today       = fmtDate(tick);
   const currentHour = tick.getHours();
   const nowMins     = tick.getHours() * 60 + tick.getMinutes();
+
+  // Auto-remove expired breaks (past days' breaks + today's breaks whose end time has passed)
+  useEffect(() => {
+    setTasks((prev) => {
+      const next = prev.filter((t) => {
+        if ((t.type ?? "task") !== "break") return true;
+        if (t.date < today) return false; // past-day break
+        if (t.date === today && t.startHour != null) {
+          const endMins = t.startHour * 60 + (t.startMinute ?? 0) + (t.duration ?? 30);
+          if (endMins <= nowMins) return false; // today's break has ended
+        }
+        return true;
+      });
+      return next.length !== prev.length ? next : prev; // avoid re-render if nothing changed
+    });
+  }, [today, nowMins]); // eslint-disable-line
+
   // Sleep check-in — depends on today
   const todaySleepQuality = sleepCheckIn.date === today ? sleepCheckIn.quality : null;
   const setSleepQuality   = (q) => setSleepCheckIn({ date: today, quality: q });
@@ -2604,6 +2621,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                             )}
                             {tp === "task" && !t.completed && (
                               <div className="sc-actions">
+                                <button className="tca tca-focus" onClick={() => setFocusTask(t)}>
+                                  <Zap size={10} /> Focus
+                                </button>
                                 <button className="tca tca-resched" onClick={() => setRescheduleTask(t)}>
                                   <CalendarDays size={10} /> Move
                                 </button>
@@ -3012,6 +3032,12 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           )}
                           {tp === "task" && (
                             <div className="list-task-actions">
+                              {!t.completed && (
+                                <button className="tca tca-focus"
+                                  onClick={(e) => { e.stopPropagation(); setFocusTask(t); }}>
+                                  <Zap size={10} /> Focus
+                                </button>
+                              )}
                               {!t.completed && (
                                 <button className="tca tca-resched"
                                   onClick={(e) => { e.stopPropagation(); setRescheduleTask(t); }}>

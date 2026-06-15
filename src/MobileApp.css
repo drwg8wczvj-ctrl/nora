@@ -21,19 +21,20 @@
 .mob-header {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px 12px;
+  /* top padding accounts for status bar in standalone/fullscreen PWA mode */
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 22px 16px;
   background: var(--header-bg);
   backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--border);
 }
 .mob-header-brand {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 10px;
 }
 .mob-brand-logo {
-  height: 36px; width: auto; object-fit: contain; display: block;
+  height: 44px; width: auto; object-fit: contain; display: block;
 }
 .mob-header-date {
-  font-size: 12px; color: var(--text-muted); font-weight: 500;
+  font-size: 14px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.01em;
 }
 
 /* ── Main scroll area ─────────────────────────────────────── */
