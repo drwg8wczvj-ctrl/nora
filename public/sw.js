@@ -1,7 +1,7 @@
 'use strict';
 
 // Increment CACHE_NAME to bust old caches on deploy
-const CACHE_NAME = 'nora-cache-v1';
+const CACHE_NAME = 'nora-cache-v2';
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
