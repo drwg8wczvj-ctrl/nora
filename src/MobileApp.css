@@ -369,6 +369,15 @@
   padding: 2px 7px; border-radius: 8px; flex-shrink: 0;
 }
 
+.mai-focus-btn {
+  width: 28px; height: 28px; border-radius: 8px;
+  border: 1.5px solid rgba(124,58,237,.25);
+  background: rgba(124,58,237,.08); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  transition: background .15s, border-color .15s;
+}
+.mai-focus-btn:hover { background: rgba(124,58,237,.18); border-color: var(--accent); }
 .mai-check {
   width: 26px; height: 26px; border-radius: 50%;
   border: 2px solid var(--border);
@@ -433,6 +442,8 @@
 }
 .mtr-act:hover { background: var(--accent-light); color: var(--accent); }
 .mtr-act-ai:hover { color: var(--accent); }
+.mtr-act-focus { color: var(--accent); }
+.mtr-act-focus:hover { background: rgba(124,58,237,.1); color: var(--accent); }
 
 /* ══════════════════════════════════════════════════════════ */
 /*  NOTES VIEW                                               */

@@ -1,0 +1,102 @@
+.pwa-banner {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: pwa-slide-up 0.3s ease;
+  max-width: calc(100vw - 32px);
+
+  /* light defaults */
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #1a1a2e;
+}
+
+.pwa-banner.pwa-dark {
+  background: #1e1d33;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f0eeff;
+}
+
+.pwa-banner-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.pwa-banner-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pwa-btn {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.pwa-btn:hover {
+  opacity: 0.85;
+}
+
+.pwa-update-btn {
+  background: #7c3aed;
+  color: #fff;
+}
+
+.pwa-install-btn {
+  background: #7c3aed;
+  color: #fff;
+}
+
+.pwa-close-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pwa-close-btn:hover {
+  opacity: 1;
+}
+
+/* On mobile the banner sits just above the bottom nav bar (68px) */
+@media (max-width: 600px) {
+  .pwa-banner {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    border-radius: 12px;
+    font-size: 12px;
+  }
+}
+
+@keyframes pwa-slide-up {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

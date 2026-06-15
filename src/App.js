@@ -10,6 +10,8 @@ import AuthScreen from "./AuthScreen";
 import MobileApp from "./MobileApp";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
 import LongTermInsights from "./LongTermInsights";
+import FocusSession from "./FocusSession";
+import PWABanners from "./PWABanners";
 import { useMobile } from "./hooks/useMobile";
 import {
   Plus, Check, ChevronLeft, ChevronRight, CalendarDays,
@@ -624,6 +626,7 @@ export default function App() {
   const [showFilters,    setShowFilters]    = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [smartView,      setSmartView]      = useState(true);
+  const [focusTask,      setFocusTask]      = useState(null);
 
   // Live clock — re-renders every 30 s so the now-line and "Today" label stay current
   const [tick, setTick] = useState(() => new Date());
@@ -2278,6 +2281,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       sleepState, todaySleepQuality, setSleepQuality,
       focus, setFocus, motivation, setMotivation,
       userConfidence, assessmentSummary, keySignals,
+      focusTask, setFocusTask,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
@@ -2808,6 +2812,12 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           </div>
                           {t.repeat && <RotateCcw size={9} style={{ color: "currentColor", opacity: .65, flexShrink: 0, marginTop: 2 }} />}
                           <div className="tl-actions">
+                            {!t.completed && (
+                              <button className="tl-act tl-act-focus" title="Start focus session"
+                                onClick={(e) => { e.stopPropagation(); setFocusTask(t); }}>
+                                <Zap size={9} />
+                              </button>
+                            )}
                             {!t.completed && (
                               <button className="tl-act" title="Move task"
                                 onClick={(e) => { e.stopPropagation(); setRescheduleTask(t); }}>
@@ -3563,6 +3573,21 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         />
       )}
 
+      {/* Focus session overlay */}
+      {focusTask && (
+        <FocusSession
+          task={focusTask}
+          dark={dark}
+          userPrefs={userPrefs}
+          setUserPrefs={setUserPrefs}
+          onClose={(action) => {
+            setFocusTask(null);
+            if (action === "reschedule") setRescheduleTask(focusTask);
+          }}
+          onComplete={() => { toggleTask(focusTask.id); setFocusTask(null); }}
+        />
+      )}
+
       {/* Reschedule modal */}
       {rescheduleTask && (
         <RescheduleModal
@@ -3751,6 +3776,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </div>
         </div>
       )}
+
+      {/* PWA update / install banners */}
+      <PWABanners dark={dark} />
     </div>
   );
 }

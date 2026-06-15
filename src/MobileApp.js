@@ -10,6 +10,7 @@ import {
 import { supabase } from "./lib/supabase";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
 import LongTermInsights from "./LongTermInsights";
+import FocusSession from "./FocusSession";
 import "./MobileApp.css";
 
 // ── Local helpers ────────────────────────────────────────────
@@ -92,7 +93,8 @@ export default function MobileApp({ ctx }) {
   const hasFilters = filterType || filterGroup || filterComplex;
 
   const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
-          rescheduleTask, setRescheduleTask, saveReschedule, groups } = ctx;
+          rescheduleTask, setRescheduleTask, saveReschedule, groups,
+          focusTask, setFocusTask, userPrefs, setUserPrefs, toggleTask } = ctx;
 
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
@@ -164,6 +166,20 @@ export default function MobileApp({ ctx }) {
           task={rescheduleTask}
           onSave={saveReschedule}
           onClose={() => setRescheduleTask(null)}
+        />
+      )}
+      {/* Focus session overlay */}
+      {focusTask && (
+        <FocusSession
+          task={focusTask}
+          dark={dark}
+          userPrefs={userPrefs}
+          setUserPrefs={setUserPrefs}
+          onClose={(action) => {
+            setFocusTask(null);
+            if (action === "reschedule") setRescheduleTask(focusTask);
+          }}
+          onComplete={() => { toggleTask(focusTask.id); setFocusTask(null); }}
         />
       )}
       {/* Filter sheet — rendered at root to escape stacking context issues */}
@@ -334,7 +350,7 @@ function MobileHome({ ctx, planDate, planTasks }) {
   const {
     todayTasks, today, aiFocus, contextMode, deferredTasks,
     doneToday, totalToday, pct, toggleTask, skipTask,
-    setChatInput, setChatOpen, setEditingTask,
+    setChatInput, setChatOpen, setEditingTask, setFocusTask,
     groups, nowObj,
   } = ctx;
 
@@ -461,6 +477,13 @@ function MobileHome({ ctx, planDate, planTasks }) {
                   {isNext && <span className="mai-next-tag">Up next</span>}
                 </div>
 
+                {tp === "task" && !t.completed && (
+                  <button className="mai-focus-btn"
+                    onClick={(e) => { e.stopPropagation(); setFocusTask(t); }}
+                    title="Start focus session">
+                    <Zap size={13} />
+                  </button>
+                )}
                 {tp === "task" ? (
                   <button
                     className={`mai-check${t.completed ? " checked" : ""}`}
@@ -685,7 +708,7 @@ function MobileMonth({ ctx, onSelectDate }) {
 
 // ── Tasks view ───────────────────────────────────────────────
 function MobileTasks({ ctx }) {
-  const { tasks, today, toggleTask, skipTask, setRescheduleTask, setEditingTask, groups } = ctx;
+  const { tasks, today, toggleTask, skipTask, setRescheduleTask, setEditingTask, groups, setFocusTask } = ctx;
   const [filterType, setFilterType]       = useState(null);
   const [filterGroup, setFilterGroup]     = useState(null);
   const [filterComplex, setFilterComplex] = useState(null);
@@ -780,6 +803,11 @@ function MobileTasks({ ctx }) {
                 className={`mtr-act mtr-act-done-dl${t.completed ? " dl-done" : ""}`}
                 onClick={() => toggleTask(t.id)}>
                 <Check size={13} />
+              </button>
+            )}
+            {tp === "task" && !t.completed && (
+              <button className="mtr-act mtr-act-focus" title="Start focus session" onClick={() => setFocusTask(t)}>
+                <Zap size={15} />
               </button>
             )}
             {tp === "task" && !t.completed && (
