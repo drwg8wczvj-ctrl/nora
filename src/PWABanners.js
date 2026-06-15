@@ -29,7 +29,7 @@ export default function PWABanners({ dark }) {
       {updateAvailable && (
         <div className={`pwa-banner pwa-update-banner${dark ? ' pwa-dark' : ''}`} role="alert">
           <span className="pwa-banner-icon">✦</span>
-          <span className="pwa-banner-text">New version of NORA available</span>
+          <span className="pwa-banner-text">New version of Nora available</span>
           <button className="pwa-btn pwa-update-btn" onClick={applyUpdate}>
             Update
           </button>
@@ -39,7 +39,7 @@ export default function PWABanners({ dark }) {
       {showInstall && !updateAvailable && (
         <div className={`pwa-banner pwa-install-banner${dark ? ' pwa-dark' : ''}`} role="complementary">
           <span className="pwa-banner-icon">📲</span>
-          <span className="pwa-banner-text">Install NORA on your device</span>
+          <span className="pwa-banner-text">Install Nora on your device</span>
           <button className="pwa-btn pwa-install-btn" onClick={handleInstall}>
             Install
           </button>

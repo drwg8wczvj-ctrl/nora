@@ -327,7 +327,7 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
             {/* ── NORA's insights ── */}
             {insights.length > 0 && (
               <div className="lti-card lti-card-full lti-insights-card">
-                <div className="lti-card-title">NORA's Read on You</div>
+                <div className="lti-card-title">Nora's Read on You</div>
                 <div className="lti-insights-list">
                   {insights.map((ins, i) => (
                     <div key={i} className="lti-insight-item">

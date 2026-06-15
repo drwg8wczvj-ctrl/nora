@@ -228,7 +228,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
             {blockReason && (
               <div className="fs-nora-tip">
                 <Zap size={13} />
-                <span>NORA: "{blockReason.msg}"</span>
+                <span>Nora: "{blockReason.msg}"</span>
               </div>
             )}
 

@@ -576,7 +576,7 @@ export default function App() {
   const [inAppAlert,      setInAppAlert]      = useState(null);
 
   // ── Persistent chat history (localStorage, 24-hour TTL) ────────
-  const NORA_GREETING = "Hi! I'm NORA, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?";
+  const NORA_GREETING = "Hi! I'm Nora, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?";
   const CHAT_STORE_KEY = "nora_chat_v2";
   const CHAT_TTL_MS_LOCAL = 24 * 60 * 60 * 1000;
 
@@ -760,7 +760,7 @@ export default function App() {
       return { date, total: dayT.length, totalW, doneW, rate: totalW > 0 ? doneW / totalW : null };
     });
     const rated = days.filter((d) => d.rate !== null);
-    if (rated.length < 2) return { state: "new", label: "Just Starting", desc: "Build a few days of history and NORA will start recognising patterns.", color: "var(--accent)", score: null };
+    if (rated.length < 2) return { state: "new", label: "Just Starting", desc: "Build a few days of history and Nora will start recognising patterns.", color: "var(--accent)", score: null };
     const recent = rated.slice(-Math.min(3, rated.length));
     const prior  = rated.slice(0, rated.length - recent.length);
     const avg    = (arr) => arr.length > 0 ? arr.reduce((s, d) => s + d.rate, 0) / arr.length : null;
@@ -1062,7 +1062,7 @@ export default function App() {
       return "You're recovering well from any recent pressure. Steady, balanced progress looks good ahead.";
     if (momentum.state === "stable")
       return "You're in a consistent rhythm. A reliable week ahead with no major red flags.";
-    return "NORA is still building your profile. Keep logging completions — patterns emerge quickly.";
+    return "Nora is still building your profile. Keep logging completions — patterns emerge quickly.";
   }, [recoveryState, momentum, weekTrend, deferredTasks]); // eslint-disable-line
 
   // ── 3 key signals for assessment card ──────────────────────────
@@ -1193,7 +1193,7 @@ export default function App() {
     if (remaining === 0 && doneToday > 0)
       insight = `All ${doneToday} task${doneToday > 1 ? "s" : ""} done — great work today.`;
     else if (remaining === 0)
-      insight = "Nothing scheduled yet. Ask NORA to plan your day.";
+      insight = "Nothing scheduled yet. Ask Nora to plan your day.";
     else if (energy <= 3)
       insight = `Energy is low — focus on "${priorityTask?.title ?? "one task"}" and rest after.`;
     else if (recoveryState.level !== "stable")
@@ -1205,9 +1205,9 @@ export default function App() {
 
     let nudge = null;
     if (deferredTasks.length > 0)
-      nudge = `${deferredTasks.length} task${deferredTasks.length > 1 ? "s are" : " is"} still pending — want NORA to find the right time?`;
+      nudge = `${deferredTasks.length} task${deferredTasks.length > 1 ? "s are" : " is"} still pending — want Nora to find the right time?`;
     else if (totalToday === 0)
-      nudge = "Today's schedule is empty. Let NORA plan your day.";
+      nudge = "Today's schedule is empty. Let Nora plan your day.";
 
     return { priorityTask, insight, nudge };
   }, [todayTasks, doneToday, energy, recoveryState, deferredTasks, totalToday]); // eslint-disable-line
@@ -1435,8 +1435,11 @@ export default function App() {
 
   const handleCheckupComplete = async (checkup) => {
     setMorningCheckup(normalizeCheckup(checkup));
-    // Update wellness sliders from check-up data
-    if (checkup.energyScore)  setEnergy(checkup.energyScore);
+    // Sync Daily Check-In dials from checkup answers
+    if (checkup.energyScore  != null) setEnergy(checkup.energyScore);
+    if (checkup.restedScore  != null) setRelaxation(checkup.restedScore); // rested ↔ low stress
+    if (checkup.clarityScore != null) setFocus(checkup.clarityScore);     // clarity ↔ focus
+    // Sync Sleep & Recovery
     if (checkup.sleepQuality) setSleepQuality(checkup.sleepQuality);
     // Save coaching insights
     if (checkup.bedtime)  setUserPrefs(p => ({ ...p, typical_bedtime: checkup.bedtime }));
@@ -2246,7 +2249,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         <img
           src={dark ? "/logo-dark.png" : "/logo-light.png"}
           className="landing-hero-logo"
-          alt="NORA" />
+          alt="Nora" />
         <p className="landing-tagline">Your intelligent personal planner</p>
         <ul className="landing-features">
           <li><Check size={14} /> Timeline planner with drag &amp; drop</li>
@@ -2318,7 +2321,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             <img
               src={dark ? "/logo-dark.png" : "/logo-light.png"}
               className="sidebar-brand-logo"
-              alt="NORA" />
+              alt="Nora" />
           </div>
           <button className="sidebar-close" onClick={() => setSidebarOpen(false)}><X size={18} /></button>
         </div>
@@ -2416,7 +2419,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         <header className="header">
           <button className="menu-btn" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button>
           <div className="header-center">
-            <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="brand-logo" alt="NORA" />
+            <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="brand-logo" alt="Nora" />
           </div>
           <div className="header-right">
             <span className="header-date">{view === "day" ? prettyDate(selectedDate) : view === "month" ? monthLabel : view === "notes" ? "Notes" : "All Tasks"}</span>
@@ -2453,7 +2456,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                       setChatInput(`What's the best way to approach "${aiFocus.priorityTask.title}" right now?`);
                       setChatOpen(true);
                     }}>
-                      <MessageSquare size={11} /> Ask NORA
+                      <MessageSquare size={11} /> Ask Nora
                     </button>
                   </div>
                 </div>
@@ -2469,7 +2472,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
               <div className="ai-quick-actions">
                 <button className="ai-quick-btn" onClick={() => setChatOpen(true)}>
-                  <MessageSquare size={12} /> Chat with NORA
+                  <MessageSquare size={12} /> Chat with Nora
                 </button>
                 <button className="ai-quick-btn" onClick={() => {
                   setChatInput(totalToday === 0
@@ -2568,7 +2571,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                       setChatInput("Plan my day for today based on my energy and current workload.");
                       setChatOpen(true);
                     }}>
-                      <Sparkles size={14} /> Plan my day with NORA
+                      <Sparkles size={14} /> Plan my day with Nora
                     </button>
                   </div>
                 );
@@ -3104,7 +3107,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   </div>
                   {adaptiveRecs[0] && (
                     <div className="sv2-assess-rec">
-                      <span className="sv2-rec-lbl">NORA suggests:</span> {adaptiveRecs[0]}
+                      <span className="sv2-rec-lbl">Nora suggests:</span> {adaptiveRecs[0]}
                     </div>
                   )}
                 </div>
@@ -3244,7 +3247,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                       const titles = deferredTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ");
                       setChatInput(`I have ${deferredTasks.length} deferred tasks: ${titles}. Rebalance across this week based on my load.`);
                       setChatOpen(true);
-                    }}>Rebalance all with NORA</button>
+                    }}>Rebalance all with Nora</button>
                   )}
                 </div>
 
@@ -3339,7 +3342,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                     );
                   })() : (
                     <div className="mcu-status-cta">
-                      <p className="mcu-status-cta-text">Help NORA understand your day before planning it.</p>
+                      <p className="mcu-status-cta-text">Help Nora understand your day before planning it.</p>
                       <button className="mcu-start-btn" onClick={() => { setReviewCheckupMode(false); setShowMorningCheckup(true); }}>
                         <Sunrise size={14} /> Start Morning Check-Up
                       </button>
@@ -3376,7 +3379,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 {/* ── § 7 What NORA Recommends ── */}
                 {adaptiveRecs.length > 0 && (
                   <div className="sv2-card sv2-recs sv2-full">
-                    <div className="sv2-card-title"><Lightbulb size={14} /> What NORA Recommends</div>
+                    <div className="sv2-card-title"><Lightbulb size={14} /> What Nora Recommends</div>
                     <div className="sv2-recs-list">
                       {adaptiveRecs.slice(0, 3).map((r, i) => (
                         <div key={i} className="sv2-rec-item">
@@ -3468,12 +3471,12 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         <footer className="app-footer">
           <div className="footer-inner">
             <div className="footer-brand">
-              <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="footer-logo" alt="NORA" />
+              <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="footer-logo" alt="Nora" />
               <span className="footer-tagline">More than just a planner</span>
             </div>
             {/* ── Social / info links — add links here later ── */}
             <div className="footer-links" />
-            <span className="footer-copy">© {tick.getFullYear()} NORA</span>
+            <span className="footer-copy">© {tick.getFullYear()} Nora</span>
           </div>
         </footer>
       </div>{/* /main-wrap */}
@@ -3486,8 +3489,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       <div className={`chat-panel${chatOpen ? " open" : ""}`}>
         <div className="chat-header">
           <div className="chat-header-info">
-            <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="chat-avatar-logo" alt="NORA" />
-            <div><div className="chat-title">NORA</div><div className="chat-subtitle">Your productivity coach</div></div>
+            <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="chat-avatar-logo" alt="Nora" />
+            <div><div className="chat-title">Nora</div><div className="chat-subtitle">Your productivity coach</div></div>
           </div>
           <button className="chat-close" onClick={() => setChatOpen(false)}><X size={16} /></button>
         </div>
@@ -3555,7 +3558,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
                 }
               }}
-              placeholder="Ask NORA anything…" />
+              placeholder="Ask Nora anything…" />
           </div>
           <button className="chat-send" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
             {chatLoading ? <span className="dot-spin" /> : <Send size={16} />}
@@ -3868,7 +3871,7 @@ function PasswordResetForm({ dark, glass, onDone }) {
     <div className={`app${dark ? " dark" : ""}${glass ? " glass" : ""} auth-wrap`}>
       <div className="auth-card pw-reset-card">
         <div className="auth-brand">
-          <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="auth-brand-logo" alt="NORA" />
+          <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="auth-brand-logo" alt="Nora" />
         </div>
         <p className="auth-tagline">Set your new password</p>
         {success ? (

@@ -85,6 +85,7 @@ export default function MobileApp({ ctx }) {
   const [mobileView,    setMobileView]    = useState("plan");
   const [planSubView,   setPlanSubView]   = useState("day");
   const [dayMode,       setDayMode]       = useState("list");
+  const [planDate,      setPlanDate]      = useState(ctx.today);
   // Filter state lives here (root level) so the sheet can be rendered above everything
   const [showFilters,   setShowFilters]   = useState(false);
   const [filterType,    setFilterType]    = useState(null);
@@ -102,10 +103,14 @@ export default function MobileApp({ ctx }) {
   return (
     <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
 
-      <MobileHeader ctx={ctx} />
+      <MobileHeader ctx={ctx} onLogoClick={() => {
+        setMobileView("plan");
+        setPlanSubView("day");
+        setPlanDate(ctx.today);
+      }} />
 
       <main className="mob-main">
-        {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} />}
+        {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} planDate={planDate} setPlanDate={setPlanDate} />}
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
         {mobileView === "status"   && <MobileStatus ctx={ctx} />}
@@ -256,17 +261,19 @@ export default function MobileApp({ ctx }) {
 }
 
 // ── Header ───────────────────────────────────────────────────
-function MobileHeader({ ctx }) {
+function MobileHeader({ ctx, onLogoClick }) {
   const { today, dark } = ctx;
   const d = new Date(today + "T00:00:00");
   const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
   const dateText = `${dayName}, ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]} ${d.getDate()}`;
   return (
     <header className="mob-header">
-      <img
-        src={dark ? "/logo-dark.png" : "/logo-light.png"}
-        className="mob-brand-logo"
-        alt="NORA" />
+      <button className="mob-brand-btn" onClick={onLogoClick} aria-label="Go to today's plan">
+        <img
+          src={dark ? "/logo-dark.png" : "/logo-light.png"}
+          className="mob-brand-logo"
+          alt="Nora" />
+      </button>
       <span className="mob-header-date">{dateText}</span>
     </header>
   );
@@ -274,9 +281,9 @@ function MobileHeader({ ctx }) {
 
 // ── Plan view (Day / Month) ───────────────────────────────────
 function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
-                      filterType, filterGroup, filterComplex, hasFilters, onOpenFilters }) {
+                      filterType, filterGroup, filterComplex, hasFilters, onOpenFilters,
+                      planDate, setPlanDate }) {
   const { today, tasks } = ctx;
-  const [planDate, setPlanDate] = useState(today);
 
   const shiftDate = (delta) => {
     const d = new Date(planDate + "T00:00:00");
@@ -365,6 +372,8 @@ function MobileHome({ ctx, planDate, planTasks }) {
     .filter((t) => t.startHour != null)
     .sort((a, b) => a.startHour * 60 + (a.startMinute ?? 0) - (b.startHour * 60 + (b.startMinute ?? 0)));
 
+  const unscheduled = effectiveTasks.filter((t) => t.startHour == null);
+
   const nextTask = scheduled.find(
     (t) => !t.completed && t.startHour * 60 + (t.startMinute ?? 0) >= nowMins
   );
@@ -430,7 +439,7 @@ function MobileHome({ ctx, planDate, planTasks }) {
               : "What should I focus on today?");
             setChatOpen(true);
           }}>
-            <MessageSquare size={17} /> Ask NORA
+            <MessageSquare size={17} /> Ask Nora
           </button>
         </div>
       </div>
@@ -508,8 +517,52 @@ function MobileHome({ ctx, planDate, planTasks }) {
             setChatInput("Plan my day. Consider my energy level and current workload.");
             setChatOpen(true);
           }}>
-            <Sparkles size={15} /> Let NORA plan my day
+            <Sparkles size={15} /> Let Nora plan my day
           </button>
+        </div>
+      )}
+
+      {/* Unscheduled tasks */}
+      {unscheduled.length > 0 && (
+        <div className="mob-agenda mob-unsched-section">
+          <div className="mob-section-title">
+            <Clock size={14} /> Unscheduled
+          </div>
+          {unscheduled.map((t) => {
+            const tp    = t.type ?? "task";
+            const group = getGroup(t.groupId);
+            const gc    = tp === "deadline" ? "#ef4444"
+                        : tp === "break"    ? "#94a3b8"
+                        : group?.color ?? "var(--accent)";
+            return (
+              <div key={t.id}
+                className={`mob-agenda-item${t.completed ? " mai-done" : ""}${tp === "deadline" ? " mai-dl" : ""}${tp === "break" ? " mai-break" : ""}`}
+                style={{ "--gc": gc }}
+                onClick={() => setEditingTask(t)}>
+                <div className="mai-body">
+                  <span className="mai-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
+                </div>
+                {tp === "task" && !t.completed && (
+                  <button className="mai-focus-btn"
+                    onClick={(e) => { e.stopPropagation(); setFocusTask(t); }}
+                    title="Start focus session">
+                    <Zap size={13} />
+                  </button>
+                )}
+                {tp === "task" ? (
+                  <button
+                    className={`mai-check${t.completed ? " checked" : ""}`}
+                    onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
+                    {t.completed ? <Check size={14} strokeWidth={3} /> : null}
+                  </button>
+                ) : (
+                  <span className="mai-type-icon">
+                    {tp === "break" ? <Coffee size={14} /> : <Flag size={14} />}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -659,8 +712,9 @@ function MobileMonth({ ctx, onSelectDate }) {
           const { day, ds, ts } = cell;
           const isToday = ds === today;
           const isSel = ds === sel;
-          const hasDl = ts.some((t) => t.type === "deadline");
-          const taskCount = ts.filter((t) => t.type !== "break").length;
+          const hasDl      = ts.some((t) => t.type === "deadline");
+          const doneCount  = ts.filter((t) => t.completed && t.type !== "break").length;
+          const pendCount  = ts.filter((t) => !t.completed && t.type !== "break" && t.type !== "deadline").length;
           return (
             <div key={ds}
               className={`mob-cal-cell${isToday ? " mob-cal-today" : ""}${isSel ? " mob-cal-sel" : ""}`}
@@ -668,7 +722,8 @@ function MobileMonth({ ctx, onSelectDate }) {
               <span className="mob-cal-num">{day}</span>
               <div className="mob-cal-dots">
                 {hasDl && <span className="mob-dot mob-dot-dl" />}
-                {taskCount > 0 && <span className="mob-dot" />}
+                {doneCount > 0 && <span className="mob-dot mob-dot-done" />}
+                {pendCount > 0 && <span className="mob-dot" />}
               </div>
             </div>
           );
@@ -734,9 +789,8 @@ function MobileTasks({ ctx }) {
 
   const hasFilters = filterType || filterGroup || filterComplex;
 
-  // Deadlines always stay in their day section even when done
-  const active    = sorted.filter((t) => !t.completed || t.type === "deadline");
-  const completed = sorted.filter((t) => t.completed && t.type !== "deadline").slice(0, 10);
+  const active    = sorted.filter((t) => !t.completed);
+  const completed = sorted.filter((t) => t.completed).slice(0, 10);
 
   // Group active tasks by date
   const tomorrow = (() => {
@@ -1096,7 +1150,7 @@ function MobileStatus({ ctx }) {
         </div>
         {adaptiveRecs?.[0] && (
           <div className="mob-assess-rec">
-            <span className="mob-assess-rec-lbl">NORA suggests:</span> {adaptiveRecs[0]}
+            <span className="mob-assess-rec-lbl">Nora suggests:</span> {adaptiveRecs[0]}
           </div>
         )}
       </div>
@@ -1233,7 +1287,7 @@ function MobileStatus({ ctx }) {
             const titles = deferredTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ");
             setChatInput(`I have ${deferredTasks.length} deferred tasks: ${titles}. Rebalance across this week.`);
             setChatOpen(true);
-          }}>Rebalance all with NORA</button>
+          }}>Rebalance all with Nora</button>
         )}
       </div>
 
@@ -1304,7 +1358,7 @@ function MobileStatus({ ctx }) {
           );
         })() : (
           <div className="mob-checkup-cta">
-            <p className="mob-checkup-cta-text">Help NORA understand your day before planning it.</p>
+            <p className="mob-checkup-cta-text">Help Nora understand your day before planning it.</p>
             <button className="mob-checkup-btn" onClick={() => { ctx.setReviewCheckupMode && ctx.setReviewCheckupMode(false); ctx.setShowMorningCheckup(true); }}>
               Start Morning Check-Up
             </button>
@@ -1333,7 +1387,7 @@ function MobileStatus({ ctx }) {
       {/* § 7 What NORA Recommends */}
       {adaptiveRecs.length > 0 && (
         <div className="mob-sv2-card mob-recs-card">
-          <div className="mob-status-card-title"><Zap size={14} /> What NORA Recommends</div>
+          <div className="mob-status-card-title"><Zap size={14} /> What Nora Recommends</div>
           {adaptiveRecs.slice(0, 3).map((r, i) => (
             <div key={i} className="mob-rec-item">
               <span className="mob-rec-num">{i + 1}</span>
@@ -1532,9 +1586,9 @@ function MobileChat({ ctx }) {
     <div className={`mob-chat${chatOpen ? " mob-chat-open" : ""}`}>
       <div className="mob-chat-header">
         <div className="mob-chat-brand">
-          <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="mob-chat-avatar-logo" alt="NORA" />
+          <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="mob-chat-avatar-logo" alt="Nora" />
           <div>
-            <div className="mob-chat-title-text">NORA</div>
+            <div className="mob-chat-title-text">Nora</div>
             <div className="mob-chat-sub">Your productivity assistant</div>
           </div>
         </div>
@@ -1604,7 +1658,7 @@ function MobileChat({ ctx }) {
                 setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
               }
             }}
-            placeholder="Ask NORA anything…" />
+            placeholder="Ask Nora anything…" />
         </div>
         <button className="mob-chat-send" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
           {chatLoading ? <span className="dot-spin" /> : <Send size={18} />}

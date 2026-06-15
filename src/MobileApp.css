@@ -30,6 +30,11 @@
 .mob-header-brand {
   display: flex; align-items: center; gap: 10px;
 }
+.mob-brand-btn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  display: flex; align-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
 .mob-brand-logo {
   height: 44px; width: auto; object-fit: contain; display: block;
 }
@@ -1235,7 +1240,8 @@
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--accent);
 }
-.mob-dot-dl { background: #ef4444; }
+.mob-dot-dl   { background: #ef4444; }
+.mob-dot-done { background: #22c55e; }
 
 /* Selected day task list */
 .mob-cal-day-panel {

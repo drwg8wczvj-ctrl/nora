@@ -91,7 +91,7 @@ export default function AuthScreen({ dark, glass }) {
           <img
             src={dark ? "/logo-dark.png" : "/logo-light.png"}
             className="auth-brand-logo"
-            alt="NORA" />
+            alt="Nora" />
         </div>
         <p className="auth-tagline">Your personal productivity assistant</p>
 

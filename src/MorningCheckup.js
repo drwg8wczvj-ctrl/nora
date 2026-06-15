@@ -47,7 +47,7 @@ export function generateNoraSummary({ sleepQuality, restedScore, energyScore, cl
   }
 
   if (hasFocus) tips.push(`Stay close to your focus choices: ${focusChoices.slice(0, 2).join(", ")}.`);
-  else if (hasPressure) tips.push("NORA noted your day pressure — keeping the plan realistic.");
+  else if (hasPressure) tips.push("Nora noted your day pressure — keeping the plan realistic.");
   if (low && !hasPressure) tips.push("Consider Micro Start mode for anything that feels heavy.");
 
   return { summary, tips: tips.slice(0, 3) };
@@ -208,7 +208,7 @@ export default function MorningCheckup({
               <div className="mcu-step-header">
                 <Sunrise size={32} className="mcu-sunrise-icon" />
                 <h2 className="mcu-title">Sleep schedule</h2>
-                <p className="mcu-subtitle">Optional — helps NORA track your patterns over time.</p>
+                <p className="mcu-subtitle">Optional — helps Nora track your patterns over time.</p>
               </div>
               <div className="mcu-time-row">
                 <div className="mcu-time-field">
@@ -272,7 +272,7 @@ export default function MorningCheckup({
               <div className="mcu-step-header">
                 <Sunrise size={32} className="mcu-sunrise-icon" />
                 <h2 className="mcu-title">What will you focus on?</h2>
-                <p className="mcu-subtitle">Select all that apply — NORA will protect these windows.</p>
+                <p className="mcu-subtitle">Select all that apply — Nora will protect these windows.</p>
               </div>
               <div className="mcu-focus-bubbles">
                 {focusBubbles.map((chip, i) => {
@@ -354,7 +354,7 @@ export default function MorningCheckup({
           {step < TOTAL_STEPS ? (
             <button className="mcu-next-btn" disabled={!canNext}
               onClick={() => { if (step === TOTAL_STEPS - 1) handleFinish(); else setStep(s => s + 1); }}>
-              {step === TOTAL_STEPS - 1 ? "See NORA's read" : "Continue"}
+              {step === TOTAL_STEPS - 1 ? "See Nora's read" : "Continue"}
               <ChevronRight size={18} />
             </button>
           ) : (
