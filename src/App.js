@@ -2509,7 +2509,12 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         <header className="header">
           <button className="menu-btn" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button>
           <div className="header-center">
-            <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="brand-logo" alt="Nora" />
+            <button
+              className="brand-logo-btn"
+              onClick={() => { setSelectedDate(todayStr()); navigateTo("day"); }}
+              aria-label="Go to today">
+              <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="brand-logo" alt="Nora" />
+            </button>
           </div>
           <div className="header-right">
             <span className="header-date">{view === "day" ? prettyDate(selectedDate) : view === "month" ? monthLabel : view === "notes" ? "Notes" : "All Tasks"}</span>
