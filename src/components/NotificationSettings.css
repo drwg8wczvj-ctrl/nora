@@ -1,0 +1,158 @@
+/* ── Notification Settings Panel ───────────────────────── */
+.ns-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-size: 13px;
+}
+
+/* Permission status row */
+.ns-perm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ns-perm-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ns-perm-granted  { background: rgba(34,197,94,.12); color: #4ade80; }
+.ns-perm-granted .ns-perm-dot { background: #22c55e; }
+.ns-perm-denied   { background: rgba(239,68,68,.1);  color: #f87171; }
+.ns-perm-denied .ns-perm-dot  { background: #ef4444; }
+.ns-perm-default  { background: rgba(124,58,237,.1); color: #a78bfa; }
+.ns-perm-default .ns-perm-dot { background: #7c3aed; }
+.ns-perm-text { flex: 1; }
+
+.ns-enable-btn {
+  padding: 4px 12px;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.ns-enable-btn:hover { background: #6d28d9; }
+
+.ns-denied-note {
+  font-size: 12px;
+  color: rgba(241,240,255,.45);
+  line-height: 1.45;
+  padding: 0 2px 10px;
+  margin: 0;
+}
+
+/* Master toggle row */
+.ns-master-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 2px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  margin-bottom: 4px;
+  color: rgba(241,240,255,.7);
+}
+.ns-master-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(241,240,255,.85);
+}
+
+/* Category rows */
+.ns-cats { display: flex; flex-direction: column; }
+.ns-cats.muted { opacity: 0.45; pointer-events: none; }
+
+.ns-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.ns-cat-row:last-child { border-bottom: none; }
+
+.ns-cat-icon {
+  flex-shrink: 0;
+  color: rgba(241,240,255,.4);
+  display: flex;
+  align-items: center;
+}
+.ns-cat-text { flex: 1; min-width: 0; }
+.ns-cat-label { display: block; font-weight: 500; color: rgba(241,240,255,.82); font-size: 13px; }
+.ns-cat-desc  { display: block; font-size: 11px; color: rgba(241,240,255,.38); margin-top: 1px; }
+
+/* Time picker / select rows */
+.ns-time-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 2px 6px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  margin-top: 4px;
+  color: rgba(241,240,255,.5);
+}
+.ns-time-label {
+  flex: 1;
+  font-size: 13px;
+  color: rgba(241,240,255,.7);
+}
+
+.ns-time-input,
+.ns-select {
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  color: rgba(241,240,255,.85);
+  font-size: 12px;
+  padding: 5px 9px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color .15s;
+}
+.ns-time-input:focus,
+.ns-select:focus { border-color: rgba(124,58,237,.6); }
+.ns-select option { background: #1e1b30; }
+
+/* Toggle button */
+.ns-toggle {
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background: rgba(255,255,255,.1);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background .2s;
+  padding: 0;
+}
+.ns-toggle.on  { background: #7c3aed; }
+.ns-toggle.disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ns-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.ns-toggle.on .ns-knob { transform: translateX(16px); }
+
+/* Dark variant adjustments (same as base since we're already dark-first) */
+.ns-root.dark .ns-master-row { border-color: rgba(255,255,255,.07); }
+.ns-root.dark .ns-time-row   { border-color: rgba(255,255,255,.07); }

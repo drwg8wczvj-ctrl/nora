@@ -11,6 +11,8 @@ import { supabase } from "./lib/supabase";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
 import LongTermInsights from "./LongTermInsights";
 import FocusSession from "./FocusSession";
+import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
+import NotificationSettings from "./components/NotificationSettings";
 import "./MobileApp.css";
 
 // ── Local helpers ────────────────────────────────────────────
@@ -95,7 +97,8 @@ export default function MobileApp({ ctx }) {
 
   const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
           rescheduleTask, setRescheduleTask, saveReschedule, groups,
-          focusTask, setFocusTask, userPrefs, setUserPrefs, toggleTask } = ctx;
+          focusTask, setFocusTask, userPrefs, setUserPrefs, toggleTask,
+          notifBannerVisible, dismissNotifBanner, requestNotifPermission } = ctx;
 
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
@@ -254,6 +257,16 @@ export default function MobileApp({ ctx }) {
           </div>
           <button className="notif-toast-close" onClick={() => setInAppAlert(null)}><X size={14} /></button>
         </div>
+      )}
+
+      {/* Notification permission banner — shown contextually */}
+      {notifBannerVisible && (
+        <NotificationPermissionBanner
+          dark={dark}
+          onAllow={requestNotifPermission}
+          onLater={() => dismissNotifBanner(false)}
+          onNever={() => dismissNotifBanner(true)}
+        />
       )}
 
     </div>
@@ -1439,6 +1452,7 @@ function MobileSettings({ ctx }) {
     theme, setTheme,
     reminderMins, setReminderMins,
     session, groups, setGroups,
+    notifPermission, notifSettings, updateNotifSettings, requestNotifPermission,
   } = ctx;
 
   const [newGroupName,  setNewGroupName]  = useState("");
@@ -1491,19 +1505,15 @@ function MobileSettings({ ctx }) {
       {/* Notifications */}
       <div className="mob-sett-card">
         <div className="mob-sett-card-title"><Bell size={15} /> Notifications</div>
-        <div className="mob-sett-row">
-          <span className="mob-sett-row-label">Default reminder</span>
-          <select className="mob-sett-select"
-            value={reminderMins}
-            onChange={(e) => setReminderMins(Number(e.target.value))}>
-            <option value={0}>At start</option>
-            <option value={5}>5 min before</option>
-            <option value={10}>10 min before</option>
-            <option value={15}>15 min before</option>
-            <option value={30}>30 min before</option>
-            <option value={60}>1 hour before</option>
-          </select>
-        </div>
+        <NotificationSettings
+          permission={notifPermission}
+          settings={notifSettings}
+          updateSettings={updateNotifSettings}
+          onRequestPermission={requestNotifPermission}
+          reminderMins={reminderMins}
+          setReminderMins={setReminderMins}
+          dark={dark}
+        />
       </div>
 
       {/* Groups */}

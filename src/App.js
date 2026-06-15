@@ -13,6 +13,9 @@ import LongTermInsights from "./LongTermInsights";
 import FocusSession from "./FocusSession";
 import PWABanners from "./PWABanners";
 import { useMobile } from "./hooks/useMobile";
+import { useNotifications } from "./hooks/useNotifications";
+import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
+import NotificationSettings from "./components/NotificationSettings";
 import {
   Plus, Check, ChevronLeft, ChevronRight, CalendarDays,
   Clock, MessageSquare, X, Send, FileText, Trash2,
@@ -608,7 +611,6 @@ export default function App() {
 
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [activeSettings, setActiveSettings] = useState(null);
-  const [notifEnabled,   setNotifEnabled]   = useLocalStorage("nora_notif_enabled", false);
   const [accountName,    setAccountName]    = useLocalStorage("nora_account_name", "");
   const [reminderMins,   setReminderMins]   = useLocalStorage("nora_reminder_mins", 5);
   const [theme,          setTheme]          = useLocalStorage("nora_theme", "default");
@@ -618,11 +620,21 @@ export default function App() {
   const [motivation,     setMotivation]     = useLocalStorage("nora_motivation", 5);
   const [sleepCheckIn, setSleepCheckIn]    = useLocalStorage("nora_sleep_checkin", { date: null, quality: null });
   const [userProfile,    setUserProfile]    = useState({});
-  const [notifPermission, setNotifPermission] = useState(
-    typeof Notification !== "undefined" ? Notification.permission : "denied"
-  );
-  const notifTimers = useRef({});
-  const syncTimer   = useRef(null);
+  const notifTimers       = useRef({});
+  const morningCheckupTimer = useRef(null);
+  const coachingTimer     = useRef(null);
+  const syncTimer         = useRef(null);
+
+  // ── Notification system ────────────────────────────────
+  const {
+    permission: notifPermission,
+    settings:   notifSettings,
+    updateSettings: updateNotifSettings,
+    requestPermission: requestNotifPermission,
+    showNotification,
+    bannerVisible: notifBannerVisible,
+    dismissBanner: dismissNotifBanner,
+  } = useNotifications();
   const [showFilters,    setShowFilters]    = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [smartView,      setSmartView]      = useState(true);
@@ -1362,14 +1374,20 @@ export default function App() {
   }, [chatInput]);
   useEffect(() => { setDraft(editingTask ? { ...editingTask } : null); }, [editingTask]);
 
-  // Notification scheduling — per-task reminderOffset overrides global reminderMins
+  // ── Task / deadline notification scheduling ────────────────────────────────
   useEffect(() => {
     Object.values(notifTimers.current).forEach(clearTimeout);
     notifTimers.current = {};
-    if (!notifEnabled) return;
     const now = Date.now();
     tasks.forEach((task) => {
       if (task.completed || task.startHour == null || task.date !== todayStr()) return;
+      const type = task.type ?? "task";
+      if (type === "break") return;
+      // Check per-category setting (fall back to taskReminders for focus sessions)
+      const categoryEnabled = type === "deadline"
+        ? notifSettings.deadlineReminders
+        : notifSettings.taskReminders;
+      // Always schedule in-app toast; OS notification requires permission + enabled
       const offset = task.reminderOffset === "none" ? null
         : task.reminderOffset != null ? task.reminderOffset
         : reminderMins;
@@ -1378,18 +1396,102 @@ export default function App() {
       start.setHours(task.startHour, task.startMinute ?? 0, 0, 0);
       const delay = start.getTime() - offset * 60000 - now;
       if (delay <= 0) return;
-      notifTimers.current[task.id] = setTimeout(() => {
+      notifTimers.current[task.id] = setTimeout(async () => {
         const timeStr = fmtTime(task.startHour, task.startMinute ?? 0);
         setInAppAlert({ id: uid(), title: task.title, offset, timeStr });
-        if (notifPermission === "granted") {
-          new Notification(`Upcoming: ${task.title}`, {
-            body: `Starting in ${offset} min at ${timeStr}`,
-            icon: "/logo-light.png",
-          });
-        }
+        if (!categoryEnabled) return;
+        const typeLabel = type === "deadline" ? "Nora • Deadline" : "Nora • Upcoming Task";
+        const body = offset === 0
+          ? `${task.title} starts now`
+          : `${task.title} in ${offset} min · ${timeStr}`;
+        await showNotification(typeLabel, body, {
+          tag:  `task-${task.id}`,
+          data: { action: "open_task", taskId: task.id, url: "/" },
+        });
       }, delay);
     });
-  }, [tasks, reminderMins, notifPermission, notifEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tasks, reminderMins, notifPermission, notifSettings.enabled, notifSettings.taskReminders, notifSettings.deadlineReminders]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Morning check-up reminder ───────────────────────────────────────────────
+  useEffect(() => {
+    clearTimeout(morningCheckupTimer.current);
+    if (!notifSettings.enabled || !notifSettings.morningCheckup || notifPermission !== "granted") return;
+    if (morningCheckup) return; // Already completed today
+    const [hStr = "8", mStr = "0"] = (notifSettings.morningTime || "08:00").split(":");
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    const trigger = new Date();
+    trigger.setHours(h, m, 0, 0);
+    const delay = trigger.getTime() - Date.now();
+    if (delay <= 0) return;
+    morningCheckupTimer.current = setTimeout(async () => {
+      await showNotification(
+        "Nora • Morning Check-Up",
+        "Good morning! Ready for today's daily check-up?",
+        { tag: "morning-checkup", data: { action: "open_checkup", url: "/" } }
+      );
+    }, delay);
+    return () => clearTimeout(morningCheckupTimer.current);
+  }, [notifSettings.enabled, notifSettings.morningCheckup, notifSettings.morningTime, notifPermission, morningCheckup, today]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── AI coaching notification — once per day at 10:00 AM ────────────────────
+  useEffect(() => {
+    clearTimeout(coachingTimer.current);
+    if (!notifSettings.enabled || !notifSettings.aiCoaching || notifPermission !== "granted") return;
+    const alreadyFired = localStorage.getItem("nora_coaching_date") === today;
+    if (alreadyFired) return;
+    const trigger = new Date();
+    trigger.setHours(10, 0, 0, 0);
+    const delay = trigger.getTime() - Date.now();
+    if (delay <= 0) return;
+    coachingTimer.current = setTimeout(async () => {
+      const message = adaptiveRecs[0] || predictiveSignals[0]?.message;
+      if (!message) return;
+      localStorage.setItem("nora_coaching_date", today);
+      await showNotification("Nora • Daily Insight", message, {
+        tag: "ai-coaching", data: { action: "open_status", url: "/" },
+      });
+    }, delay);
+    return () => clearTimeout(coachingTimer.current);
+  }, [notifSettings.enabled, notifSettings.aiCoaching, notifPermission, today, adaptiveRecs, predictiveSignals]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Deadline day-before reminder — fires at 9 AM the day before ────────────
+  useEffect(() => {
+    if (!notifSettings.enabled || !notifSettings.deadlineReminders || notifPermission !== "granted") return;
+    const tomorrow = fmtDate(addDays(today, 1));
+    const tomorrowDeadlines = tasks.filter((t) => !t.completed && t.type === "deadline" && t.date === tomorrow);
+    if (!tomorrowDeadlines.length) return;
+    const trigger = new Date();
+    trigger.setHours(9, 0, 0, 0);
+    const delay = trigger.getTime() - Date.now();
+    if (delay <= 0) return;
+    const timerId = setTimeout(async () => {
+      const titles = tomorrowDeadlines.map((t) => t.title).join(", ");
+      await showNotification(
+        "Nora • Deadline Tomorrow",
+        tomorrowDeadlines.length === 1
+          ? `"${tomorrowDeadlines[0].title}" is due tomorrow.`
+          : `${tomorrowDeadlines.length} deadlines due tomorrow: ${titles}`,
+        { tag: "deadline-tomorrow", data: { action: "open_task", taskId: tomorrowDeadlines[0].id, url: "/" } }
+      );
+    }, delay);
+    return () => clearTimeout(timerId);
+  }, [notifSettings.enabled, notifSettings.deadlineReminders, notifPermission, tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Notification click — navigate to relevant screen ───────────────────────
+  useEffect(() => {
+    const handleNotifClick = (e) => {
+      const { action, taskId } = e.detail || {};
+      if (action === "open_checkup") setShowMorningCheckup(true);
+      else if (action === "open_task" && taskId) {
+        const task = tasks.find((t) => t.id === taskId);
+        if (task) setEditingTask(task);
+      }
+      else if (action === "open_status" && !isMobile) setView("status");
+    };
+    window.addEventListener("nora:notification-click", handleNotifClick);
+    return () => window.removeEventListener("nora:notification-click", handleNotifClick);
+  }, [tasks, isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!inAppAlert) return;
@@ -2302,6 +2404,10 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       focus, setFocus, motivation, setMotivation,
       userConfidence, assessmentSummary, keySignals,
       focusTask, setFocusTask,
+      // Notification system
+      notifPermission, notifSettings, updateNotifSettings,
+      requestNotifPermission, showNotification,
+      notifBannerVisible, dismissNotifBanner,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
@@ -2359,32 +2465,16 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               </div>
               <div className="sett-row">
                 <span className="sett-label">Notifications</span>
-                {notifPermission === "denied"
-                  ? <span className="sett-badge sett-badge-blocked">Blocked</span>
-                  : notifPermission === "granted"
-                  ? <button
-                      className={`theme-toggle${notifEnabled ? " on" : ""}`}
-                      onClick={() => setNotifEnabled((v) => !v)}
-                      title={notifEnabled ? "Turn off notifications" : "Turn on notifications"}
-                    />
-                  : <button className="sett-btn" onClick={async () => {
-                      const p = await Notification.requestPermission();
-                      setNotifPermission(p);
-                      if (p === "granted") setNotifEnabled(true);
-                    }}>Enable</button>
-                }
               </div>
-              {notifPermission === "granted" && notifEnabled && (
-                <div className="sett-row">
-                  <span className="sett-label">Remind me</span>
-                  <select className="sett-select" value={reminderMins}
-                    onChange={(e) => setReminderMins(Number(e.target.value))}>
-                    {[1,2,5,10,15,30].map((m) => (
-                      <option key={m} value={m}>{m} min before</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <NotificationSettings
+                permission={notifPermission}
+                settings={notifSettings}
+                updateSettings={updateNotifSettings}
+                onRequestPermission={requestNotifPermission}
+                reminderMins={reminderMins}
+                setReminderMins={setReminderMins}
+                dark={dark}
+              />
             </div>
           )}
         </div>
@@ -3808,6 +3898,16 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
       {/* PWA update / install banners */}
       <PWABanners dark={dark} />
+
+      {/* Notification permission prompt — shown contextually after first meaningful use */}
+      {notifBannerVisible && (
+        <NotificationPermissionBanner
+          dark={dark}
+          onAllow={requestNotifPermission}
+          onLater={() => dismissNotifBanner(false)}
+          onNever={() => dismissNotifBanner(true)}
+        />
+      )}
     </div>
   );
 }

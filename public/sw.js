@@ -23,11 +23,57 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ── Messages from the app (e.g. "user clicked Update") ───────────────────────
+// ── Messages from the app ─────────────────────────────────────────────────────
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
+    return;
   }
+  // App requests a SW-based notification (works while app is backgrounded)
+  if (event.data?.type === 'SHOW_NOTIFICATION') {
+    const { title, options } = event.data;
+    self.registration.showNotification(title, options || {}).catch(() => {});
+  }
+});
+
+// ── Push (Web Push API — for future server-sent notifications) ────────────────
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload = {};
+  try { payload = event.data.json(); } catch { payload = { body: event.data.text() }; }
+  event.waitUntil(
+    self.registration.showNotification(payload.title || 'Nora', {
+      body: payload.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: payload.tag || 'nora-push',
+      renotify: !!payload.tag,
+      data: payload.data || {},
+    })
+  );
+});
+
+// ── Notification click — focus open window or open URL, then tell app ─────────
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  const url  = data.url || '/';
+  event.waitUntil(
+    clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Try to focus an existing window first
+        for (const client of clientList) {
+          if ('focus' in client) {
+            // Send click data so the app can navigate to the right screen
+            client.postMessage({ type: 'NOTIFICATION_CLICK', data });
+            return client.focus();
+          }
+        }
+        // No open window — open a new one
+        return clients.openWindow(url);
+      })
+  );
 });
 
 // ── Fetch strategy ───────────────────────────────────────────────────────────
