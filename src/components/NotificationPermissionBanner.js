@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Bell, X } from "lucide-react";
 import "./NotificationPermissionBanner.css";
 
-export default function NotificationPermissionBanner({ onAllow, onLater, onNever, dark }) {
+export default function NotificationPermissionBanner({ onAllow, onLater, onNever }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -13,7 +13,7 @@ export default function NotificationPermissionBanner({ onAllow, onLater, onNever
   if (!visible) return null;
 
   return (
-    <div className={`npb-wrap${dark ? " dark" : ""}`} role="dialog" aria-label="Enable notifications">
+    <div className="npb-wrap" role="dialog" aria-label="Enable notifications">
       <div className="npb-icon-wrap">
         <Bell size={20} className="npb-icon" />
       </div>

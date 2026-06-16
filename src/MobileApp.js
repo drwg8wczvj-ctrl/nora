@@ -262,7 +262,6 @@ export default function MobileApp({ ctx }) {
       {/* Notification permission banner — shown contextually */}
       {notifBannerVisible && (
         <NotificationPermissionBanner
-          dark={dark}
           onAllow={requestNotifPermission}
           onLater={() => dismissNotifBanner(false)}
           onNever={() => dismissNotifBanner(true)}
@@ -1512,7 +1511,8 @@ function MobileSettings({ ctx }) {
           onRequestPermission={requestNotifPermission}
           reminderMins={reminderMins}
           setReminderMins={setReminderMins}
-          dark={dark}
+          health={ctx.notifHealth}
+          sendTestNotification={ctx.sendTestNotification}
         />
       </div>
 

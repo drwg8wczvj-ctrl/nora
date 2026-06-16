@@ -1,24 +1,24 @@
+/* ── Notification Permission Banner ─────────────────────── */
+/* Uses CSS variable theme system — no hardcoded colors.     */
+
 .npb-wrap {
   position: fixed;
   bottom: calc(32px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   width: min(460px, calc(100vw - 32px));
-  background: #1c1a2e;
-  border: 1px solid rgba(124,58,237,.35);
+  background: var(--modal-bg);
+  border: 1px solid var(--border-glow);
   border-radius: 18px;
-  padding: 18px 18px 18px 18px;
+  padding: 18px;
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(124,58,237,.1);
+  box-shadow: var(--shadow-glow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   z-index: 9998;
   animation: npb-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.npb-wrap.dark {
-  background: #0e0d1e;
-  border-color: rgba(124,58,237,.45);
 }
 
 @keyframes npb-in {
@@ -31,28 +31,28 @@
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: rgba(124,58,237,.18);
+  background: var(--accent-light);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-top: 1px;
 }
 
-.npb-icon { color: #a78bfa; }
+.npb-icon { color: var(--accent); }
 
 .npb-content { flex: 1; min-width: 0; }
 
 .npb-title {
   font-size: 14px;
   font-weight: 700;
-  color: #f1f0ff;
+  color: var(--text);
   margin-bottom: 4px;
   letter-spacing: -0.01em;
 }
 
 .npb-body {
   font-size: 13px;
-  color: rgba(241,240,255,.6);
+  color: var(--text-muted);
   line-height: 1.45;
   margin-bottom: 13px;
 }
@@ -65,47 +65,47 @@
 
 .npb-allow {
   padding: 8px 18px;
-  background: #7c3aed;
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background .15s, transform .1s;
+  transition: opacity var(--tr), transform .1s;
   letter-spacing: -0.01em;
 }
-.npb-allow:hover  { background: #6d28d9; }
+.npb-allow:hover  { opacity: .87; }
 .npb-allow:active { transform: scale(0.97); }
 
 .npb-later {
   padding: 8px 14px;
-  background: rgba(255,255,255,.06);
-  color: rgba(241,240,255,.65);
-  border: 1px solid rgba(255,255,255,.1);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 13px;
   cursor: pointer;
-  transition: background .15s;
+  transition: background var(--tr);
 }
-.npb-later:hover { background: rgba(255,255,255,.1); }
+.npb-later:hover { background: var(--surface); }
 
 .npb-close {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
-  background: rgba(255,255,255,.06);
+  background: var(--surface-2);
   border: none;
   border-radius: 7px;
-  color: rgba(241,240,255,.4);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background .15s, color .15s;
+  transition: background var(--tr), color var(--tr);
   margin-top: 1px;
 }
-.npb-close:hover { background: rgba(255,255,255,.12); color: rgba(241,240,255,.8); }
+.npb-close:hover { background: var(--surface); color: var(--text); }
 
 @media (max-width: 600px) {
   .npb-wrap {

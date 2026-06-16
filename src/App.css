@@ -2143,20 +2143,39 @@
 
 /* ── In-app notification toast ─────────────────────────── */
 .notif-toast {
-  position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  left: auto;
+  transform: none;
   z-index: 3000;
   display: flex; align-items: center; gap: 12px;
   padding: 13px 18px; border-radius: 14px;
   background: var(--modal-bg);
-  border: 1px solid var(--border);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 0 0 1px var(--border);
+  border: 1px solid var(--border-glow);
+  box-shadow: var(--shadow-glow);
   backdrop-filter: var(--glass-blur);
-  min-width: 280px; max-width: 380px;
-  animation: toastSlideIn .25s ease;
+  -webkit-backdrop-filter: var(--glass-blur);
+  min-width: 280px; max-width: 360px;
+  animation: toastSlideInRight .3s var(--ease-spring) both;
 }
-@keyframes toastSlideIn {
-  from { opacity: 0; top: 54px; }
-  to   { opacity: 1; top: 72px; }
+@keyframes toastSlideInRight {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (max-width: 640px) {
+  .notif-toast {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    top: auto;
+    right: 12px;
+    left: 12px;
+    max-width: none;
+    animation: toastSlideUp .28s var(--ease-spring) both;
+  }
+  @keyframes toastSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 }
 .notif-toast-icon {
   color: var(--accent); flex-shrink: 0;
@@ -3342,8 +3361,7 @@ button:not(:disabled):active {
   transition: color 0.3s ease;
 }
 
-/* ── Notification toast entrance ── */
-.notif-toast { animation: noraSlideRight 0.28s var(--ease-spring) both; }
+/* ── Notification toast entrance (handled inline above) ── */
 
 /* ── Check-up readiness ring ── */
 .mcu-ring-svg circle:last-child {

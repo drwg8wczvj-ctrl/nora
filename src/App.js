@@ -621,19 +621,21 @@ export default function App() {
   const [sleepCheckIn, setSleepCheckIn]    = useLocalStorage("nora_sleep_checkin", { date: null, quality: null });
   const [userProfile,    setUserProfile]    = useState({});
   const notifTimers       = useRef({});
-  const morningCheckupTimer = useRef(null);
-  const coachingTimer     = useRef(null);
   const syncTimer         = useRef(null);
 
   // ── Notification system ────────────────────────────────
   const {
-    permission: notifPermission,
-    settings:   notifSettings,
-    updateSettings: updateNotifSettings,
+    permission:        notifPermission,
+    settings:          notifSettings,
+    updateSettings:    updateNotifSettings,
     requestPermission: requestNotifPermission,
     showNotification,
-    bannerVisible: notifBannerVisible,
-    dismissBanner: dismissNotifBanner,
+    scheduleAlarm,
+    cancelAlarm,
+    sendTestNotification,
+    bannerVisible:     notifBannerVisible,
+    dismissBanner:     dismissNotifBanner,
+    health:            notifHealth,
   } = useNotifications();
   const [showFilters,    setShowFilters]    = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
@@ -1413,8 +1415,10 @@ export default function App() {
   }, [tasks, reminderMins, notifPermission, notifSettings.enabled, notifSettings.taskReminders, notifSettings.deadlineReminders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Morning check-up reminder ───────────────────────────────────────────────
+  // Uses scheduleAlarm() which persists to SW IndexedDB — survives app close.
   useEffect(() => {
-    clearTimeout(morningCheckupTimer.current);
+    const ALARM_ID = `morning-checkup-${today}`;
+    cancelAlarm(ALARM_ID);
     if (!notifSettings.enabled || !notifSettings.morningCheckup || notifPermission !== "granted") return;
     if (morningCheckup) return; // Already completed today
     const [hStr = "8", mStr = "0"] = (notifSettings.morningTime || "08:00").split(":");
@@ -1422,40 +1426,37 @@ export default function App() {
     const m = parseInt(mStr, 10);
     const trigger = new Date();
     trigger.setHours(h, m, 0, 0);
-    const delay = trigger.getTime() - Date.now();
-    if (delay <= 0) return;
-    morningCheckupTimer.current = setTimeout(async () => {
-      await showNotification(
-        "Nora • Morning Check-Up",
-        "Good morning! Ready for today's daily check-up?",
-        { tag: "morning-checkup", data: { action: "open_checkup", url: "/" } }
-      );
-    }, delay);
-    return () => clearTimeout(morningCheckupTimer.current);
+    if (trigger.getTime() <= Date.now()) return; // Already past
+    scheduleAlarm(
+      ALARM_ID,
+      trigger.getTime(),
+      "Nora • Morning Check-Up",
+      "Good morning! Ready for today's check-up?",
+      { action: "open_checkup", url: "/" },
+      "morning-checkup"
+    );
+    return () => cancelAlarm(ALARM_ID);
   }, [notifSettings.enabled, notifSettings.morningCheckup, notifSettings.morningTime, notifPermission, morningCheckup, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── AI coaching notification — once per day at 10:00 AM ────────────────────
+  // ── AI coaching — once per day at 10:00 AM, stored in alarm queue ──────────
   useEffect(() => {
-    clearTimeout(coachingTimer.current);
+    const ALARM_ID = `ai-coaching-${today}`;
     if (!notifSettings.enabled || !notifSettings.aiCoaching || notifPermission !== "granted") return;
     const alreadyFired = localStorage.getItem("nora_coaching_date") === today;
     if (alreadyFired) return;
     const trigger = new Date();
     trigger.setHours(10, 0, 0, 0);
-    const delay = trigger.getTime() - Date.now();
-    if (delay <= 0) return;
-    coachingTimer.current = setTimeout(async () => {
-      const message = adaptiveRecs[0] || predictiveSignals[0]?.message;
-      if (!message) return;
-      localStorage.setItem("nora_coaching_date", today);
-      await showNotification("Nora • Daily Insight", message, {
-        tag: "ai-coaching", data: { action: "open_status", url: "/" },
-      });
-    }, delay);
-    return () => clearTimeout(coachingTimer.current);
+    if (trigger.getTime() <= Date.now()) return;
+    const message = adaptiveRecs[0] || predictiveSignals[0]?.message;
+    if (!message) return;
+    localStorage.setItem("nora_coaching_date", today); // prevent re-scheduling
+    scheduleAlarm(ALARM_ID, trigger.getTime(), "Nora • Daily Insight", message, {
+      action: "open_status", url: "/",
+    }, "ai-coaching");
+    return () => cancelAlarm(ALARM_ID);
   }, [notifSettings.enabled, notifSettings.aiCoaching, notifPermission, today, adaptiveRecs, predictiveSignals]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Deadline day-before reminder — fires at 9 AM the day before ────────────
+  // ── Deadline day-before reminder — stored in alarm queue ────────────────────
   useEffect(() => {
     if (!notifSettings.enabled || !notifSettings.deadlineReminders || notifPermission !== "granted") return;
     const tomorrow = fmtDate(addDays(today, 1));
@@ -1463,19 +1464,20 @@ export default function App() {
     if (!tomorrowDeadlines.length) return;
     const trigger = new Date();
     trigger.setHours(9, 0, 0, 0);
-    const delay = trigger.getTime() - Date.now();
-    if (delay <= 0) return;
-    const timerId = setTimeout(async () => {
-      const titles = tomorrowDeadlines.map((t) => t.title).join(", ");
-      await showNotification(
-        "Nora • Deadline Tomorrow",
-        tomorrowDeadlines.length === 1
-          ? `"${tomorrowDeadlines[0].title}" is due tomorrow.`
-          : `${tomorrowDeadlines.length} deadlines due tomorrow: ${titles}`,
-        { tag: "deadline-tomorrow", data: { action: "open_task", taskId: tomorrowDeadlines[0].id, url: "/" } }
-      );
-    }, delay);
-    return () => clearTimeout(timerId);
+    if (trigger.getTime() <= Date.now()) return;
+    const alarmId = `deadline-tomorrow-${today}`;
+    const titles = tomorrowDeadlines.map((t) => t.title).join(", ");
+    scheduleAlarm(
+      alarmId,
+      trigger.getTime(),
+      "Nora • Deadline Tomorrow",
+      tomorrowDeadlines.length === 1
+        ? `"${tomorrowDeadlines[0].title}" is due tomorrow.`
+        : `${tomorrowDeadlines.length} deadlines due tomorrow: ${titles}`,
+      { action: "open_task", taskId: tomorrowDeadlines[0].id, url: "/" },
+      "deadline-tomorrow"
+    );
+    return () => cancelAlarm(alarmId);
   }, [notifSettings.enabled, notifSettings.deadlineReminders, notifPermission, tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Notification click — navigate to relevant screen ───────────────────────
@@ -2408,6 +2410,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       notifPermission, notifSettings, updateNotifSettings,
       requestNotifPermission, showNotification,
       notifBannerVisible, dismissNotifBanner,
+      notifHealth, sendTestNotification,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
@@ -2473,7 +2476,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 onRequestPermission={requestNotifPermission}
                 reminderMins={reminderMins}
                 setReminderMins={setReminderMins}
-                dark={dark}
+                health={notifHealth}
+                sendTestNotification={sendTestNotification}
               />
             </div>
           )}
@@ -3907,7 +3911,6 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       {/* Notification permission prompt — shown contextually after first meaningful use */}
       {notifBannerVisible && (
         <NotificationPermissionBanner
-          dark={dark}
           onAllow={requestNotifPermission}
           onLater={() => dismissNotifBanner(false)}
           onNever={() => dismissNotifBanner(true)}

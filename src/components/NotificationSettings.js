@@ -1,5 +1,5 @@
-import React from "react";
-import { Bell, CheckSquare, Flag, Clock, Brain, Sunrise } from "lucide-react";
+import React, { useState } from "react";
+import { Bell, CheckSquare, Flag, Clock, Brain, Sunrise, Send, Check } from "lucide-react";
 import "./NotificationSettings.css";
 
 function NSToggle({ value, onChange, disabled }) {
@@ -20,7 +20,7 @@ const CATEGORIES = [
     key: "taskReminders",
     icon: <CheckSquare size={14} />,
     label: "Task reminders",
-    desc: "Upcoming tasks before start time",
+    desc: "Before task start time",
   },
   {
     key: "deadlineReminders",
@@ -32,21 +32,32 @@ const CATEGORIES = [
     key: "morningCheckup",
     icon: <Sunrise size={14} />,
     label: "Morning check-up",
-    desc: "Daily readiness reminder",
+    desc: "Daily readiness prompt",
   },
   {
     key: "focusSessions",
     icon: <Clock size={14} />,
     label: "Focus sessions",
-    desc: "Reminder when session starts",
+    desc: "When session is about to start",
   },
   {
     key: "aiCoaching",
     icon: <Brain size={14} />,
     label: "AI coaching",
-    desc: "Smart nudges and daily insights",
+    desc: "Daily smart insights from Nora",
   },
 ];
+
+function HealthRow({ ok, warn, label, note }) {
+  const cls = ok ? "ns-hd-ok" : warn ? "ns-hd-warn" : "ns-hd-err";
+  return (
+    <div className={`ns-health-row ${cls}`}>
+      <span className="ns-hd-dot" />
+      <span className="ns-hd-label">{label}</span>
+      {note && <span className="ns-hd-note">{note}</span>}
+    </div>
+  );
+}
 
 export default function NotificationSettings({
   permission,
@@ -55,39 +66,51 @@ export default function NotificationSettings({
   onRequestPermission,
   reminderMins,
   setReminderMins,
-  dark,
+  health = {},
+  sendTestNotification,
 }) {
+  const [testSent,    setTestSent]    = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
+
   const granted = permission === "granted";
   const denied  = permission === "denied";
   const active  = granted && settings.enabled;
 
-  return (
-    <div className={`ns-root${dark ? " dark" : ""}`}>
+  const handleTest = async () => {
+    setTestLoading(true);
+    try {
+      await sendTestNotification();
+      setTestSent(true);
+      setTimeout(() => setTestSent(false), 4000);
+    } catch {}
+    setTestLoading(false);
+  };
 
-      {/* Permission status */}
+  return (
+    <div className="ns-root">
+
+      {/* ── Permission status ─────────────────────────────── */}
       <div className={`ns-perm-row ns-perm-${granted ? "granted" : denied ? "denied" : "default"}`}>
         <span className="ns-perm-dot" />
         <span className="ns-perm-text">
           {granted
             ? "Notifications allowed"
             : denied
-            ? "Blocked in browser settings"
-            : "Not yet enabled"}
+            ? "Blocked in browser / OS settings"
+            : "Permission not yet granted"}
         </span>
         {!granted && !denied && (
-          <button className="ns-enable-btn" onClick={onRequestPermission}>
-            Enable
-          </button>
+          <button className="ns-enable-btn" onClick={onRequestPermission}>Enable</button>
         )}
       </div>
 
       {denied && (
         <p className="ns-denied-note">
-          Go to your browser or OS Settings → Notifications and allow this site, then reload.
+          Open your browser or OS Settings → Notifications, allow this site, then reload the page.
         </p>
       )}
 
-      {/* Master toggle */}
+      {/* ── Master toggle ─────────────────────────────────── */}
       <div className="ns-master-row">
         <Bell size={14} />
         <span className="ns-master-label">All notifications</span>
@@ -98,7 +121,7 @@ export default function NotificationSettings({
         />
       </div>
 
-      {/* Per-category toggles */}
+      {/* ── Per-category toggles ──────────────────────────── */}
       <div className={`ns-cats${!active ? " muted" : ""}`}>
         {CATEGORIES.map(({ key, icon, label, desc }) => (
           <div key={key} className="ns-cat-row">
@@ -116,7 +139,7 @@ export default function NotificationSettings({
         ))}
       </div>
 
-      {/* Morning reminder time */}
+      {/* ── Morning reminder time ─────────────────────────── */}
       {active && settings.morningCheckup && (
         <div className="ns-time-row">
           <Sunrise size={13} />
@@ -130,7 +153,7 @@ export default function NotificationSettings({
         </div>
       )}
 
-      {/* Default reminder offset */}
+      {/* ── Default reminder offset ───────────────────────── */}
       {active && settings.taskReminders && setReminderMins != null && (
         <div className="ns-time-row">
           <CheckSquare size={13} />
@@ -148,6 +171,85 @@ export default function NotificationSettings({
           </select>
         </div>
       )}
+
+      {/* ── Test notification ─────────────────────────────── */}
+      <div className="ns-test-row">
+        <button
+          className="ns-test-btn"
+          onClick={handleTest}
+          disabled={!granted || testLoading}
+        >
+          {testLoading
+            ? <span className="dot-spin" />
+            : testSent
+            ? <><Check size={14} /> Notification sent!</>
+            : <><Send size={14} /> Send test notification</>
+          }
+        </button>
+        {!granted && (
+          <p className="ns-test-sent" style={{ color: "var(--text-muted)" }}>
+            Enable notifications first.
+          </p>
+        )}
+      </div>
+
+      {/* ── System health panel ───────────────────────────── */}
+      <div className="ns-health">
+        <div className="ns-health-title">Notification Status</div>
+        <div className="ns-health-rows">
+          <HealthRow
+            ok={granted}
+            warn={permission === "default"}
+            label="Permission"
+            note={granted ? "granted" : denied ? "blocked" : "not asked"}
+          />
+          <HealthRow
+            ok={health.swActive}
+            label="Service worker"
+            note={health.swActive ? "active" : "not registered"}
+          />
+          <HealthRow
+            ok={health.periodicSyncRegistered}
+            warn={health.periodicSyncSupported && !health.periodicSyncRegistered}
+            label="Background wake-up"
+            note={
+              health.periodicSyncRegistered ? "registered"
+              : health.periodicSyncSupported ? "supported, not registered"
+              : "not supported on this platform"
+            }
+          />
+          <HealthRow
+            ok={health.alarmCount > 0}
+            warn={health.alarmCount === 0}
+            label="Scheduled reminders"
+            note={health.alarmCount === 0 ? "none queued" : `${health.alarmCount} queued`}
+          />
+        </div>
+
+        {health.alarmCount > 0 && (
+          <div className="ns-health-meta">
+            <span>{health.alarmCount} reminder{health.alarmCount !== 1 ? "s" : ""} stored in device queue</span>
+          </div>
+        )}
+
+        {/* iOS explanation */}
+        {health.isIOS && (
+          <div className="ns-ios-note">
+            <strong>iOS note:</strong> Reminders fire when Nora is open or running in the
+            background. True background delivery requires a push server (coming soon).
+            For best results, add Nora to your Home Screen.
+          </div>
+        )}
+
+        {/* No periodic sync */}
+        {!health.periodicSyncSupported && !health.isIOS && health.swActive && (
+          <div className="ns-ios-note">
+            Background wake-up is not available on this browser.
+            Reminders fire reliably when Nora is open or backgrounded.
+            For Android background delivery, use Chrome and install Nora to your Home Screen.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

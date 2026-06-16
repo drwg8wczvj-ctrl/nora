@@ -1,4 +1,7 @@
 /* ── Notification Settings Panel ───────────────────────── */
+/* All colors use the app's CSS-variable theme system.      */
+/* Works automatically in light, dark, and Liquid Glass.    */
+
 .ns-root {
   display: flex;
   flex-direction: column;
@@ -6,12 +9,12 @@
   font-size: 13px;
 }
 
-/* Permission status row */
+/* ── Permission status badge ──────────────────────────── */
 .ns-perm-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 9px 12px;
   border-radius: 10px;
   margin-bottom: 10px;
   font-size: 12px;
@@ -23,136 +26,239 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
-.ns-perm-granted  { background: rgba(34,197,94,.12); color: #4ade80; }
-.ns-perm-granted .ns-perm-dot { background: #22c55e; }
-.ns-perm-denied   { background: rgba(239,68,68,.1);  color: #f87171; }
-.ns-perm-denied .ns-perm-dot  { background: #ef4444; }
-.ns-perm-default  { background: rgba(124,58,237,.1); color: #a78bfa; }
-.ns-perm-default .ns-perm-dot { background: #7c3aed; }
 .ns-perm-text { flex: 1; }
+
+/* Granted */
+.ns-perm-granted {
+  background: rgba(var(--success-rgb, 34,197,94), .12);
+  color: var(--success);
+}
+.ns-perm-granted .ns-perm-dot { background: var(--success); }
+
+/* Denied */
+.ns-perm-denied {
+  background: rgba(var(--danger-rgb, 220,38,38), .1);
+  color: var(--danger);
+}
+.ns-perm-denied .ns-perm-dot { background: var(--danger); }
+
+/* Default (not asked yet) */
+.ns-perm-default {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.ns-perm-default .ns-perm-dot { background: var(--accent); }
 
 .ns-enable-btn {
   padding: 4px 12px;
-  background: #7c3aed;
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background .15s;
+  transition: opacity var(--tr);
 }
-.ns-enable-btn:hover { background: #6d28d9; }
+.ns-enable-btn:hover { opacity: .82; }
 
 .ns-denied-note {
   font-size: 12px;
-  color: rgba(241,240,255,.45);
+  color: var(--text-muted);
   line-height: 1.45;
   padding: 0 2px 10px;
   margin: 0;
 }
 
-/* Master toggle row */
+/* ── Master toggle row ──────────────────────────────────── */
 .ns-master-row {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 2px;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
-  color: rgba(241,240,255,.7);
+  color: var(--text-muted);
 }
 .ns-master-label {
   flex: 1;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(241,240,255,.85);
+  color: var(--text);
 }
 
-/* Category rows */
-.ns-cats { display: flex; flex-direction: column; }
-.ns-cats.muted { opacity: 0.45; pointer-events: none; }
+/* ── Per-category rows ──────────────────────────────────── */
+.ns-cats { display: flex; flex-direction: column; transition: opacity var(--tr); }
+.ns-cats.muted { opacity: .38; pointer-events: none; }
 
 .ns-cat-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 9px 2px;
-  border-bottom: 1px solid rgba(255,255,255,.04);
+  border-bottom: 1px solid var(--border);
 }
 .ns-cat-row:last-child { border-bottom: none; }
 
 .ns-cat-icon {
   flex-shrink: 0;
-  color: rgba(241,240,255,.4);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
 }
 .ns-cat-text { flex: 1; min-width: 0; }
-.ns-cat-label { display: block; font-weight: 500; color: rgba(241,240,255,.82); font-size: 13px; }
-.ns-cat-desc  { display: block; font-size: 11px; color: rgba(241,240,255,.38); margin-top: 1px; }
+.ns-cat-label { display: block; font-weight: 500; color: var(--text); font-size: 13px; }
+.ns-cat-desc  { display: block; font-size: 11px; color: var(--text-muted); margin-top: 1px; }
 
-/* Time picker / select rows */
+/* ── Time picker / select rows ──────────────────────────── */
 .ns-time-row {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 2px 6px;
-  border-top: 1px solid rgba(255,255,255,.06);
+  border-top: 1px solid var(--border);
   margin-top: 4px;
-  color: rgba(241,240,255,.5);
+  color: var(--text-muted);
 }
 .ns-time-label {
   flex: 1;
   font-size: 13px;
-  color: rgba(241,240,255,.7);
+  color: var(--text);
 }
 
 .ns-time-input,
 .ns-select {
-  background: rgba(255,255,255,.07);
-  border: 1px solid rgba(255,255,255,.12);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  color: rgba(241,240,255,.85);
+  color: var(--text);
   font-size: 12px;
   padding: 5px 9px;
   cursor: pointer;
   outline: none;
-  transition: border-color .15s;
+  transition: border-color var(--tr);
 }
 .ns-time-input:focus,
-.ns-select:focus { border-color: rgba(124,58,237,.6); }
-.ns-select option { background: #1e1b30; }
+.ns-select:focus { border-color: var(--border-glow); }
+.ns-select option { background: var(--surface-solid); color: var(--text); }
 
-/* Toggle button */
+/* ── Toggle ─────────────────────────────────────────────── */
 .ns-toggle {
   flex-shrink: 0;
   width: 38px;
   height: 22px;
   border-radius: 11px;
-  background: rgba(255,255,255,.1);
-  border: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   cursor: pointer;
   position: relative;
-  transition: background .2s;
+  transition: background var(--tr), border-color var(--tr);
   padding: 0;
 }
-.ns-toggle.on  { background: #7c3aed; }
-.ns-toggle.disabled { opacity: 0.4; cursor: not-allowed; }
+.ns-toggle.on  { background: var(--accent); border-color: var(--accent); }
+.ns-toggle.disabled { opacity: .4; cursor: not-allowed; }
 
 .ns-knob {
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 2px;
+  left: 2px;
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
-  transition: transform .2s cubic-bezier(.34,1.56,.64,1);
-  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  background: var(--surface-solid);
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1), background var(--tr);
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
 }
 .ns-toggle.on .ns-knob { transform: translateX(16px); }
 
-/* Dark variant adjustments (same as base since we're already dark-first) */
-.ns-root.dark .ns-master-row { border-color: rgba(255,255,255,.07); }
-.ns-root.dark .ns-time-row   { border-color: rgba(255,255,255,.07); }
+/* ── Health / diagnostic section ───────────────────────── */
+.ns-health {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.ns-health-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.ns-health-rows { display: flex; flex-direction: column; gap: 5px; }
+
+.ns-health-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ns-hd-ok   { color: var(--success); }
+.ns-hd-warn { color: #f59e0b; }
+.ns-hd-err  { color: var(--danger); }
+.ns-hd-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+.ns-hd-label { flex: 1; }
+.ns-hd-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: .7;
+}
+
+.ns-health-meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ns-health-meta span { opacity: .7; }
+
+.ns-ios-note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--accent-light);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ── Test notification button ───────────────────────────── */
+.ns-test-row {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.ns-test-btn {
+  width: 100%;
+  padding: 9px 16px;
+  background: var(--accent-light);
+  color: var(--accent);
+  border: 1px solid var(--border-glow);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background var(--tr), opacity var(--tr);
+}
+.ns-test-btn:hover  { background: rgba(var(--accent-rgb, 124,58,237), .22); }
+.ns-test-btn:active { opacity: .8; }
+.ns-test-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.ns-test-sent {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--success);
+  text-align: center;
+}
