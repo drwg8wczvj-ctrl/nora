@@ -1112,10 +1112,17 @@ const MOB_NOTE_COLORS = {
 
 function MobileNotes({ ctx }) {
   const { notes, setNotes, deleteNote, patchNote } = ctx;
-  const [openId, setOpenId] = useState(null);
+  const [openId,     setOpenId]     = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const openNote = notes.find(n => n.id === openId);
   const nc = (color) => MOB_NOTE_COLORS[color ?? "yellow"];
+
+  const handleCardDelete = (e, id) => {
+    e.stopPropagation();
+    setDeletingId(id);
+    setTimeout(() => { deleteNote(id); setDeletingId(null); }, 210);
+  };
 
   const handleCreate = () => {
     const n = { id: uid(), title: "", content: "", color: "yellow", done: false, createdAt: Date.now() };
@@ -1142,9 +1149,13 @@ function MobileNotes({ ctx }) {
           {[...notes].reverse().map((note) => {
             const c = nc(note.color);
             return (
-              <div key={note.id} className="mob-sticky-card"
+              <div key={note.id}
+                className={`mob-sticky-card${deletingId === note.id ? " deleting" : ""}`}
                 style={{ background: c.bg, borderColor: c.border }}
                 onClick={() => setOpenId(note.id)}>
+                <button className="mob-sticky-card-del" onClick={e => handleCardDelete(e, note.id)}>
+                  <X size={10} />
+                </button>
                 <div className="mob-sticky-title" style={{ color: c.text }}>
                   {note.title || "Untitled"}
                 </div>

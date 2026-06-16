@@ -1590,7 +1590,8 @@ export default function App() {
   const shiftDate  = (n) => setSelectedDate(fmtDate(addDays(selectedDate, n)));
   const shiftMo    = (n) => setSelectedDate(shiftMonth(selectedDate, n));
 
-  const [openNoteId, setOpenNoteId] = useState(null);
+  const [openNoteId,     setOpenNoteId]     = useState(null);
+  const [deletingNoteId, setDeletingNoteId] = useState(null);
   const createStickyNote = (color = "yellow") => {
     const n = { id: uid(), title: "", content: "", color, done: false, createdAt: Date.now() };
     setNotes((p) => [...p, n]);
@@ -3511,6 +3512,11 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 setOpenNoteId(null);
               }
             };
+            const handleCardDelete = (e, id) => {
+              e.stopPropagation();
+              setDeletingNoteId(id);
+              setTimeout(() => { deleteNote(id); setDeletingNoteId(null); }, 210);
+            };
             return (
               <div className="notes-view">
                 <div className="notes-view-header">
@@ -3528,9 +3534,13 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                     {[...notes].reverse().map((note) => {
                       const c = nc(note.color);
                       return (
-                        <div key={note.id} className="sticky-card"
+                        <div key={note.id}
+                          className={`sticky-card${deletingNoteId === note.id ? " deleting" : ""}`}
                           style={{ background: c.bg, borderColor: c.border }}
                           onClick={() => setOpenNoteId(note.id)}>
+                          <button className="sticky-card-del" onClick={e => handleCardDelete(e, note.id)}>
+                            <X size={11} />
+                          </button>
                           <div className="sticky-card-title" style={{ color: c.text }}>
                             {note.title || "Untitled"}
                           </div>

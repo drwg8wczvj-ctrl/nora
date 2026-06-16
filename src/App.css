@@ -1844,6 +1844,7 @@
   padding: 14px 12px;
   cursor: pointer;
   overflow: hidden;
+  position: relative;
   box-shadow: 2px 3px 10px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   display: flex; flex-direction: column; gap: 8px;
@@ -1851,6 +1852,26 @@
 .sticky-card:hover {
   transform: translateY(-3px) rotate(0.4deg);
   box-shadow: 4px 8px 20px rgba(0,0,0,0.18);
+}
+.sticky-card-del {
+  position: absolute; top: 7px; right: 7px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #dc2626; color: #fff; border: none; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2;
+  opacity: 0; transform: scale(0.6);
+  transition: opacity .15s, transform .15s;
+}
+.sticky-card:hover .sticky-card-del { opacity: 1; transform: scale(1); }
+.sticky-card-del:hover { background: #b91c1c; }
+.sticky-card.deleting {
+  animation: card-pop-out .21s cubic-bezier(.4,0,.6,1) forwards;
+  pointer-events: none;
+}
+@keyframes card-pop-out {
+  0%   { transform: scale(1);    opacity: 1; }
+  35%  { transform: scale(1.07); opacity: 0.85; }
+  100% { transform: scale(0);    opacity: 0; }
 }
 .sticky-card-title {
   font-size: 13px; font-weight: 700; line-height: 1.35;
