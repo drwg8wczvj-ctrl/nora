@@ -11,6 +11,7 @@ import MobileApp from "./MobileApp";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
 import LongTermInsights from "./LongTermInsights";
 import FocusSession from "./FocusSession";
+import Whiteboard from "./Whiteboard";
 import PWABanners from "./PWABanners";
 import { useMobile } from "./hooks/useMobile";
 import { useNotifications } from "./hooks/useNotifications";
@@ -19,7 +20,7 @@ import NotificationSettings from "./components/NotificationSettings";
 import {
   Plus, Check, ChevronLeft, ChevronRight, CalendarDays,
   Clock, MessageSquare, X, Send, FileText, Trash2,
-  Menu, Settings, User, ChevronDown, RotateCcw, List,
+  Menu, Settings, User, ChevronDown, RotateCcw, List, Layers,
   Flag, Coffee, Bell,
   Activity, Zap, Wind, TrendingUp, TrendingDown, Minus,
   ZoomIn, ZoomOut,
@@ -2442,7 +2443,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         </div>
 
         <nav className="sidebar-nav">
-          {[["day","Day View",<CalendarDays size={16} />],["month","Month View",<CalendarDays size={16} />],["list","All Tasks",<List size={16} />],["notes","Notes",<FileText size={16} />],["status","My Status",<Activity size={16} />]].map(([v,label,icon]) => (
+          {[["day","Day View",<CalendarDays size={16} />],["month","Month View",<CalendarDays size={16} />],["list","All Tasks",<List size={16} />],["notes","Notes",<FileText size={16} />],["boards","Whiteboards",<Layers size={16} />],["status","My Status",<Activity size={16} />]].map(([v,label,icon]) => (
             <button key={v} className={`snav-btn${view === v ? " active" : ""}`}
               onClick={() => { navigateTo(v); setSidebarOpen(false); }}>
               {icon} {label}
@@ -3597,6 +3598,24 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               </div>
             );
           })()}
+
+          {view === "boards" && (
+            <Whiteboard
+              onAskNora={(prompt) => { setChatInput(prompt); setChatOpen(true); }}
+              onConvertTask={(block) => {
+                setEditingTask({
+                  id: uid(), type: block.type === "deadline" ? "deadline" : "task",
+                  title: block.title, date: selectedDate,
+                  startHour: null, startMinute: null,
+                  duration: null, repeat: null, repeatEnd: null,
+                  completed: false, notes: block.content || "",
+                  complexity: null, groupId: null, reminderOffset: null,
+                  ...(block.type === "deadline" && block.dueDate ? { deadline: block.dueDate } : {}),
+                });
+              }}
+            />
+          )}
+
           </div>{/* page-anim */}
         </div>
 

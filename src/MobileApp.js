@@ -5,7 +5,7 @@ import {
   Flag, Coffee, Bell, Activity, Wind, TrendingUp,
   TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
   SkipForward, Sparkles, Plus, Settings,
-  BarChart2, Zap, List, CheckSquare, Pencil,
+  BarChart2, Zap, List, CheckSquare, Pencil, Layers,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
@@ -13,6 +13,7 @@ import LongTermInsights from "./LongTermInsights";
 import FocusSession from "./FocusSession";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
+import { MobileWhiteboardView } from "./Whiteboard";
 import "./MobileApp.css";
 
 // ── Local helpers ────────────────────────────────────────────
@@ -116,6 +117,7 @@ export default function MobileApp({ ctx }) {
         {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} planDate={planDate} setPlanDate={setPlanDate} />}
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
+        {mobileView === "boards"   && <MobileWhiteboardView onAskNora={p => { ctx.setChatInput(p); ctx.setChatOpen(true); }} />}
         {mobileView === "status"   && <MobileStatus ctx={ctx} />}
         {mobileView === "settings" && <MobileSettings ctx={ctx} />}
       </main>
@@ -125,7 +127,7 @@ export default function MobileApp({ ctx }) {
           ["plan",     "Plan",     <CalendarDays size={21} />],
           ["tasks",    "Tasks",    <CheckSquare size={21} />],
           ["notes",    "Notes",    <FileText size={21} />],
-          ["status",   "Status",   <Activity size={21} />],
+          ["boards",   "Boards",   <Layers size={21} />],
           ["settings", "Settings", <Settings size={21} />],
         ].map(([v, l, icon]) => (
           <button key={v}
