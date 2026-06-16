@@ -125,6 +125,16 @@
   transition: opacity .15s;
 }
 .mob-plan-cta:hover { opacity: .88; }
+.mob-empty-add-task {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 11px 20px; border-radius: 14px;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text-muted); cursor: pointer;
+  font-size: 14px; font-weight: 600; font-family: inherit;
+  transition: border-color .15s, color .15s;
+}
+.mob-empty-add-task:active { border-color: var(--accent); color: var(--accent); }
 
 /* ── Quick add button ────────────────────────────────────── */
 .mob-quick-add {

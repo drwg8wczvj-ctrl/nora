@@ -657,6 +657,18 @@ function MobileHome({ ctx, planDate, planTasks }) {
           }}>
             <Sparkles size={15} /> Let Nora plan my day
           </button>
+          <button className="mob-empty-add-task" onClick={() => {
+            ctx.setEditingTask({
+              id: uid(), type: "task",
+              title: "", date: effectiveDate,
+              startHour: null, startMinute: null,
+              duration: null, repeat: null, repeatEnd: null,
+              completed: false, notes: "", complexity: null,
+              groupId: null, reminderOffset: null,
+            });
+          }}>
+            <Plus size={14} /> Add task
+          </button>
         </div>
       )}
 

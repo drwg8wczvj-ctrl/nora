@@ -2672,12 +2672,17 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   <div className="smart-empty">
                     <Sparkles size={32} style={{ opacity: .2 }} />
                     <p>Nothing scheduled yet.</p>
-                    <button className="smart-empty-btn" onClick={() => {
-                      setChatInput("Plan my day for today based on my energy and current workload.");
-                      setChatOpen(true);
-                    }}>
-                      <Sparkles size={14} /> Plan my day with Nora
-                    </button>
+                    <div className="smart-empty-actions">
+                      <button className="smart-empty-btn" onClick={() => {
+                        setChatInput("Plan my day for today based on my energy and current workload.");
+                        setChatOpen(true);
+                      }}>
+                        <Sparkles size={14} /> Plan my day with Nora
+                      </button>
+                      <button className="smart-empty-add" onClick={() => { setAddingAt("unscheduled"); setAddingTitle(""); }}>
+                        <Plus size={14} /> Add task
+                      </button>
+                    </div>
                   </div>
                 );
 
