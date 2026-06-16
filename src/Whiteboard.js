@@ -137,7 +137,7 @@ function smartPath(a, b) {
 // ─────────────────────────────────────────────────────────────────
 // WhiteboardList
 // ─────────────────────────────────────────────────────────────────
-function WhiteboardList({ boards, setBoards, onOpen }) {
+function WhiteboardList({ boards, setBoards, onOpen, onClose }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [showTpl, setShowTpl] = useState(false);
@@ -168,7 +168,14 @@ function WhiteboardList({ boards, setBoards, onOpen }) {
   return (
     <div className="wb-list">
       <div className="wb-list-header">
-        <div className="wb-list-title"><Layers size={18}/> Whiteboards</div>
+        <div className="wb-list-title">
+          {onClose && (
+            <button className="wb-back" onClick={onClose} title="Back" style={{marginRight:4}}>
+              <ChevronLeft size={18}/>
+            </button>
+          )}
+          <Layers size={18}/> Whiteboards
+        </div>
         <div className="wb-list-header-actions">
           <button className="wb-btn-outline" onClick={() => setShowTpl(true)}>Use Template</button>
           <button className="wb-btn-primary" onClick={() => setCreating(true)}><Plus size={14}/> New Board</button>
@@ -261,6 +268,7 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
   const [connecting, setConnecting] = useState(null);
   const [editing,    setEditing]    = useState(null);
   const [showAI,     setShowAI]     = useState(false);
+  const [isPanning,  setIsPanning]  = useState(false);
 
   const wrapRef  = useRef(null);
   const drag     = useRef(null);
@@ -327,14 +335,14 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
 
   // Mouse handlers
   const onWrapDown = e => {
-    if (e.button===0 && spaceRef.current) {
-      drag.current = { type:'pan', sx:e.clientX, sy:e.clientY, ox:vpRef.current.x, oy:vpRef.current.y };
+    if (connecting) {
+      setConnecting(null);
+      return;
+    }
+    if (e.button === 0 || e.button === 1) {
+      drag.current = { type:'pan', sx:e.clientX, sy:e.clientY, ox:vpRef.current.x, oy:vpRef.current.y, moved: false };
+      setIsPanning(true);
       e.preventDefault();
-    } else if (e.button===1) {
-      drag.current = { type:'pan', sx:e.clientX, sy:e.clientY, ox:vpRef.current.x, oy:vpRef.current.y };
-      e.preventDefault();
-    } else if (e.button===0) {
-      setSelected(null); setConnecting(null);
     }
   };
 
@@ -355,7 +363,9 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
     if (!drag.current) return;
     const d = drag.current;
     if (d.type==='pan') {
-      setVp(v => ({ ...v, x: d.ox+(e.clientX-d.sx), y: d.oy+(e.clientY-d.sy) }));
+      const dx = e.clientX-d.sx, dy = e.clientY-d.sy;
+      if (!d.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) d.moved = true;
+      setVp(v => ({ ...v, x: d.ox+dx, y: d.oy+dy }));
     } else if (d.type==='block') {
       const dx=(e.clientX-d.sx)/d.zoom, dy=(e.clientY-d.sy)/d.zoom;
       updBlock(d.id, { x:Math.max(0,d.ox+dx), y:Math.max(0,d.oy+dy) });
@@ -365,7 +375,13 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
     }
   };
 
-  const onMouseUp = () => { drag.current = null; };
+  const onMouseUp = () => {
+    if (drag.current?.type === 'pan' && !drag.current.moved) {
+      setSelected(null);
+    }
+    setIsPanning(false);
+    drag.current = null;
+  };
 
   const onBlockClick = (e, id) => {
     e.stopPropagation();
@@ -436,7 +452,7 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
       </div>
 
       {/* Canvas */}
-      <div ref={wrapRef} className={`wb-canvas-wrap${connecting?' wb-mode-connect':''}`} onMouseDown={onWrapDown}>
+      <div ref={wrapRef} className={`wb-canvas-wrap${connecting?' wb-mode-connect':''}${isPanning?' wb-panning':''}`} onMouseDown={onWrapDown}>
         <div className="wb-canvas"
           style={{ transform:`translate(${vp.x}px,${vp.y}px) scale(${vp.zoom})`, transformOrigin:'0 0', width:canW, height:canH }}>
 
@@ -525,6 +541,25 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
 
         <div className="wb-zoom-pill">{Math.round(vp.zoom*100)}%</div>
         {connecting && <div className="wb-connect-toast">Click another block to connect — Esc to cancel</div>}
+
+        {/* AI panel — inside canvas wrap so it doesn't overlap topbar/toolbar */}
+        {showAI && (
+          <div className="wb-ai-panel" onMouseDown={e=>e.stopPropagation()}>
+            <div className="wb-ai-panel-hdr">
+              <Sparkles size={14}/> <span>Ask Nora about this board</span>
+              <button className="wb-modal-close" onClick={()=>setShowAI(false)}><X size={15}/></button>
+            </div>
+            <div className="wb-ai-chips">
+              {["Find missing steps","Identify risks","Estimate workload","Suggest next actions","Create a timeline","Convert branches into tasks"].map(p=>(
+                <button key={p} className="wb-ai-chip" onClick={()=>{
+                  const summary = `[Whiteboard: ${board.title}]\nBlocks: ${blocks.map(b=>`${b.type}: ${b.title}`).join('; ')}\n\nRequest: ${p}`;
+                  onAskNora?.(summary);
+                  setShowAI(false);
+                }}>{p}</button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Block edit modal */}
@@ -575,24 +610,6 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
         </div>
       )}
 
-      {/* AI panel */}
-      {showAI && (
-        <div className="wb-ai-panel">
-          <div className="wb-ai-panel-hdr">
-            <Sparkles size={14}/> <span>Ask Nora about this board</span>
-            <button className="wb-modal-close" onClick={()=>setShowAI(false)}><X size={15}/></button>
-          </div>
-          <div className="wb-ai-chips">
-            {["Find missing steps","Identify risks","Estimate workload","Suggest next actions","Create a timeline","Convert branches into tasks"].map(p=>(
-              <button key={p} className="wb-ai-chip" onClick={()=>{
-                const summary = `[Whiteboard: ${board.title}]\nBlocks: ${blocks.map(b=>`${b.type}: ${b.title}`).join('; ')}\n\nRequest: ${p}`;
-                onAskNora?.(summary);
-                setShowAI(false);
-              }}>{p}</button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -600,7 +617,7 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
 // ─────────────────────────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────────────────────────
-export default function Whiteboard({ onAskNora, onConvertTask }) {
+export default function Whiteboard({ onAskNora, onConvertTask, onClose }) {
   const [boards, setBoards] = useLocalStorage("nora_whiteboards", []);
   const [openId, setOpenId] = useState(null);
   const openBoard = boards.find(b=>b.id===openId);
@@ -621,11 +638,11 @@ export default function Whiteboard({ onAskNora, onConvertTask }) {
       />
     );
   }
-  return <WhiteboardList boards={boards} setBoards={setBoards} onOpen={setOpenId}/>;
+  return <WhiteboardList boards={boards} setBoards={setBoards} onOpen={setOpenId} onClose={onClose}/>;
 }
 
 // ── Lightweight mobile read-only viewer ─────────────────────────
-export function MobileWhiteboardView({ onAskNora }) {
+export function MobileWhiteboardView({ onAskNora, onClose }) {
   const [boards, setBoards] = useLocalStorage("nora_whiteboards", []);
   const [openId, setOpenId] = useState(null);
   const openBoard = boards.find(b=>b.id===openId);
@@ -685,7 +702,14 @@ export function MobileWhiteboardView({ onAskNora }) {
   return (
     <div className="mob-wb-list">
       <div className="mob-wb-list-header">
-        <div className="mob-wb-list-title"><Layers size={16}/> Whiteboards</div>
+        <div className="mob-wb-list-title">
+          {onClose && (
+            <button className="mob-wb-back" onClick={onClose} style={{marginRight:6}}>
+              <ChevronLeft size={20}/>
+            </button>
+          )}
+          <Layers size={16}/> Whiteboards
+        </div>
       </div>
       {boards.length===0 ? (
         <div className="mob-wb-list-empty">

@@ -3618,6 +3618,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       {/* Whiteboards — rendered outside main-wrap so position:fixed works through glass theme */}
       {view === "boards" && (
         <Whiteboard
+          onClose={() => setView("day")}
           onAskNora={(prompt) => { setChatInput(prompt); setChatOpen(true); }}
           onConvertTask={(block) => {
             setEditingTask({

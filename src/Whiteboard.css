@@ -249,13 +249,14 @@
 /* Canvas wrapper */
 .wb-canvas-wrap {
   flex: 1; position: relative; overflow: hidden;
-  cursor: default;
+  cursor: grab;
   /* Dot grid background */
   background-color: var(--bg);
   background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 .wb-mode-connect { cursor: crosshair !important; }
+.wb-panning { cursor: grabbing !important; }
 .wb-canvas-wrap * { user-select: none; }
 
 .wb-canvas {
@@ -282,8 +283,8 @@
   position: absolute;
   border-radius: 12px;
   border: 1.5px solid color-mix(in srgb, var(--bc) 30%, var(--border));
-  background: var(--surface);
-  box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  background: color-mix(in srgb, var(--surface) 78%, #fff);
+  box-shadow: 0 2px 12px rgba(0,0,0,.18);
   display: flex; flex-direction: column;
   padding: 10px 13px 12px;
   overflow: hidden;
@@ -464,12 +465,14 @@
 /* ── AI Panel ───────────────────────────────────────────────── */
 .wb-ai-panel {
   position: absolute; top: 0; right: 0; bottom: 0;
-  width: 260px;
-  background: var(--surface);
+  width: 270px;
+  background: color-mix(in srgb, var(--surface) 97%, #fff);
   border-left: 1px solid var(--border);
+  box-shadow: -10px 0 36px rgba(0,0,0,.22);
   padding: 18px 16px;
   display: flex; flex-direction: column; gap: 12px;
   z-index: 20;
+  overflow-y: auto;
   animation: wb-panel-slide .22s ease both;
 }
 @keyframes wb-panel-slide { from { transform: translateX(100%); } }
