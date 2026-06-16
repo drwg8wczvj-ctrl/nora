@@ -1604,11 +1604,16 @@ export default function App() {
   const deleteNote = (id) => { setNotes((p) => p.filter((n) => n.id !== id)); if (openNoteId === id) setOpenNoteId(null); };
 
   const createGroup = () => {
-    if (!newGroupName.trim()) return;
-    setGroups((g) => [...g, { id: uid(), name: newGroupName.trim(), color: newGroupColor }]);
-    setNewGroupName(""); setShowGroupModal(false);
+    const name = newGroupName.trim();
+    if (!name) return;
+    if (groups.some((g) => g.name.toLowerCase() === name.toLowerCase())) return;
+    setGroups((g) => [...g, { id: uid(), name, color: newGroupColor }]);
+    setNewGroupName("");
+    setNewGroupColor("#10b981");
+    setShowGroupModal(false);
   };
   const deleteGroup = (id) => {
+    if (id === "private" || id === "work") return;
     setGroups((g) => g.filter((x) => x.id !== id));
     setTasks((p)  => p.map((t) => t.groupId === id ? { ...t, groupId: null } : t));
     if (filterGroup === id) setFilterGroup(null);
@@ -3870,13 +3875,16 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   onChange={(e) => setNewGroupName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && createGroup()}
                   placeholder="e.g. Health, Learning..." />
+                {newGroupName.trim() && groups.some((g) => g.name.toLowerCase() === newGroupName.trim().toLowerCase()) && (
+                  <span className="field-error">A group with this name already exists.</span>
+                )}
               </div>
               <div className="modal-field">
                 <label className="field-label">Colour</label>
                 <div className="color-row">
                   {["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#8b5cf6","#ec4899","#10b981"].map((c) => (
                     <button key={c} className={`color-swatch${newGroupColor === c ? " sel" : ""}`}
-                      style={{ background: c }} onClick={() => setNewGroupColor(c)} />
+                      style={{ background: c, "--sw-color": c }} onClick={() => setNewGroupColor(c)} />
                   ))}
                   <input type="color" className="color-custom" value={newGroupColor}
                     onChange={(e) => setNewGroupColor(e.target.value)} />
@@ -3899,7 +3907,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowGroupModal(false)}>Close</button>
-              <button className="btn-primary" onClick={createGroup} disabled={!newGroupName.trim()}><Plus size={14} /> Create</button>
+              <button className="btn-primary" onClick={createGroup}
+                disabled={!newGroupName.trim() || groups.some((g) => g.name.toLowerCase() === newGroupName.trim().toLowerCase())}>
+                <Plus size={14} /> Create</button>
             </div>
           </div>
         </div>

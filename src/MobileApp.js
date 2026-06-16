@@ -1442,7 +1442,7 @@ function MobNameEditor({ name, onSave }) {
   );
 }
 
-const GROUP_PRESET_COLORS = ["#7c3aed","#2563eb","#0891b2","#059669","#d97706","#dc2626","#db2777","#7c3aed","#4f46e5"];
+const GROUP_PRESET_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#8b5cf6","#ec4899"];
 
 function MobileSettings({ ctx }) {
   const {
@@ -1458,11 +1458,16 @@ function MobileSettings({ ctx }) {
   const [newGroupColor, setNewGroupColor] = useState(GROUP_PRESET_COLORS[0]);
 
   const addGroup = () => {
-    if (!newGroupName.trim()) return;
-    setGroups(g => [...g, { id: uid(), name: newGroupName.trim(), color: newGroupColor }]);
+    const name = newGroupName.trim();
+    if (!name) return;
+    if (groups.some(g => g.name.toLowerCase() === name.toLowerCase())) return;
+    setGroups(g => [...g, { id: uid(), name, color: newGroupColor }]);
     setNewGroupName("");
   };
-  const deleteGroup = (id) => setGroups(g => g.filter(x => x.id !== id));
+  const deleteGroup = (id) => {
+    if (id === "private" || id === "work") return;
+    setGroups(g => g.filter(x => x.id !== id));
+  };
 
   return (
     <div className="mob-settings">
@@ -1520,22 +1525,30 @@ function MobileSettings({ ctx }) {
       <div className="mob-sett-card">
         <div className="mob-sett-card-title"><Activity size={15} /> Task Groups</div>
         {/* Existing groups */}
-        {(groups || []).map(g => (
-          <div key={g.id} className="mob-group-row">
-            <span className="mob-group-dot" style={{ background: g.color }} />
-            <span className="mob-group-name">{g.name}</span>
-            <button className="mob-group-del" onClick={() => deleteGroup(g.id)}>
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
+        {(groups || []).map(g => {
+          const isBuiltin = g.id === "private" || g.id === "work";
+          return (
+            <div key={g.id} className="mob-group-row">
+              <span className="mob-group-dot" style={{ background: g.color }} />
+              <span className="mob-group-name">{g.name}</span>
+              {isBuiltin
+                ? <span className="mob-group-builtin">Built-in</span>
+                : <button className="mob-group-del" onClick={() => deleteGroup(g.id)} aria-label={`Delete ${g.name}`}>
+                    <Trash2 size={14} />
+                  </button>
+              }
+            </div>
+          );
+        })}
         {/* Add new group */}
         <div className="mob-group-add-row">
           <div className="mob-group-colors">
             {GROUP_PRESET_COLORS.map(c => (
-              <button key={c} className={`mob-group-color-dot${newGroupColor === c ? " active" : ""}`}
-                style={{ background: c, outlineColor: c }}
-                onClick={() => setNewGroupColor(c)} />
+              <button key={c}
+                className={`mob-group-color-dot${newGroupColor === c ? " active" : ""}`}
+                style={{ background: c, "--dot-color": c }}
+                onClick={() => setNewGroupColor(c)}
+                aria-label={c} />
             ))}
           </div>
           <div className="mob-group-input-row">

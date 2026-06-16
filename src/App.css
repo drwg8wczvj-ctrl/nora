@@ -1147,6 +1147,10 @@
   font-size: 11px; color: var(--text-muted);
   margin-top: 2px; display: block;
 }
+.field-error {
+  font-size: 11px; color: var(--danger);
+  margin-top: 4px; display: block;
+}
 
 .complexity-btn {
   padding: 7px 18px; border-radius: 20px; border: 1px solid var(--border);
@@ -1227,7 +1231,7 @@
   transition: transform var(--tr), box-shadow var(--tr);
 }
 .color-swatch:hover { transform: scale(1.15); }
-.color-swatch.sel   { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text), 0 0 10px rgba(124,58,237,0.3); }
+.color-swatch.sel   { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--sw-color, var(--text)); }
 .color-custom {
   width: 28px; height: 28px; border-radius: 50%;
   border: 1.5px solid var(--border); cursor: pointer; padding: 0; overflow: hidden; background: none;
