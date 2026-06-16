@@ -356,9 +356,9 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
     }
   };
 
-  const onResizeDown = (e, block) => {
+  const onResizeDown = (e, block, dir) => {
     e.stopPropagation();
-    drag.current = { type:'resize', id:block.id, sx:e.clientX, sy:e.clientY, ow:block.w, oh:block.h, zoom:vpRef.current.zoom };
+    drag.current = { type:'resize', id:block.id, dir, sx:e.clientX, sy:e.clientY, ox:block.x, oy:block.y, ow:block.w, oh:block.h, zoom:vpRef.current.zoom };
   };
 
   const onMouseMove = e => {
@@ -372,8 +372,20 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
       const dx=(e.clientX-d.sx)/d.zoom, dy=(e.clientY-d.sy)/d.zoom;
       updBlock(d.id, { x:Math.max(0,d.ox+dx), y:Math.max(0,d.oy+dy) });
     } else if (d.type==='resize') {
+      const MIN_W=120, MIN_H=60;
       const dx=(e.clientX-d.sx)/d.zoom, dy=(e.clientY-d.sy)/d.zoom;
-      updBlock(d.id, { w:Math.max(120,d.ow+dx), h:Math.max(60,d.oh+dy) });
+      const patch = {};
+      if (d.dir.includes('e')) patch.w = Math.max(MIN_W, d.ow + dx);
+      if (d.dir.includes('s')) patch.h = Math.max(MIN_H, d.oh + dy);
+      if (d.dir.includes('w')) {
+        const nw = Math.max(MIN_W, d.ow - dx);
+        patch.w = nw; patch.x = Math.max(0, d.ox + d.ow - nw);
+      }
+      if (d.dir.includes('n')) {
+        const nh = Math.max(MIN_H, d.oh - dy);
+        patch.h = nh; patch.y = Math.max(0, d.oy + d.oh - nh);
+      }
+      updBlock(d.id, patch);
     }
   };
 
@@ -528,7 +540,9 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
                     </button>
                   </div>
                 )}
-                {isSel && <div className="wb-resize" onMouseDown={e=>onResizeDown(e,block)}/>}
+                {isSel && ['n','s','e','w','ne','nw','se','sw'].map(dir => (
+                  <div key={dir} className={`wb-rh wb-rh-${dir}`} onMouseDown={e=>onResizeDown(e,block,dir)}/>
+                ))}
               </div>
             );
           })}

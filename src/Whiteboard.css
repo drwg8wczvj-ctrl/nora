@@ -291,6 +291,7 @@
   transition: box-shadow .18s, border-color .18s;
   min-width: 120px; min-height: 60px;
 }
+.wb-block.wb-sel { overflow: visible; }
 .wb-block:hover {
   box-shadow: 0 6px 20px rgba(0,0,0,.16);
   border-color: color-mix(in srgb, var(--bc) 60%, var(--border));
@@ -357,15 +358,47 @@
 .wb-blk-act-on     { background: color-mix(in srgb,var(--accent) 15%,transparent); color: var(--accent); }
 .wb-blk-del:hover  { background: #ef4444; border-color: #ef4444; color: #fff; }
 
-/* Resize handle */
-.wb-resize {
-  position: absolute; bottom: 3px; right: 3px;
-  width: 14px; height: 14px; cursor: nwse-resize;
-  opacity: .4;
-  background: linear-gradient(135deg, transparent 50%, var(--bc) 50%);
-  border-radius: 0 0 10px 0;
+/* Resize handles — 8 directions */
+.wb-rh { position: absolute; z-index: 5; }
+
+/* Side strips */
+.wb-rh-n { top: -5px;    left: 18px;  right: 18px; height: 10px; cursor: n-resize; }
+.wb-rh-s { bottom: -5px; left: 18px;  right: 18px; height: 10px; cursor: s-resize; }
+.wb-rh-e { right: -5px;  top: 18px; bottom: 18px;  width:  10px; cursor: e-resize; }
+.wb-rh-w { left: -5px;   top: 18px; bottom: 18px;  width:  10px; cursor: w-resize; }
+
+/* Corner squares */
+.wb-rh-ne, .wb-rh-nw, .wb-rh-se, .wb-rh-sw { width: 14px; height: 14px; }
+.wb-rh-ne { top: -6px;    right: -6px; cursor: ne-resize; }
+.wb-rh-nw { top: -6px;    left: -6px;  cursor: nw-resize; }
+.wb-rh-se { bottom: -6px; right: -6px; cursor: se-resize; }
+.wb-rh-sw { bottom: -6px; left: -6px;  cursor: sw-resize; }
+
+/* Visible dots on corners */
+.wb-rh-ne::after, .wb-rh-nw::after, .wb-rh-se::after, .wb-rh-sw::after {
+  content: ''; position: absolute; inset: 3px;
+  background: var(--bc, var(--accent));
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--surface);
 }
-.wb-resize:hover { opacity: .9; }
+
+/* Visible bars on sides */
+.wb-rh-n::after, .wb-rh-s::after {
+  content: ''; position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 28px; height: 4px; border-radius: 2px;
+  background: var(--bc, var(--accent));
+  box-shadow: 0 0 0 2px var(--surface);
+  opacity: .7;
+}
+.wb-rh-e::after, .wb-rh-w::after {
+  content: ''; position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 4px; height: 28px; border-radius: 2px;
+  background: var(--bc, var(--accent));
+  box-shadow: 0 0 0 2px var(--surface);
+  opacity: .7;
+}
 
 /* Canvas hint */
 .wb-hint {
