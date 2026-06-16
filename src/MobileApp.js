@@ -291,11 +291,108 @@ function MobileHeader({ ctx, onLogoClick }) {
   );
 }
 
+// ── Swipe Row (right = done, left = reschedule) ───────────────
+function SwipeRow({ children, onDone, onReschedule }) {
+  const outerRef = useRef(null);
+  const ts = useRef({ startX: 0, startY: 0, locked: null, dx: 0 });
+  const [dx, setDx] = useState(0);
+  const [flash, setFlash] = useState(null); // 'done' | 'reschedule'
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const onStart = (e) => {
+      ts.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, locked: null, dx: 0 };
+    };
+    const onMove = (e) => {
+      const s = ts.current;
+      const ddx = e.touches[0].clientX - s.startX;
+      const ddy = e.touches[0].clientY - s.startY;
+      if (s.locked === null) {
+        if (Math.abs(ddx) > 6 || Math.abs(ddy) > 6)
+          s.locked = Math.abs(ddx) > Math.abs(ddy) ? 'h' : 'v';
+        return;
+      }
+      if (s.locked === 'v') return;
+      e.preventDefault();
+      const clamped = Math.max(-120, Math.min(120, ddx));
+      s.dx = clamped;
+      setDx(clamped);
+    };
+    const onEnd = () => {
+      const { locked, dx: d } = ts.current;
+      if (locked !== 'h') { setDx(0); return; }
+      if (d > 60) {
+        setFlash('done'); setDx(0);
+        setTimeout(() => { setFlash(null); onDone?.(); }, 300);
+      } else if (d < -60) {
+        setFlash('reschedule'); setDx(0);
+        setTimeout(() => { setFlash(null); onReschedule?.(); }, 300);
+      } else {
+        setDx(0);
+      }
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove',  onMove,  { passive: false });
+    el.addEventListener('touchend',   onEnd,   { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove',  onMove);
+      el.removeEventListener('touchend',   onEnd);
+    };
+  }, [onDone, onReschedule]); // eslint-disable-line
+
+  return (
+    <div ref={outerRef} className={`swipe-row${flash ? ` swipe-fl-${flash}` : ''}`}>
+      <div className="swipe-bg swipe-bg-done"><Check size={16} /></div>
+      <div className="swipe-bg swipe-bg-rsc"><RotateCcw size={16} /></div>
+      <div className="swipe-inner"
+        style={dx !== 0 ? { transform: `translateX(${dx}px)`, transition: 'none' } : undefined}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Day Summary strip ─────────────────────────────────────────
+function DaySummary({ tasks, planDate, today, doneToday, totalToday, pct }) {
+  const dayTasks = tasks.filter((t) => t.date === planDate && (t.type ?? 'task') === 'task');
+  const taskCount = dayTasks.length;
+  const mins = dayTasks.reduce((s, t) => s + (t.duration ?? 0), 0);
+  const timeLabel = mins >= 60
+    ? `${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ''}`
+    : mins > 0 ? `${mins}m` : null;
+  const workload = mins >= 480 || taskCount >= 8 ? 'heavy'
+    : mins >= 300 || taskCount >= 5 ? 'moderate'
+    : mins >= 60  || taskCount >= 2 ? 'light'
+    : 'free';
+  const WL = { free: 'Free', light: 'Light', moderate: 'Moderate', heavy: 'Heavy' };
+  const isToday = planDate === today;
+  if (taskCount === 0) return null;
+  return (
+    <div className="mob-day-summary">
+      <div className="mob-ds-stats">
+        <span className="mob-ds-tasks">{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+        {timeLabel && <span className="mob-ds-time">· {timeLabel}</span>}
+        <span className={`mob-ds-wl mob-ds-wl-${workload}`}>{WL[workload]}</span>
+      </div>
+      {isToday && totalToday > 0 && (
+        <>
+          <div className="mob-ds-bar">
+            <div className="mob-ds-bar-fill" style={{ width: `${pct}%` }} />
+          </div>
+          <div className="mob-ds-pct">{doneToday} of {totalToday} done</div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Plan view (Day / Month) ───────────────────────────────────
 function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
                       filterType, filterGroup, filterComplex, hasFilters, onOpenFilters,
                       planDate, setPlanDate }) {
-  const { today, tasks } = ctx;
+  const { today, tasks, doneToday, totalToday, pct } = ctx;
 
   const shiftDate = (delta) => {
     const d = new Date(planDate + "T00:00:00");
@@ -353,6 +450,9 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
             </button>
           </div>
 
+          <DaySummary tasks={tasks} planDate={planDate} today={today}
+            doneToday={doneToday} totalToday={totalToday} pct={pct} />
+
           {dayMode === "list"
             ? <MobileHome ctx={ctx} planDate={planDate} planTasks={planTasks} />
             : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks }} />}
@@ -365,32 +465,108 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
   );
 }
 
-// ── Home view (Day list mode) ────────────────────────────────
+// ── Home view (Day smart mode) ───────────────────────────────
 function MobileHome({ ctx, planDate, planTasks }) {
   const {
     todayTasks, today, aiFocus, contextMode, deferredTasks,
-    doneToday, totalToday, pct, toggleTask, skipTask,
+    doneToday, totalToday, pct, toggleTask,
     setChatInput, setChatOpen, setEditingTask, setFocusTask,
-    groups, nowObj,
+    setRescheduleTask, groups, nowObj,
   } = ctx;
 
-  // Use planTasks when browsing a different date, otherwise use todayTasks
   const effectiveDate  = planDate ?? today;
   const effectiveTasks = planTasks ?? todayTasks;
-
   const nowMins = nowObj.getHours() * 60 + nowObj.getMinutes();
+  const [expandedId, setExpandedId] = useState(null);
 
   const scheduled = [...effectiveTasks]
     .filter((t) => t.startHour != null)
     .sort((a, b) => a.startHour * 60 + (a.startMinute ?? 0) - (b.startHour * 60 + (b.startMinute ?? 0)));
 
   const unscheduled = effectiveTasks.filter((t) => t.startHour == null);
-
   const nextTask = scheduled.find(
     (t) => !t.completed && t.startHour * 60 + (t.startMinute ?? 0) >= nowMins
   );
-
   const getGroup = (id) => groups.find((g) => g.id === id);
+
+  const renderItem = (t, showTime) => {
+    const tp    = t.type ?? "task";
+    const group = getGroup(t.groupId);
+    const gc    = tp === "deadline" ? "#ef4444"
+                : tp === "break"    ? "#94a3b8"
+                : group?.color ?? "var(--accent)";
+    const tMins = t.startHour != null ? t.startHour * 60 + (t.startMinute ?? 0) : null;
+    const isPast = tMins != null && tMins < nowMins;
+    const isNext = t === nextTask;
+    const isExp  = expandedId === t.id;
+
+    return (
+      <SwipeRow key={t.id}
+        onDone={tp === "task" ? () => { toggleTask(t.id); setExpandedId(null); } : undefined}
+        onReschedule={() => { setRescheduleTask(t); setExpandedId(null); }}
+      >
+        <div
+          className={`mai2${t.completed ? " mai2-done" : ""}${isPast && !t.completed ? " mai2-past" : ""}${isNext ? " mai2-next" : ""}${tp === "break" ? " mai2-break" : ""}${tp === "deadline" ? " mai2-dl" : ""}${isExp ? " mai2-open" : ""}`}
+          style={{ "--gc": gc }}
+          onClick={() => setExpandedId((p) => p === t.id ? null : t.id)}
+        >
+          <div className="mai2-main">
+            {showTime && t.startHour != null && (
+              <span className="mai2-time">{fmtTime(t.startHour, t.startMinute ?? 0)}</span>
+            )}
+            <div className="mai2-body">
+              <span className="mai2-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
+              <div className="mai2-meta">
+                {t.duration && <span className="mai2-dur">{fmtDur(t.duration)}</span>}
+                {group && (
+                  <span className="mai2-group">
+                    <span className="mai2-gdot" style={{ background: group.color }} />
+                    {group.name}
+                  </span>
+                )}
+                {isNext && <span className="mai2-badge">Up next</span>}
+              </div>
+            </div>
+            {tp === "task" ? (
+              <button className={`mai2-check${t.completed ? " done" : ""}`}
+                onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
+                {t.completed && <Check size={12} strokeWidth={3} />}
+              </button>
+            ) : (
+              <span className="mai2-type-icon">
+                {tp === "break" ? <Coffee size={13} /> : <Flag size={13} />}
+              </span>
+            )}
+          </div>
+
+          {isExp && (
+            <div className="mai2-actions" onClick={(e) => e.stopPropagation()}>
+              {tp === "task" && !t.completed && (
+                <button className="mai2-act mai2-act-focus"
+                  onClick={() => { setFocusTask(t); setExpandedId(null); }}>
+                  <Zap size={13} /> Focus
+                </button>
+              )}
+              {tp === "task" && (
+                <button className={`mai2-act ${t.completed ? "mai2-act-undo" : "mai2-act-done"}`}
+                  onClick={() => { toggleTask(t.id); setExpandedId(null); }}>
+                  <Check size={13} /> {t.completed ? "Undo" : "Done"}
+                </button>
+              )}
+              <button className="mai2-act mai2-act-move"
+                onClick={() => { setRescheduleTask(t); setExpandedId(null); }}>
+                <RotateCcw size={13} /> Move
+              </button>
+              <button className="mai2-act mai2-act-edit"
+                onClick={() => { setEditingTask(t); setExpandedId(null); }}>
+                <Pencil size={13} /> Edit
+              </button>
+            </div>
+          )}
+        </div>
+      </SwipeRow>
+    );
+  };
 
   return (
     <div className="mob-home">
@@ -405,9 +581,7 @@ function MobileHome({ ctx, planDate, planTasks }) {
           }}>
             <Sparkles size={11} /> {contextMode.label}
           </span>
-          {totalToday > 0 && (
-            <span className="mob-done-pill">{doneToday}/{totalToday}</span>
-          )}
+          {totalToday > 0 && <span className="mob-done-pill">{doneToday}/{totalToday}</span>}
         </div>
 
         {aiFocus.priorityTask ? (
@@ -433,16 +607,15 @@ function MobileHome({ ctx, planDate, planTasks }) {
           </div>
         )}
 
-        {/* Action buttons */}
         <div className="mob-focus-actions">
-          {aiFocus.priorityTask && (
-            <button className="mob-btn mob-btn-done" onClick={() => toggleTask(aiFocus.priorityTask.id)}>
-              <Check size={17} /> Done
+          {aiFocus.priorityTask && !aiFocus.priorityTask.completed && (
+            <button className="mob-btn mob-btn-done" onClick={() => setFocusTask(aiFocus.priorityTask)}>
+              <Zap size={17} /> Start Focus
             </button>
           )}
           {aiFocus.priorityTask && (
-            <button className="mob-btn mob-btn-skip" onClick={() => skipTask(aiFocus.priorityTask.id)}>
-              <SkipForward size={17} /> Later
+            <button className="mob-btn mob-btn-skip" onClick={() => toggleTask(aiFocus.priorityTask.id)}>
+              <Check size={17} /> Done
             </button>
           )}
           <button className="mob-btn mob-btn-ai" onClick={() => {
@@ -468,58 +641,11 @@ function MobileHome({ ctx, planDate, planTasks }) {
         </button>
       )}
 
-      {/* Mini agenda */}
+      {/* Scheduled */}
       {scheduled.length > 0 ? (
-        <div className="mob-agenda">
-          <div className="mob-section-title">
-            <Clock size={14} /> Today's Schedule
-          </div>
-          {scheduled.map((t) => {
-            const tp    = t.type ?? "task";
-            const group = getGroup(t.groupId);
-            const gc    = tp === "deadline" ? "#ef4444"
-                        : tp === "break"    ? "#94a3b8"
-                        : group?.color ?? "var(--accent)";
-            const tMins = t.startHour * 60 + (t.startMinute ?? 0);
-            const isPast = tMins < nowMins;
-            const isNext = t === nextTask;
-            return (
-              <div key={t.id}
-                className={`mob-agenda-item${t.completed ? " mai-done" : ""}${isPast && !t.completed ? " mai-past" : ""}${isNext ? " mai-next" : ""}${tp === "break" ? " mai-break" : ""}${tp === "deadline" ? " mai-dl" : ""}`}
-                style={{ "--gc": gc }}
-                onClick={() => setEditingTask(t)}>
-
-                <div className="mai-time-col">
-                  <span className="mai-time">{fmtTime(t.startHour, t.startMinute ?? 0)}</span>
-                  {t.duration && <span className="mai-dur">{fmtDur(t.duration)}</span>}
-                </div>
-
-                <div className="mai-body">
-                  <span className="mai-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
-                  {isNext && <span className="mai-next-tag">Up next</span>}
-                </div>
-
-                {tp === "task" && !t.completed && (
-                  <button className="mai-focus-btn"
-                    onClick={(e) => { e.stopPropagation(); setFocusTask(t); }}
-                    title="Start focus session">
-                    <Zap size={13} />
-                  </button>
-                )}
-                {tp === "task" ? (
-                  <button
-                    className={`mai-check${t.completed ? " checked" : ""}`}
-                    onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
-                    {t.completed ? <Check size={14} strokeWidth={3} /> : null}
-                  </button>
-                ) : (
-                  <span className="mai-type-icon">
-                    {tp === "break" ? <Coffee size={14} /> : <Flag size={14} />}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+        <div className="mob-agenda2">
+          <div className="mob-section-title"><Clock size={14} /> Today's Schedule</div>
+          {scheduled.map((t) => renderItem(t, true))}
         </div>
       ) : (
         <div className="mob-empty-state">
@@ -534,47 +660,11 @@ function MobileHome({ ctx, planDate, planTasks }) {
         </div>
       )}
 
-      {/* Unscheduled tasks */}
+      {/* Unscheduled */}
       {unscheduled.length > 0 && (
-        <div className="mob-agenda mob-unsched-section">
-          <div className="mob-section-title">
-            <Clock size={14} /> Unscheduled
-          </div>
-          {unscheduled.map((t) => {
-            const tp    = t.type ?? "task";
-            const group = getGroup(t.groupId);
-            const gc    = tp === "deadline" ? "#ef4444"
-                        : tp === "break"    ? "#94a3b8"
-                        : group?.color ?? "var(--accent)";
-            return (
-              <div key={t.id}
-                className={`mob-agenda-item${t.completed ? " mai-done" : ""}${tp === "deadline" ? " mai-dl" : ""}${tp === "break" ? " mai-break" : ""}`}
-                style={{ "--gc": gc }}
-                onClick={() => setEditingTask(t)}>
-                <div className="mai-body">
-                  <span className="mai-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
-                </div>
-                {tp === "task" && !t.completed && (
-                  <button className="mai-focus-btn"
-                    onClick={(e) => { e.stopPropagation(); setFocusTask(t); }}
-                    title="Start focus session">
-                    <Zap size={13} />
-                  </button>
-                )}
-                {tp === "task" ? (
-                  <button
-                    className={`mai-check${t.completed ? " checked" : ""}`}
-                    onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
-                    {t.completed ? <Check size={14} strokeWidth={3} /> : null}
-                  </button>
-                ) : (
-                  <span className="mai-type-icon">
-                    {tp === "break" ? <Coffee size={14} /> : <Flag size={14} />}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+        <div className="mob-agenda2 mob-unsched-section">
+          <div className="mob-section-title"><Clock size={14} /> Unscheduled</div>
+          {unscheduled.map((t) => renderItem(t, false))}
         </div>
       )}
 
@@ -596,75 +686,75 @@ function MobileHome({ ctx, planDate, planTasks }) {
   );
 }
 
-// ── Grid view (24h timeline) ─────────────────────────────────
+// ── Grid view (compact card grid) ───────────────────────────
 function MobileGrid({ ctx }) {
-  const { todayTasks, nowObj, toggleTask, setEditingTask } = ctx;
-  const HOURS = Array.from({ length: 24 }, (_, i) => i);
-  const CELL = 64; // px per hour
-  const nowMins = nowObj.getHours() * 60 + nowObj.getMinutes();
-  const gridRef = useRef(null);
+  const { todayTasks, groups, toggleTask, setEditingTask } = ctx;
 
-  useEffect(() => {
-    if (gridRef.current) {
-      const scrollTo = Math.max(0, (nowMins / 60) * CELL - 120);
-      gridRef.current.scrollTop = scrollTo;
-    }
-  }, []); // eslint-disable-line
+  const scheduled = [...todayTasks]
+    .filter((t) => t.startHour != null)
+    .sort((a, b) => a.startHour * 60 + (a.startMinute ?? 0) - (b.startHour * 60 + (b.startMinute ?? 0)));
 
-  const scheduled = todayTasks.filter((t) => t.startHour != null);
+  const unscheduled = todayTasks.filter((t) => t.startHour == null);
+  const getGroup = (id) => groups.find((g) => g.id === id);
 
-  const fmt = (h) => h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+  const renderCard = (t) => {
+    const tp    = t.type ?? "task";
+    const group = getGroup(t.groupId);
+    const gc    = tp === "deadline" ? "#ef4444"
+                : tp === "break"    ? "#94a3b8"
+                : group?.color ?? "var(--accent)";
+    return (
+      <div key={t.id}
+        className={`mob-gc${t.completed ? " mob-gc-done" : ""}${tp === "break" ? " mob-gc-break" : ""}${tp === "deadline" ? " mob-gc-dl" : ""}`}
+        style={{ "--gc": gc }}
+        onClick={() => setEditingTask(t)}>
+        {t.startHour != null && (
+          <span className="mob-gc-time">{fmtTime(t.startHour, t.startMinute ?? 0)}</span>
+        )}
+        <span className="mob-gc-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
+        <div className="mob-gc-meta">
+          {t.duration && <span className="mob-gc-dur">{fmtDur(t.duration)}</span>}
+          {group && (
+            <span className="mob-gc-group">
+              <span className="mob-gc-gdot" style={{ background: group.color }} />
+              {group.name}
+            </span>
+          )}
+        </div>
+        {tp === "task" && (
+          <button className={`mob-gc-check${t.completed ? " done" : ""}`}
+            onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
+            {t.completed && <Check size={10} strokeWidth={3} />}
+          </button>
+        )}
+        {tp === "deadline" && <span className="mob-gc-dl-icon"><Flag size={11} /></span>}
+      </div>
+    );
+  };
+
+  if (scheduled.length === 0 && unscheduled.length === 0) {
+    return (
+      <div className="mob-empty-state" style={{ margin: "0 16px" }}>
+        <Sparkles size={36} style={{ opacity: .15 }} />
+        <p>No tasks for this day.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="mob-grid-scroll" ref={gridRef}>
-      <div className="mob-grid-inner" style={{ height: 24 * CELL + 32 }}>
-        {/* Hour rows */}
-        {HOURS.map((h) => (
-          <div key={h} className="mob-grid-hour-row" style={{ top: h * CELL + 16, height: CELL }}>
-            <span className="mob-grid-h-label">{fmt(h)}</span>
-            <div className="mob-grid-h-line" />
-          </div>
-        ))}
-
-        {/* Current time line */}
-        <div className="mob-grid-now-wrap" style={{ top: (nowMins / 60) * CELL + 16 }}>
-          <div className="mob-grid-now-dot" />
-          <div className="mob-grid-now-line" />
+    <div className="mob-card-grid">
+      {scheduled.length > 0 && (
+        <div className="mob-cg-section">
+          <div className="mob-section-title"><Clock size={14} /> Scheduled</div>
+          <div className="mob-cg-cards">{scheduled.map(renderCard)}</div>
         </div>
-
-        {/* Task blocks */}
-        <div className="mob-grid-blocks">
-          {scheduled.map((t) => {
-            const startMin = t.startHour * 60 + (t.startMinute ?? 0);
-            const dur = t.duration ?? 30;
-            const top = (startMin / 60) * CELL + 16;
-            const height = Math.max(28, (dur / 60) * CELL - 3);
-            const tp = t.type ?? "task";
-            const color = tp === "deadline" ? "#ef4444" : tp === "break" ? "#94a3b8" : "var(--accent)";
-            return (
-              <div key={t.id}
-                className={`mob-grid-block${t.completed ? " mob-gb-done" : ""}${tp === "break" ? " mob-gb-break" : ""}`}
-                style={{ top, height, "--gc": color, background: tp === "break" ? `${color}10` : `${color}14` }}
-                onClick={() => setEditingTask(t)}>
-                <span className="mob-gb-title">{shortTitle(t.title) || (tp === "break" ? "Break" : "Deadline")}</span>
-                {t.duration && <span className="mob-gb-dur">{fmtDur(t.duration)}</span>}
-                {tp === "task" && (
-                  <button
-                    className={`mob-gb-check${t.completed ? " checked" : ""}`}
-                    onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
-                    {t.completed && <Check size={10} strokeWidth={3} />}
-                  </button>
-                )}
-                {tp === "deadline" && !t.completed && (
-                  <button className="mob-gb-dl-done" onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
-                    <Check size={10} />
-                  </button>
-                )}
-              </div>
-            );
-          })}
+      )}
+      {unscheduled.length > 0 && (
+        <div className="mob-cg-section">
+          <div className="mob-section-title"><Clock size={14} /> Unscheduled</div>
+          <div className="mob-cg-cards">{unscheduled.map(renderCard)}</div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
