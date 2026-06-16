@@ -410,6 +410,73 @@ const AI_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "create_whiteboard",
+      description: "Create a new project whiteboard with blocks and connections. Use when the user asks to plan, map out, visually organise, or brainstorm a project. Auto-layout positions if not specified.",
+      parameters: {
+        type: "object",
+        properties: {
+          title:   { type: "string", description: "Board name" },
+          blocks: {
+            type: "array",
+            description: "Blocks to add. Positions are auto-calculated if omitted.",
+            items: {
+              type: "object",
+              properties: {
+                type:    { type: "string", enum: ["goal","idea","task_group","deadline","note","decision"] },
+                title:   { type: "string" },
+                content: { type: "string", description: "Optional notes/description" },
+                dueDate: { type: "string", description: "YYYY-MM-DD, only for deadline blocks" },
+              },
+              required: ["type","title"],
+            },
+          },
+          connections: {
+            type: "array",
+            description: "Connections between blocks using 0-based indices into the blocks array",
+            items: {
+              type: "object",
+              properties: {
+                from: { type: "number" },
+                to:   { type: "number" },
+              },
+            },
+          },
+        },
+        required: ["title","blocks"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_whiteboard",
+      description: "Add, update, or delete a block on an existing whiteboard. Use when the user wants to modify a board they already have.",
+      parameters: {
+        type: "object",
+        properties: {
+          boardTitle: { type: "string", description: "Exact title of the board to modify" },
+          action:     { type: "string", enum: ["add_block","update_block","delete_block","add_connection"] },
+          blockTitle: { type: "string", description: "For update/delete: exact title of the block to change" },
+          block: {
+            type: "object",
+            description: "For add_block/update_block: the new block data",
+            properties: {
+              type:    { type: "string", enum: ["goal","idea","task_group","deadline","note","decision"] },
+              title:   { type: "string" },
+              content: { type: "string" },
+              dueDate: { type: "string" },
+            },
+          },
+          connectFrom: { type: "string", description: "For add_connection: title of source block" },
+          connectTo:   { type: "string", description: "For add_connection: title of target block" },
+        },
+        required: ["boardTitle","action"],
+      },
+    },
+  },
 ];
 
 // ── localStorage hook ──────────────────────────────────
@@ -553,6 +620,10 @@ export default function App() {
   const [groups,       setGroups]       = useLocalStorage("nora_groups", DEFAULT_GROUPS);
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [view,         setView]         = useState("day");
+  const [boards, setBoards] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("nora_whiteboards") ?? "[]") || []; } catch { return []; }
+  });
+  useEffect(() => { try { localStorage.setItem("nora_whiteboards", JSON.stringify(boards)); } catch {} }, [boards]);
   const [dark,         setDark]         = useLocalStorage("nora_dark", false);
   const [dragOver,     setDragOver]     = useState(null);
   const [zoomLevel,    setZoomLevel]    = useState(1);
@@ -1732,6 +1803,10 @@ export default function App() {
       ? `\n━━━ PERSISTENT USER CONTEXT (coaching memory) ━━━━━━━━━\n\n${prefsLines.join("\n")}\n\nApply these silently when planning. Never re-ask for information already stored here.\nWhen you learn new relevant information (habits, recurring goals, schedules, preferences), call save_insight to remember it.\n`
       : `\n(No coaching insights saved yet. Use save_insight when you learn something useful about how this user works.)\n`;
 
+    const boardsBlock = boards.length
+      ? `\n━━━ PROJECT WHITEBOARDS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nThe user has ${boards.length} whiteboard(s):\n${boards.map(b => `• "${b.title}" — ${b.blocks.length} blocks: ${b.blocks.map(x=>x.type+':'+x.title).join(', ')}`).join('\n')}\n\nYou can create new whiteboards with create_whiteboard, or modify existing ones with update_whiteboard.\nWhen the user asks to plan a project visually, create a whiteboard. When they ask to add/change items on a board, use update_whiteboard.\n`
+      : `\n(No whiteboards yet. Use create_whiteboard when the user wants to plan a project visually.)\n`;
+
     const noraStateGuidance = {
       recovery_day:      "Protect the user today. No new tasks. Offer to defer or remove items only.",
       high_load:         "Acknowledge the load. Suggest removing ≥1 task before adding any.",
@@ -1814,6 +1889,7 @@ Data confidence:   ${behaviorProfile.confidence} (${behaviorProfile.sampleSize} 
 
 Cognitive load (today): ${workloadForecast[0]?.weightedLoad ?? 0} pts · Baseline avg: ${userLoadBaseline.avgDailyWeight} pts/day · Overload threshold: ${userLoadBaseline.overloadThreshold} pts
 (Load is weighted by task complexity, duration, keywords and urgency — not raw task count)
+${boardsBlock}
 ${prefsBlock}
 ━━━ CURRENT WELLNESS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2288,6 +2364,50 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               return updated;
             });
             toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Insight saved: ${key} = "${value}"${note ? ` (${note})` : ""}` });
+          } else if (tc.function.name === "create_whiteboard") {
+            const { title, blocks: rawBlocks = [], connections: rawConns = [] } = input;
+            const BS_DEFAULTS = { goal:{w:240,h:110}, idea:{w:200,h:88}, task_group:{w:240,h:130}, deadline:{w:220,h:90}, note:{w:240,h:130}, decision:{w:210,h:100} };
+            const COLS = [
+              [0], [1,2], [0,2], [1,2,3], [0,2,4], [1,2,3,4,5]
+            ];
+            const layoutBlocks = rawBlocks.map((b, i) => {
+              const s = BS_DEFAULTS[b.type] ?? { w:220, h:100 };
+              const col = COLS[Math.min(rawBlocks.length-1, 5)][i % 3] ?? i;
+              const row = Math.floor(i / 3);
+              return { id: uid(), type: b.type, title: b.title, content: b.content ?? "", dueDate: b.dueDate ?? null, completed: false, x: 80 + col * 280, y: 60 + row * 180, w: s.w, h: s.h };
+            });
+            const idMap = {};
+            rawBlocks.forEach((_, i) => { idMap[i] = layoutBlocks[i].id; });
+            const layoutConns = rawConns.filter(c => idMap[c.from] && idMap[c.to]).map(c => ({ id: uid(), from: idMap[c.from], to: idMap[c.to] }));
+            const newBoard = { id: uid(), title, description: "", createdAt: Date.now(), updatedAt: Date.now(), blocks: layoutBlocks, connections: layoutConns };
+            setBoards(prev => [...prev, newBoard]);
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Whiteboard "${title}" created with ${layoutBlocks.length} blocks.` });
+          } else if (tc.function.name === "update_whiteboard") {
+            const { boardTitle, action, blockTitle, block, connectFrom, connectTo } = input;
+            setBoards(prev => prev.map(b => {
+              if (b.title !== boardTitle) return b;
+              if (action === "add_block") {
+                const BS_DEFAULTS = { goal:{w:240,h:110}, idea:{w:200,h:88}, task_group:{w:240,h:130}, deadline:{w:220,h:90}, note:{w:240,h:130}, decision:{w:210,h:100} };
+                const s = BS_DEFAULTS[block?.type] ?? { w:220, h:100 };
+                const maxY = b.blocks.length ? Math.max(...b.blocks.map(x => x.y + x.h)) : 60;
+                const nb = { id: uid(), type: block.type, title: block.title, content: block.content ?? "", dueDate: block.dueDate ?? null, completed: false, x: 80, y: maxY + 30, w: s.w, h: s.h };
+                return { ...b, blocks: [...b.blocks, nb], updatedAt: Date.now() };
+              }
+              if (action === "update_block") {
+                return { ...b, blocks: b.blocks.map(bl => bl.title === blockTitle ? { ...bl, ...block } : bl), updatedAt: Date.now() };
+              }
+              if (action === "delete_block") {
+                const delId = b.blocks.find(bl => bl.title === blockTitle)?.id;
+                return { ...b, blocks: b.blocks.filter(bl => bl.title !== blockTitle), connections: b.connections.filter(c => c.from !== delId && c.to !== delId), updatedAt: Date.now() };
+              }
+              if (action === "add_connection") {
+                const fromId = b.blocks.find(bl => bl.title === connectFrom)?.id;
+                const toId = b.blocks.find(bl => bl.title === connectTo)?.id;
+                if (fromId && toId) return { ...b, connections: [...b.connections, { id: uid(), from: fromId, to: toId }], updatedAt: Date.now() };
+              }
+              return b;
+            }));
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Board "${boardTitle}" updated (${action}).` });
           } else {
             const { result, nextTasks } = executeAiTool(tc.function.name, input, workingTasks);
             workingTasks = nextTasks;
@@ -3618,6 +3738,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       {/* Whiteboards — rendered outside main-wrap so position:fixed works through glass theme */}
       {view === "boards" && (
         <Whiteboard
+          boards={boards}
+          setBoards={setBoards}
           onClose={() => setView("day")}
           onAskNora={(prompt) => { setChatInput(prompt); setChatOpen(true); }}
           onConvertTask={(block) => {

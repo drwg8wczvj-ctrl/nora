@@ -617,8 +617,10 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
 // ─────────────────────────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────────────────────────
-export default function Whiteboard({ onAskNora, onConvertTask, onClose }) {
-  const [boards, setBoards] = useLocalStorage("nora_whiteboards", []);
+export default function Whiteboard({ onAskNora, onConvertTask, onClose, boards: boardsProp, setBoards: setBoardsProp }) {
+  const [boardsLocal, setBoardsLocal] = useLocalStorage("nora_whiteboards", []);
+  const boards = boardsProp ?? boardsLocal;
+  const setBoards = setBoardsProp ?? setBoardsLocal;
   const [openId, setOpenId] = useState(null);
   const openBoard = boards.find(b=>b.id===openId);
 

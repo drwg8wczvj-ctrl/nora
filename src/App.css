@@ -846,7 +846,7 @@
   border: none; color: #fff; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 0 28px rgba(124,58,237,0.5), 0 4px 20px rgba(0,0,0,.2);
-  z-index: 200;
+  z-index: 211;
   transition: transform var(--tr), box-shadow var(--tr);
 }
 .chat-fab:hover  { transform: scale(1.08); box-shadow: 0 0 40px rgba(124,58,237,0.65), 0 6px 24px rgba(0,0,0,.2); }
@@ -862,7 +862,7 @@
   box-shadow: 0 0 50px rgba(124,58,237,0.15), 0 20px 60px rgba(0,0,0,.15);
   border: 1px solid var(--border);
   display: flex; flex-direction: column; overflow: hidden;
-  z-index: 199;
+  z-index: 210;
   transform: translateY(14px) scale(.97); opacity: 0; pointer-events: none;
   transition: transform .22s ease, opacity .22s ease;
 }

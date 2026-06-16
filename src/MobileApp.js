@@ -700,51 +700,63 @@ function MobileHome({ ctx, planDate, planTasks }) {
   );
 }
 
-// ── Grid view (compact card grid) ───────────────────────────
+// ── Grid view (timetable) ────────────────────────────────────
 function MobileGrid({ ctx }) {
-  const { todayTasks, groups, toggleTask, setEditingTask } = ctx;
+  const { todayTasks, groups, toggleTask, setEditingTask, nowObj } = ctx;
+  const scrollRef = useRef(null);
 
   const scheduled = [...todayTasks]
     .filter((t) => t.startHour != null)
     .sort((a, b) => a.startHour * 60 + (a.startMinute ?? 0) - (b.startHour * 60 + (b.startMinute ?? 0)));
-
   const unscheduled = todayTasks.filter((t) => t.startHour == null);
   const getGroup = (id) => groups.find((g) => g.id === id);
 
-  const renderCard = (t) => {
-    const tp    = t.type ?? "task";
-    const group = getGroup(t.groupId);
-    const gc    = tp === "deadline" ? "#ef4444"
-                : tp === "break"    ? "#94a3b8"
-                : group?.color ?? "var(--accent)";
-    return (
-      <div key={t.id}
-        className={`mob-gc${t.completed ? " mob-gc-done" : ""}${tp === "break" ? " mob-gc-break" : ""}${tp === "deadline" ? " mob-gc-dl" : ""}`}
-        style={{ "--gc": gc }}
-        onClick={() => setEditingTask(t)}>
-        {t.startHour != null && (
-          <span className="mob-gc-time">{fmtTime(t.startHour, t.startMinute ?? 0)}</span>
-        )}
-        <span className="mob-gc-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
-        <div className="mob-gc-meta">
-          {t.duration && <span className="mob-gc-dur">{fmtDur(t.duration)}</span>}
-          {group && (
-            <span className="mob-gc-group">
-              <span className="mob-gc-gdot" style={{ background: group.color }} />
-              {group.name}
-            </span>
-          )}
-        </div>
-        {tp === "task" && (
-          <button className={`mob-gc-check${t.completed ? " done" : ""}`}
-            onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
-            {t.completed && <Check size={10} strokeWidth={3} />}
-          </button>
-        )}
-        {tp === "deadline" && <span className="mob-gc-dl-icon"><Flag size={11} /></span>}
-      </div>
-    );
-  };
+  const PX_H = 64;
+  const PX_M = PX_H / 60;
+
+  // Hour range
+  const firstH = scheduled.length
+    ? Math.max(0, scheduled[0].startHour - 1)
+    : 8;
+  const lastH = scheduled.length
+    ? Math.min(24, Math.ceil(Math.max(...scheduled.map(
+        t => t.startHour + ((t.startMinute ?? 0) + (t.duration ?? 60)) / 60
+      ))) + 1)
+    : 20;
+  const hours = Array.from({ length: lastH - firstH + 1 }, (_, i) => firstH + i);
+  const totalH = (lastH - firstH + 1) * PX_H;
+
+  // Assign columns to handle time overlaps
+  const withCols = (() => {
+    const res = scheduled.map(t => ({
+      ...t,
+      _s: t.startHour * 60 + (t.startMinute ?? 0),
+      _e: t.startHour * 60 + (t.startMinute ?? 0) + (t.duration ?? 60),
+      _col: 0, _nc: 1,
+    }));
+    const colEnd = [];
+    for (const t of res) {
+      let c = colEnd.findIndex(e => e <= t._s);
+      if (c < 0) c = colEnd.length;
+      colEnd[c] = t._e; t._col = c;
+    }
+    for (const t of res) {
+      let nc = t._col + 1;
+      for (const u of res) if (u._s < t._e && u._e > t._s) nc = Math.max(nc, u._col + 1);
+      t._nc = nc;
+    }
+    return res;
+  })();
+
+  const nowMin = nowObj.getHours() * 60 + nowObj.getMinutes();
+  const nowTop = (nowMin - firstH * 60) * PX_M;
+  const showNow = nowMin >= firstH * 60 && nowMin <= lastH * 60;
+
+  useEffect(() => {
+    if (scrollRef.current && showNow) {
+      scrollRef.current.scrollTop = Math.max(0, nowTop - 100);
+    }
+  }, []); // eslint-disable-line
 
   if (scheduled.length === 0 && unscheduled.length === 0) {
     return (
@@ -756,17 +768,88 @@ function MobileGrid({ ctx }) {
   }
 
   return (
-    <div className="mob-card-grid">
+    <div ref={scrollRef} className="mob-timetable">
       {scheduled.length > 0 && (
-        <div className="mob-cg-section">
-          <div className="mob-section-title"><Clock size={14} /> Scheduled</div>
-          <div className="mob-cg-cards">{scheduled.map(renderCard)}</div>
+        <div className="mob-tt-grid" style={{ height: totalH }}>
+          {/* Hour lines */}
+          {hours.map(h => (
+            <div key={h} className="mob-tt-hour" style={{ top: (h - firstH) * PX_H }}>
+              <span className="mob-tt-hlabel">{fmtTime(h, 0).replace(":00", "")}</span>
+              <span className="mob-tt-hline" />
+            </div>
+          ))}
+
+          {/* Current time indicator */}
+          {showNow && (
+            <div className="mob-tt-now" style={{ top: nowTop }}>
+              <span className="mob-tt-ndot" />
+              <span className="mob-tt-nbar" />
+            </div>
+          )}
+
+          {/* Tasks */}
+          {withCols.map(t => {
+            const tp = t.type ?? "task";
+            const group = getGroup(t.groupId);
+            const gc = tp === "deadline" ? "#ef4444"
+                     : tp === "break"    ? "#94a3b8"
+                     : group?.color ?? "var(--accent)";
+            const top    = (t._s - firstH * 60) * PX_M;
+            const height = Math.max(36, (t._e - t._s) * PX_M - 3);
+            const isPast = t._s < nowMin;
+            const isNext = withCols.find(x => !x.completed && x._s >= nowMin) === t;
+
+            return (
+              <div key={t.id}
+                className={`mob-tt-task${t.completed ? " tt-done" : ""}${isPast && !t.completed ? " tt-past" : ""}${isNext ? " tt-next" : ""}${tp === "break" ? " tt-break" : ""}${tp === "deadline" ? " tt-dl" : ""}`}
+                style={{ top, height, "--gc": gc, "--col": t._col, "--nc": t._nc }}
+                onClick={() => setEditingTask(t)}>
+                <div className="mob-tt-inner">
+                  <span className="mob-tt-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
+                  {height > 52 && (
+                    <span className="mob-tt-meta">
+                      {fmtTime(t.startHour, t.startMinute ?? 0)}{t.duration ? ` · ${fmtDur(t.duration)}` : ""}
+                    </span>
+                  )}
+                </div>
+                {tp === "task" && (
+                  <button className={`mob-tt-cb${t.completed ? " done" : ""}`}
+                    onClick={e => { e.stopPropagation(); toggleTask(t.id); }}>
+                    {t.completed && <Check size={9} strokeWidth={3} />}
+                  </button>
+                )}
+                {tp === "deadline" && <span className="mob-tt-dl-icon"><Flag size={10}/></span>}
+              </div>
+            );
+          })}
         </div>
       )}
+
+      {/* Unscheduled tasks */}
       {unscheduled.length > 0 && (
-        <div className="mob-cg-section">
-          <div className="mob-section-title"><Clock size={14} /> Unscheduled</div>
-          <div className="mob-cg-cards">{unscheduled.map(renderCard)}</div>
+        <div className="mob-tt-unsched">
+          <p className="mob-tt-usec-lbl">Unscheduled</p>
+          {unscheduled.map(t => {
+            const tp = t.type ?? "task";
+            const group = getGroup(t.groupId);
+            const gc = tp === "deadline" ? "#ef4444"
+                     : tp === "break"    ? "#94a3b8"
+                     : group?.color ?? "var(--accent)";
+            return (
+              <div key={t.id}
+                className={`mob-tt-ui${t.completed ? " tt-done" : ""}`}
+                style={{ "--gc": gc }}
+                onClick={() => setEditingTask(t)}>
+                <span className="mob-tt-title" style={{ flex:1 }}>{t.title || (tp==="break"?"Break":"Task")}</span>
+                {tp === "task" && (
+                  <button className={`mob-tt-cb${t.completed ? " done" : ""}`}
+                    onClick={e => { e.stopPropagation(); toggleTask(t.id); }}>
+                    {t.completed && <Check size={9} strokeWidth={3} />}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
