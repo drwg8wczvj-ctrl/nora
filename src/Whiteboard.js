@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Plus, X, Trash2, Link2, Target, Zap, List, Calendar,
   FileText, GitBranch, ChevronLeft, Sparkles, Check,
-  ZoomIn, ZoomOut, Edit3, Layers, ArrowRight, Activity,
+  ZoomIn, ZoomOut, Edit3, Layers, ArrowRight, Activity, Flag,
 } from "lucide-react";
 import "./Whiteboard.css";
 
@@ -18,12 +18,13 @@ function useLocalStorage(key, init) {
 
 // ── Block type registry ─────────────────────────────────────────
 const BT = {
-  goal:       { label: "Goal",     Icon: Target,    color: "#8b5cf6" },
-  idea:       { label: "Idea",     Icon: Zap,       color: "#f59e0b" },
-  task_group: { label: "Tasks",    Icon: List,      color: "#3b82f6" },
-  deadline:   { label: "Deadline", Icon: Calendar,  color: "#ef4444" },
-  note:       { label: "Note",     Icon: FileText,  color: "#10b981" },
-  decision:   { label: "Decision", Icon: GitBranch, color: "#ec4899" },
+  goal:       { label: "Goal",      Icon: Target,    color: "#8b5cf6" },
+  idea:       { label: "Idea",      Icon: Zap,       color: "#f59e0b" },
+  task_group: { label: "Tasks",     Icon: List,      color: "#3b82f6" },
+  deadline:   { label: "Deadline",  Icon: Calendar,  color: "#ef4444" },
+  milestone:  { label: "Milestone", Icon: Flag,      color: "#f97316" },
+  note:       { label: "Note",      Icon: FileText,  color: "#10b981" },
+  decision:   { label: "Decision",  Icon: GitBranch, color: "#ec4899" },
 };
 
 const BS = {
@@ -31,6 +32,7 @@ const BS = {
   idea:       { w: 180, h: 88  },
   task_group: { w: 240, h: 130 },
   deadline:   { w: 200, h: 90  },
+  milestone:  { w: 220, h: 90  },
   note:       { w: 240, h: 155 },
   decision:   { w: 200, h: 100 },
 };

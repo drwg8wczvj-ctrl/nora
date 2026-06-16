@@ -425,7 +425,7 @@ const AI_TOOLS = [
             items: {
               type: "object",
               properties: {
-                type:    { type: "string", enum: ["goal","idea","task_group","deadline","note","decision"] },
+                type:    { type: "string", enum: ["goal","idea","task_group","deadline","milestone","note","decision"] },
                 title:   { type: "string" },
                 content: { type: "string", description: "Optional notes/description" },
                 dueDate: { type: "string", description: "YYYY-MM-DD, only for deadline blocks" },
@@ -464,7 +464,7 @@ const AI_TOOLS = [
             type: "object",
             description: "For add_block/update_block: the new block data",
             properties: {
-              type:    { type: "string", enum: ["goal","idea","task_group","deadline","note","decision"] },
+              type:    { type: "string", enum: ["goal","idea","task_group","deadline","milestone","note","decision"] },
               title:   { type: "string" },
               content: { type: "string" },
               dueDate: { type: "string" },
