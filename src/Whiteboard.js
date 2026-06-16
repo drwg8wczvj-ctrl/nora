@@ -168,13 +168,14 @@ function WhiteboardList({ boards, setBoards, onOpen }) {
   return (
     <div className="wb-list">
       <div className="wb-list-header">
-        <div className="wb-list-title"><Layers size={20}/> Whiteboards</div>
+        <div className="wb-list-title"><Layers size={18}/> Whiteboards</div>
         <div className="wb-list-header-actions">
           <button className="wb-btn-outline" onClick={() => setShowTpl(true)}>Use Template</button>
           <button className="wb-btn-primary" onClick={() => setCreating(true)}><Plus size={14}/> New Board</button>
         </div>
       </div>
 
+      <div className="wb-list-body">
       {creating && (
         <div className="wb-create-row">
           <input className="wb-create-input" placeholder="Board name…" value={newName}
@@ -188,9 +189,9 @@ function WhiteboardList({ boards, setBoards, onOpen }) {
 
       {boards.length === 0 && !creating ? (
         <div className="wb-empty">
-          <Layers size={44} style={{opacity:.1}}/>
+          <Layers size={48} style={{opacity:.08}}/>
           <p>No whiteboards yet.</p>
-          <p className="wb-empty-sub">Plan big projects visually — before turning them into tasks.</p>
+          <p className="wb-empty-sub">Plan your big projects visually — map goals, tasks, and deadlines before turning them into action.</p>
           <button className="wb-btn-primary" onClick={()=>setShowTpl(true)}>
             <Sparkles size={14}/> Start from a Template
           </button>
@@ -223,6 +224,8 @@ function WhiteboardList({ boards, setBoards, onOpen }) {
           })}
         </div>
       )}
+
+      </div>{/* wb-list-body */}
 
       {showTpl && (
         <div className="wb-overlay" onClick={()=>setShowTpl(false)}>

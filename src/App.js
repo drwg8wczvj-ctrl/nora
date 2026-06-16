@@ -3599,23 +3599,6 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             );
           })()}
 
-          {view === "boards" && (
-            <Whiteboard
-              onAskNora={(prompt) => { setChatInput(prompt); setChatOpen(true); }}
-              onConvertTask={(block) => {
-                setEditingTask({
-                  id: uid(), type: block.type === "deadline" ? "deadline" : "task",
-                  title: block.title, date: selectedDate,
-                  startHour: null, startMinute: null,
-                  duration: null, repeat: null, repeatEnd: null,
-                  completed: false, notes: block.content || "",
-                  complexity: null, groupId: null, reminderOffset: null,
-                  ...(block.type === "deadline" && block.dueDate ? { deadline: block.dueDate } : {}),
-                });
-              }}
-            />
-          )}
-
           </div>{/* page-anim */}
         </div>
 
@@ -3631,6 +3614,24 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </div>
         </footer>
       </div>{/* /main-wrap */}
+
+      {/* Whiteboards — rendered outside main-wrap so position:fixed works through glass theme */}
+      {view === "boards" && (
+        <Whiteboard
+          onAskNora={(prompt) => { setChatInput(prompt); setChatOpen(true); }}
+          onConvertTask={(block) => {
+            setEditingTask({
+              id: uid(), type: block.type === "deadline" ? "deadline" : "task",
+              title: block.title, date: selectedDate,
+              startHour: null, startMinute: null,
+              duration: null, repeat: null, repeatEnd: null,
+              completed: false, notes: block.content || "",
+              complexity: null, groupId: null, reminderOffset: null,
+              ...(block.type === "deadline" && block.dueDate ? { deadline: block.dueDate } : {}),
+            });
+          }}
+        />
+      )}
 
       {/* Chat FAB */}
       <button className={`chat-fab${chatOpen ? " active" : ""}`} onClick={() => setChatOpen((o) => !o)}>

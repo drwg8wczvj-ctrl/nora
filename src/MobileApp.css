@@ -478,8 +478,8 @@
 }
 /* Item wrapper (child of SwipeRow) */
 .mai2 {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, #fff);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, #fff);
   border-left: 3px solid var(--gc, var(--border));
   border-radius: 12px;
   overflow: hidden;
