@@ -1117,10 +1117,17 @@ function MobileNotes({ ctx }) {
   const openNote = notes.find(n => n.id === openId);
   const nc = (color) => MOB_NOTE_COLORS[color ?? "yellow"];
 
-  const handleCreate = (color) => {
-    const n = { id: uid(), title: "", content: "", color, done: false, createdAt: Date.now() };
+  const handleCreate = () => {
+    const n = { id: uid(), title: "", content: "", color: "yellow", done: false, createdAt: Date.now() };
     setNotes(p => [...p, n]);
     setOpenId(n.id);
+  };
+
+  const closeNote = () => {
+    if (openNote && !openNote.title?.trim() && !openNote.content?.trim()) {
+      deleteNote(openNote.id);
+    }
+    setOpenId(null);
   };
 
   return (
@@ -1128,7 +1135,7 @@ function MobileNotes({ ctx }) {
       {notes.length === 0 ? (
         <div className="mob-empty-state" style={{ padding: "40px 0" }}>
           <FileText size={36} style={{ opacity: .15 }} />
-          <p>No notes yet. Tap a colour to create one.</p>
+          <p>No notes yet.</p>
         </div>
       ) : (
         <div className="mob-sticky-grid">
@@ -1139,11 +1146,11 @@ function MobileNotes({ ctx }) {
                 style={{ background: c.bg, borderColor: c.border }}
                 onClick={() => setOpenId(note.id)}>
                 <div className="mob-sticky-title" style={{ color: c.text }}>
-                  {note.title || note.content?.split("\n")[0] || "Untitled"}
+                  {note.title || "Untitled"}
                 </div>
                 {note.content && (
                   <div className="mob-sticky-preview" style={{ color: c.text }}>
-                    {note.content.slice(0, 60)}
+                    {note.content}
                   </div>
                 )}
               </div>
@@ -1152,20 +1159,14 @@ function MobileNotes({ ctx }) {
         </div>
       )}
 
-      {/* Color palette to create new notes */}
-      <div className="mob-sticky-new-row">
-        {Object.entries(MOB_NOTE_COLORS).map(([color, val]) => (
-          <button key={color} className="mob-sticky-new-btn"
-            style={{ background: val.bg, borderColor: val.border }}
-            onClick={() => handleCreate(color)}>
-            <Plus size={18} style={{ color: val.text }} />
-          </button>
-        ))}
-      </div>
+      {/* Floating action button — single entry point */}
+      <button className="mob-note-fab" onClick={handleCreate}>
+        <Plus size={22} />
+      </button>
 
       {/* Expanded note bottom sheet */}
       {openNote && (
-        <div className="mob-sticky-overlay" onClick={() => setOpenId(null)}>
+        <div className="mob-sticky-overlay" onClick={closeNote}>
           <div className="mob-sticky-sheet"
             style={{ background: nc(openNote.color).bg, borderColor: nc(openNote.color).border }}
             onClick={e => e.stopPropagation()}>
@@ -1175,8 +1176,9 @@ function MobileNotes({ ctx }) {
                 style={{ color: nc(openNote.color).text }}
                 value={openNote.title ?? ""}
                 onChange={e => patchNote(openNote.id, { title: e.target.value })}
-                placeholder="Note title" />
-              <button className="mob-modal-close" onClick={() => setOpenId(null)}>
+                placeholder="Note title"
+                autoFocus />
+              <button className="mob-modal-close" onClick={closeNote}>
                 <X size={20} />
               </button>
             </div>

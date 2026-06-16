@@ -3504,38 +3504,50 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {view === "notes" && (() => {
             const openNote = notes.find(n => n.id === openNoteId);
             const nc = (color) => NOTE_COLORS[color ?? "yellow"];
+            const closeNote = () => {
+              if (openNote && !openNote.title?.trim() && !openNote.content?.trim()) {
+                deleteNote(openNote.id);
+              } else {
+                setOpenNoteId(null);
+              }
+            };
             return (
               <div className="notes-view">
-                <div className="sticky-grid">
-                  {[...notes].reverse().map((note) => {
-                    const c = nc(note.color);
-                    return (
-                      <div key={note.id} className="sticky-card"
-                        style={{ background: c.bg, borderColor: c.border }}
-                        onClick={() => setOpenNoteId(note.id)}>
-                        <div className="sticky-card-title" style={{ color: c.text }}>
-                          {note.title || note.content?.split("\n")[0] || "Untitled"}
-                        </div>
-                        {note.content && (
-                          <div className="sticky-card-preview" style={{ color: c.text }}>
-                            {note.content.slice(0, 80)}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {Object.keys(NOTE_COLORS).map((color) => (
-                    <button key={color} className="sticky-add-card"
-                      style={{ borderColor: NOTE_COLORS[color].border, color: NOTE_COLORS[color].text }}
-                      onClick={() => createStickyNote(color)}>
-                      <Plus size={20} />
-                    </button>
-                  ))}
+                <div className="notes-view-header">
+                  <button className="sticky-add-note-btn" onClick={() => createStickyNote("yellow")}>
+                    <Plus size={14} /> New Note
+                  </button>
                 </div>
+                {notes.length === 0 ? (
+                  <div className="notes-empty">
+                    <FileText size={40} style={{ opacity: .1 }} />
+                    <p>No notes yet.</p>
+                  </div>
+                ) : (
+                  <div className="sticky-grid">
+                    {[...notes].reverse().map((note) => {
+                      const c = nc(note.color);
+                      return (
+                        <div key={note.id} className="sticky-card"
+                          style={{ background: c.bg, borderColor: c.border }}
+                          onClick={() => setOpenNoteId(note.id)}>
+                          <div className="sticky-card-title" style={{ color: c.text }}>
+                            {note.title || "Untitled"}
+                          </div>
+                          {note.content && (
+                            <div className="sticky-card-preview" style={{ color: c.text }}>
+                              {note.content}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Expanded note modal */}
                 {openNote && (
-                  <div className="sticky-modal-overlay" onClick={() => setOpenNoteId(null)}>
+                  <div className="sticky-modal-overlay" onClick={closeNote}>
                     <div className="sticky-modal" style={{ background: nc(openNote.color).bg, borderColor: nc(openNote.color).border }}
                       onClick={e => e.stopPropagation()}>
                       <div className="sticky-modal-top">
@@ -3543,8 +3555,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           style={{ color: nc(openNote.color).text }}
                           value={openNote.title ?? ""}
                           onChange={e => patchNote(openNote.id, { title: e.target.value })}
-                          placeholder="Note title" />
-                        <button className="sticky-modal-close" onClick={() => setOpenNoteId(null)}>
+                          placeholder="Note title"
+                          autoFocus />
+                        <button className="sticky-modal-close" onClick={closeNote}>
                           <X size={16} />
                         </button>
                       </div>
