@@ -173,7 +173,7 @@ export function useNotifications() {
     } catch {
       return "denied";
     }
-  }, [registerPeriodicSync]);
+  }, [registerPeriodicSync, subscribeToPush]);
 
   // ── Store an alarm in SW IndexedDB + Supabase (survives app close) ──────────
   const scheduleAlarm = useCallback((id, scheduledFor, title, body, data = {}, tag) => {
