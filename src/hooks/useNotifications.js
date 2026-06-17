@@ -70,12 +70,32 @@ export function useNotifications() {
           } catch {}
         }
 
-        // Check push subscription
+        // Check push subscription and sync to server
         let pushSubscribed = false;
         try {
           const sub = await reg.pushManager.getSubscription();
           pushSubscribed = !!sub;
-        } catch {}
+
+          if (Notification.permission === "granted") {
+            if (sub) {
+              // Always re-save to Supabase — previous save may have failed silently
+              // (e.g. auth not ready yet, network error) so we retry on every startup
+              savePushSubscription(sub.toJSON()).catch(() => {});
+            } else {
+              // No local subscription — create one now
+              const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+              if (vapidKey) {
+                const raw = atob(vapidKey.replace(/-/g, "+").replace(/_/g, "/"));
+                const appServerKey = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+                const newSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
+                await savePushSubscription(newSub.toJSON()).catch(() => {});
+                pushSubscribed = true;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Push subscription sync:", e);
+        }
 
         // Ask SW for current alarm count
         if (navigator.serviceWorker.controller) {
@@ -91,22 +111,6 @@ export function useNotifications() {
           isIOS,
           checkedAt: Date.now(),
         }));
-
-        // Auto-subscribe to Web Push if permission already granted but not yet subscribed
-        if (!pushSubscribed && Notification.permission === "granted") {
-          const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
-          if (vapidKey) {
-            try {
-              const raw = atob(vapidKey.replace(/-/g, "+").replace(/_/g, "/"));
-              const appServerKey = Uint8Array.from(raw, (c) => c.charCodeAt(0));
-              const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
-              await savePushSubscription(sub.toJSON()).catch(() => {});
-              setHealth((h) => ({ ...h, pushSubscribed: true }));
-            } catch (e) {
-              console.warn("Auto-subscribe push failed:", e);
-            }
-          }
-        }
       })
       .catch(() => {});
   }, []);
