@@ -36,7 +36,17 @@ serve(async (req: Request) => {
 
   const { action } = body as { action: string };
   const authHeader = req.headers.get("Authorization") ?? "";
-  const isServiceRole = authHeader === `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
+
+  // Decode JWT payload and check role claim — avoids fragile exact-string comparison
+  // which breaks when the env var has trailing whitespace or different formatting
+  function jwtRole(header: string): string {
+    try {
+      const token = header.startsWith("Bearer ") ? header.slice(7) : header;
+      const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      return payload.role ?? "";
+    } catch { return ""; }
+  }
+  const isServiceRole = jwtRole(authHeader) === "service_role";
 
   // Resolve user id from JWT (for user-facing actions)
   let userId: string | null = null;

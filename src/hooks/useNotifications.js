@@ -73,25 +73,30 @@ export function useNotifications() {
         // Check push subscription and sync to server
         let pushSubscribed = false;
         try {
-          const sub = await reg.pushManager.getSubscription();
-          pushSubscribed = !!sub;
+          const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+          const lastKey  = localStorage.getItem("nora_vapid_key_v1");
+          let sub = await reg.pushManager.getSubscription();
 
-          if (Notification.permission === "granted") {
-            if (sub) {
-              // Always re-save to Supabase — previous save may have failed silently
-              // (e.g. auth not ready yet, network error) so we retry on every startup
-              savePushSubscription(sub.toJSON()).catch(() => {});
-            } else {
-              // No local subscription — create one now
-              const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
-              if (vapidKey) {
-                const raw = atob(vapidKey.replace(/-/g, "+").replace(/_/g, "/"));
-                const appServerKey = Uint8Array.from(raw, (c) => c.charCodeAt(0));
-                const newSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
-                await savePushSubscription(newSub.toJSON()).catch(() => {});
-                pushSubscribed = true;
-              }
+          if (Notification.permission === "granted" && vapidKey) {
+            // If VAPID key changed, the existing subscription is invalid — must re-subscribe
+            if (sub && lastKey !== vapidKey) {
+              await sub.unsubscribe().catch(() => {});
+              sub = null;
             }
+            if (sub) {
+              localStorage.setItem("nora_vapid_key_v1", vapidKey);
+              savePushSubscription(sub.toJSON()).catch(() => {});
+              pushSubscribed = true;
+            } else {
+              const raw = atob(vapidKey.replace(/-/g, "+").replace(/_/g, "/"));
+              const appServerKey = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+              const newSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
+              localStorage.setItem("nora_vapid_key_v1", vapidKey);
+              await savePushSubscription(newSub.toJSON()).catch(() => {});
+              pushSubscribed = true;
+            }
+          } else {
+            pushSubscribed = !!sub;
           }
         } catch (e) {
           console.warn("Push subscription sync:", e);
@@ -144,14 +149,19 @@ export function useNotifications() {
     const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
     if (!vapidKey) return false;
     try {
-      // Already subscribed?
+      const lastKey = localStorage.getItem("nora_vapid_key_v1");
       let sub = await reg.pushManager.getSubscription();
+      // Force re-subscribe if VAPID key changed since last subscribe
+      if (sub && lastKey !== vapidKey) {
+        await sub.unsubscribe().catch(() => {});
+        sub = null;
+      }
       if (!sub) {
-        // Convert URL-safe base64 VAPID key to Uint8Array
         const raw = atob(vapidKey.replace(/-/g, "+").replace(/_/g, "/"));
         const appServerKey = Uint8Array.from(raw, (c) => c.charCodeAt(0));
         sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
       }
+      localStorage.setItem("nora_vapid_key_v1", vapidKey);
       await savePushSubscription(sub.toJSON()).catch(() => {});
       setHealth((h) => ({ ...h, pushSubscribed: true }));
       return true;
