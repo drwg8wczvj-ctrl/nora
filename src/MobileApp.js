@@ -19,11 +19,7 @@ import "./MobileApp.css";
 // ── Local helpers ────────────────────────────────────────────
 const uid  = () => Math.random().toString(36).slice(2);
 const pad  = (n) => String(n).padStart(2, "0");
-const fmtTime = (h, m) => {
-  const suffix = h < 12 ? "AM" : "PM";
-  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${hr}:${pad(m)} ${suffix}`;
-};
+const fmtTime = (h, m) => `${pad(h)}:${pad(m)}`;
 // ── Chat autocomplete suggestions ──────────────────────
 const CHAT_SUGGESTIONS = [
   "Plan my day for today",
@@ -1900,7 +1896,7 @@ function MobileChat({ ctx }) {
 function MobileRescheduleModal({ task, onSave, onClose }) {
   const HOURS = Array.from({ length: 24 }, (_, i) => i);
   const pad2  = (n) => String(n).padStart(2, "0");
-  const fmtH  = (h) => h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`;
+  const fmtH  = (h) => `${pad(h)}:00`;
 
   const [date,   setDate]   = useState(task.date);
   const [hour,   setHour]   = useState(task.startHour ?? "");
@@ -1945,7 +1941,7 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
                 <select className="mob-modal-select mob-min-select"
                   value={minute}
                   onChange={(e) => setMinute(Number(e.target.value))}>
-                  {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                  {Array.from({ length: 60 }, (_, i) => i).map((m) => (
                     <option key={m} value={m}>:{pad2(m)}</option>
                   ))}
                 </select>

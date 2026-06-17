@@ -172,23 +172,9 @@ const addDays = (dateStr, n) => {
   return d;
 };
 
-const fmtTime = (h, m) => {
-  const suffix = h < 12 ? "AM" : "PM";
-  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${hr}:${pad(m)} ${suffix}`;
-};
-
-const fmtTimeShort = (h, m) => {
-  const sfx = h < 12 ? "AM" : "PM";
-  const hr  = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m === 0 ? `${hr}${sfx}` : `${hr}:${pad(m)}${sfx}`;
-};
-
-const fmtHourLabel = (h) => {
-  const suffix = h < 12 ? "AM" : "PM";
-  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${hr} ${suffix}`;
-};
+const fmtTime      = (h, m) => `${pad(h)}:${pad(m)}`;
+const fmtTimeShort = (h, m) => m === 0 ? `${pad(h)}:00` : `${pad(h)}:${pad(m)}`;
+const fmtHourLabel = (h)    => `${pad(h)}:00`;
 
 const fmtDur = (min) => {
   if (!min) return "";
@@ -3955,7 +3941,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   <select className="field-select" disabled={draft.startHour == null}
                     value={draft.startMinute ?? 0}
                     onChange={(e) => setDraft((d) => ({ ...d, startMinute: Number(e.target.value) }))}>
-                    {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                    {Array.from({ length: 60 }, (_, i) => i).map((m) => (
                       <option key={m} value={m}>{`:${pad(m)}`}</option>
                     ))}
                   </select>
@@ -4202,7 +4188,7 @@ function PasswordResetForm({ dark, glass, onDone }) {
 function RescheduleModal({ task, onSave, onClose }) {
   const HOURS = Array.from({ length: 24 }, (_, i) => i);
   const pad2  = (n) => String(n).padStart(2, "0");
-  const fmtH  = (h) => h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`;
+  const fmtH  = (h) => `${pad2(h)}:00`;
 
   const [date,   setDate]   = useState(task.date);
   const [hour,   setHour]   = useState(task.startHour ?? "");
@@ -4246,7 +4232,7 @@ function RescheduleModal({ task, onSave, onClose }) {
                 <select className="sett-select reschedule-select"
                   value={minute}
                   onChange={(e) => setMinute(Number(e.target.value))}>
-                  {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                  {Array.from({ length: 60 }, (_, i) => i).map((m) => (
                     <option key={m} value={m}>:{pad2(m)}</option>
                   ))}
                 </select>
