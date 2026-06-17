@@ -91,6 +91,22 @@ export function useNotifications() {
           isIOS,
           checkedAt: Date.now(),
         }));
+
+        // Auto-subscribe to Web Push if permission already granted but not yet subscribed
+        if (!pushSubscribed && Notification.permission === "granted") {
+          const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+          if (vapidKey) {
+            try {
+              const raw = atob(vapidKey.replace(/-/g, "+").replace(/_/g, "/"));
+              const appServerKey = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+              const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
+              await savePushSubscription(sub.toJSON()).catch(() => {});
+              setHealth((h) => ({ ...h, pushSubscribed: true }));
+            } catch (e) {
+              console.warn("Auto-subscribe push failed:", e);
+            }
+          }
+        }
       })
       .catch(() => {});
   }, []);
