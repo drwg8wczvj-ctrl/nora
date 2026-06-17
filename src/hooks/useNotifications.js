@@ -71,14 +71,28 @@ export function useNotifications() {
         }
 
         // Check push subscription and sync to server
+        // Fetch VAPID key from server so key rotations work even with cached bundle
         let pushSubscribed = false;
         try {
-          const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
-          const lastKey  = localStorage.getItem("nora_vapid_key_v1");
+          let vapidKey;
+          try {
+            const EDGE = process.env.REACT_APP_SUPABASE_URL;
+            if (EDGE) {
+              const res = await fetch(`${EDGE}/functions/v1/nora-push`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "get_vapid_key" }),
+              });
+              const data = await res.json();
+              vapidKey = data.publicKey || null;
+            }
+          } catch {}
+          if (!vapidKey) vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+
+          const lastKey = localStorage.getItem("nora_vapid_key_v1");
           let sub = await reg.pushManager.getSubscription();
 
           if (Notification.permission === "granted" && vapidKey) {
-            // If VAPID key changed, the existing subscription is invalid — must re-subscribe
             if (sub && lastKey !== vapidKey) {
               await sub.unsubscribe().catch(() => {});
               sub = null;
@@ -146,8 +160,26 @@ export function useNotifications() {
   const subscribeToPush = useCallback(async () => {
     const reg = swRegRef.current;
     if (!reg?.pushManager) return false;
-    const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+
+    // Fetch the current VAPID public key from the server so that key rotations
+    // work even when the React bundle is cached by the service worker.
+    let vapidKey;
+    try {
+      const EDGE = process.env.REACT_APP_SUPABASE_URL;
+      if (EDGE) {
+        const res = await fetch(`${EDGE}/functions/v1/nora-push`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "get_vapid_key" }),
+        });
+        const data = await res.json();
+        vapidKey = data.publicKey || null;
+      }
+    } catch {}
+    // Fall back to build-time env var if server unreachable
+    if (!vapidKey) vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
     if (!vapidKey) return false;
+
     try {
       const lastKey = localStorage.getItem("nora_vapid_key_v1");
       let sub = await reg.pushManager.getSubscription();

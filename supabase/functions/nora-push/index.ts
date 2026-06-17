@@ -60,6 +60,11 @@ serve(async (req: Request) => {
     userId = user?.id ?? null;
   }
 
+  // ── get_vapid_key — public, no auth needed (public key is not sensitive) ─────
+  if (action === "get_vapid_key") {
+    return json({ publicKey: Deno.env.get("VAPID_PUBLIC_KEY") ?? "" });
+  }
+
   // ── save_subscription ──────────────────────────────────────────────────────
   if (action === "save_subscription") {
     if (!userId) return json({ error: "Unauthorized" }, 401);
