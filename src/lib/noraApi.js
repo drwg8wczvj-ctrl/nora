@@ -1,5 +1,25 @@
 import { supabase } from "./supabase";
 
+// ── Push notification helpers ─────────────────────────────────
+const EDGE = process.env.REACT_APP_SUPABASE_URL;
+
+async function edgeCall(action, payload = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || !EDGE) return;
+  await fetch(`${EDGE}/functions/v1/nora-push`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+}
+
+export const savePushSubscription  = (subscription) => edgeCall("save_subscription", { subscription });
+export const scheduleServerAlarm   = (alarm)        => edgeCall("schedule_alarm",    { alarm });
+export const cancelServerAlarm     = (id)           => edgeCall("cancel_alarm",      { id });
+
 // ── Auth ─────────────────────────────────────────────────────
 
 export const signIn  = (email, password) =>

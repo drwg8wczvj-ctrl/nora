@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { savePushSubscription, scheduleServerAlarm, cancelServerAlarm } from "../lib/noraApi";
 
 const SETTINGS_KEY = "nora_notif_settings_v1";
 
@@ -116,6 +117,30 @@ export function useNotifications() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
   }, [settings]);
 
+  // ── Subscribe to Web Push (VAPID) ──────────────────────────────────────────
+  const subscribeToPush = useCallback(async () => {
+    const reg = swRegRef.current;
+    if (!reg?.pushManager) return false;
+    const vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+    if (!vapidKey) return false;
+    try {
+      // Already subscribed?
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        // Convert URL-safe base64 VAPID key to Uint8Array
+        const raw = atob(vapidKey.replace(/-/g, "+").replace(/_/g, "/"));
+        const appServerKey = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appServerKey });
+      }
+      await savePushSubscription(sub.toJSON()).catch(() => {});
+      setHealth((h) => ({ ...h, pushSubscribed: true }));
+      return true;
+    } catch (e) {
+      console.warn("subscribeToPush:", e);
+      return false;
+    }
+  }, []);
+
   // ── Register periodic background sync (Android Chrome) ─────────────────────
   const registerPeriodicSync = useCallback(async () => {
     const reg = swRegRef.current;
@@ -141,8 +166,8 @@ export function useNotifications() {
       setPermission(p);
       if (p === "granted") {
         setSettings((s) => ({ ...s, enabled: true, bannerDismissed: true }));
-        // Try to register periodic sync once permission is granted
         await registerPeriodicSync();
+        await subscribeToPush();
       }
       return p;
     } catch {
@@ -150,28 +175,25 @@ export function useNotifications() {
     }
   }, [registerPeriodicSync]);
 
-  // ── Store an alarm in SW IndexedDB (survives app close) ────────────────────
+  // ── Store an alarm in SW IndexedDB + Supabase (survives app close) ──────────
   const scheduleAlarm = useCallback((id, scheduledFor, title, body, data = {}, tag) => {
-    const alarm = {
-      id,
-      scheduledFor,
-      title,
-      body,
-      tag: tag || id,
-      data,
-    };
-    // Primary: store in SW IndexedDB so it survives app close
+    const alarm = { id, scheduledFor, title, body, tag: tag || id, data };
+
+    // Layer 1: SW IndexedDB — checked on every SW wake-up (same device)
     const controller = navigator.serviceWorker?.controller;
     if (controller) {
       controller.postMessage({ type: "STORE_ALARM", alarm });
       setHealth((h) => ({ ...h, alarmCount: h.alarmCount + 1 }));
     }
-    // Backup: React setTimeout for when app is open (fires exactly on time)
+
+    // Layer 2: Supabase server alarm — sent via Web Push by pg_cron (cross-device, iOS)
+    scheduleServerAlarm(alarm).catch(() => {});
+
+    // Layer 3: React setTimeout — fires exactly on time when app is open
     const delay = scheduledFor - Date.now();
     if (delay > 0) {
       clearTimeout(reactTimers.current[id]);
       reactTimers.current[id] = setTimeout(() => {
-        // SW will have already removed the alarm; show it now from React side
         showNotification(title, body, { tag, data }); // eslint-disable-line no-use-before-define
       }, delay);
     }
@@ -186,6 +208,7 @@ export function useNotifications() {
       controller.postMessage({ type: "CLEAR_ALARM", id });
       setHealth((h) => ({ ...h, alarmCount: Math.max(0, h.alarmCount - 1) }));
     }
+    cancelServerAlarm(id).catch(() => {});
   }, []);
 
   // ── Display a notification (SW-first, Notification API fallback) ────────────
@@ -280,5 +303,6 @@ export function useNotifications() {
     dismissBanner,
     health,
     registerPeriodicSync,
+    subscribeToPush,
   };
 }
