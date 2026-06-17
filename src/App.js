@@ -529,6 +529,7 @@ export default function App() {
       }
       if (Array.isArray(data.groups) && data.groups.length) setGroups(data.groups);
       if (Array.isArray(data.notes)  && data.notes.length)  setNotes(data.notes);
+      if (Array.isArray(data.boards) && data.boards.length) setBoards(data.boards);
       const p = data.preferences ?? {};
       if (p.accountName  != null) setAccountName(p.accountName);
       if (p.dark         != null) setDark(p.dark);
@@ -752,11 +753,11 @@ export default function App() {
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(() => {
       saveUserData({
-        tasks, groups, notes,
+        tasks, groups, notes, boards,
         preferences: { accountName, dark, reminderMins, relaxation, energy, theme },
       }).catch(console.error);
     }, 1000);
-  }, [tasks, groups, notes, accountName, dark, reminderMins, relaxation, energy, theme]); // eslint-disable-line
+  }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme]); // eslint-disable-line
 
   // ── Repeat-aware task lookup ─────────────────────────
   const getTasksForDate = (date) => {
@@ -1450,39 +1451,53 @@ export default function App() {
 
   // ── Task / deadline notification scheduling ────────────────────────────────
   useEffect(() => {
+    // Clear React timers (used only for in-app toast — doesn't survive app close)
     Object.values(notifTimers.current).forEach(clearTimeout);
     notifTimers.current = {};
+    // Cancel any previously queued SW alarms for today's tasks
+    tasks.forEach((task) => cancelAlarm(`task-reminder-${task.id}`));
+
     const now = Date.now();
     tasks.forEach((task) => {
       if (task.completed || task.startHour == null || task.date !== todayStr()) return;
       const type = task.type ?? "task";
       if (type === "break") return;
-      // Check per-category setting (fall back to taskReminders for focus sessions)
       const categoryEnabled = type === "deadline"
         ? notifSettings.deadlineReminders
         : notifSettings.taskReminders;
-      // Always schedule in-app toast; OS notification requires permission + enabled
       const offset = task.reminderOffset === "none" ? null
         : task.reminderOffset != null ? task.reminderOffset
         : reminderMins;
       if (offset == null) return;
       const start = new Date();
       start.setHours(task.startHour, task.startMinute ?? 0, 0, 0);
-      const delay = start.getTime() - offset * 60000 - now;
+      const fireAt = start.getTime() - offset * 60000;
+      const delay  = fireAt - now;
       if (delay <= 0) return;
-      notifTimers.current[task.id] = setTimeout(async () => {
+
+      // In-app toast — React timer only (UI, doesn't need to survive close)
+      notifTimers.current[task.id] = setTimeout(() => {
         const timeStr = fmtTime(task.startHour, task.startMinute ?? 0);
         setInAppAlert({ id: uid(), title: task.title, offset, timeStr });
-        if (!categoryEnabled) return;
-        const typeLabel = type === "deadline" ? "Nora • Deadline" : "Nora • Upcoming Task";
-        const body = offset === 0
-          ? `${task.title} starts now`
-          : `${task.title} in ${offset} min · ${timeStr}`;
-        await showNotification(typeLabel, body, {
-          tag:  `task-${task.id}`,
-          data: { action: "open_task", taskId: task.id, url: "/" },
-        });
       }, delay);
+
+      // OS notification — persisted in SW IndexedDB, fires even when app is closed
+      if (categoryEnabled && notifSettings.enabled && notifPermission === "granted") {
+        const timeStr = fmtTime(task.startHour, task.startMinute ?? 0);
+        const isDeadline = type === "deadline";
+        const title = isDeadline ? "🔴 Nora · Deadline" : "⏰ Nora · Reminder";
+        const body  = offset === 0
+          ? `${task.title} starts now`
+          : `${task.title} · ${timeStr} (in ${offset} min)`;
+        scheduleAlarm(
+          `task-reminder-${task.id}`,
+          fireAt,
+          title,
+          body,
+          { action: "open_task", taskId: task.id, url: "/" },
+          `task-${task.id}`
+        );
+      }
     });
   }, [tasks, reminderMins, notifPermission, notifSettings.enabled, notifSettings.taskReminders, notifSettings.deadlineReminders]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1502,8 +1517,8 @@ export default function App() {
     scheduleAlarm(
       ALARM_ID,
       trigger.getTime(),
-      "Nora • Morning Check-Up",
-      "Good morning! Ready for today's check-up?",
+      "☀️ Nora · Morning Check-Up",
+      "Good morning! Time to set your focus for the day.",
       { action: "open_checkup", url: "/" },
       "morning-checkup"
     );
@@ -1522,7 +1537,7 @@ export default function App() {
     const message = adaptiveRecs[0] || predictiveSignals[0]?.message;
     if (!message) return;
     localStorage.setItem("nora_coaching_date", today); // prevent re-scheduling
-    scheduleAlarm(ALARM_ID, trigger.getTime(), "Nora • Daily Insight", message, {
+    scheduleAlarm(ALARM_ID, trigger.getTime(), "💡 Nora · Daily Insight", message, {
       action: "open_status", url: "/",
     }, "ai-coaching");
     return () => cancelAlarm(ALARM_ID);
@@ -1542,9 +1557,9 @@ export default function App() {
     scheduleAlarm(
       alarmId,
       trigger.getTime(),
-      "Nora • Deadline Tomorrow",
+      "⚠️ Nora · Deadline Tomorrow",
       tomorrowDeadlines.length === 1
-        ? `"${tomorrowDeadlines[0].title}" is due tomorrow.`
+        ? `"${tomorrowDeadlines[0].title}" is due tomorrow`
         : `${tomorrowDeadlines.length} deadlines due tomorrow: ${titles}`,
       { action: "open_task", taskId: tomorrowDeadlines[0].id, url: "/" },
       "deadline-tomorrow"
@@ -2525,6 +2540,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       toggleNote, updateNote, deleteNote, patchNote, createStickyNote, getGroup,
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
       microStartMode, setMicroStartMode,
+      boards,
       rescheduleTask, setRescheduleTask, saveReschedule,
       morningCheckup, showMorningCheckup, setShowMorningCheckup, handleCheckupComplete,
       reviewCheckupMode, setReviewCheckupMode,

@@ -660,8 +660,10 @@ export default function Whiteboard({ onAskNora, onConvertTask, onClose, boards: 
 }
 
 // ── Lightweight mobile read-only viewer ─────────────────────────
-export function MobileWhiteboardView({ onAskNora, onClose }) {
-  const [boards, setBoards] = useLocalStorage("nora_whiteboards", []);
+export function MobileWhiteboardView({ onAskNora, onClose, boards: boardsProp }) {
+  const [boardsLocal, setBoardsLocal] = useLocalStorage("nora_whiteboards", []);
+  const boards = boardsProp ?? boardsLocal;
+  const setBoards = setBoardsLocal;
   const [openId, setOpenId] = useState(null);
   const openBoard = boards.find(b=>b.id===openId);
 

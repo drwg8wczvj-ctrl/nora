@@ -225,8 +225,8 @@ export function useNotifications() {
     let ok = false;
     if (reg) {
       try {
-        await reg.showNotification("Nora • Test Notification", {
-          body:  "Notifications are working correctly.",
+        await reg.showNotification("✅ Nora · Notifications Active", {
+          body:  "You'll get reminders even when the app is closed.",
           icon:  "/icon-192.png",
           badge: "/icon-192.png",
           tag:   "nora-test",
@@ -237,8 +237,8 @@ export function useNotifications() {
     }
     if (!ok) {
       try {
-        new Notification("Nora • Test Notification", {
-          body: "Notifications are working correctly.",
+        new Notification("✅ Nora · Notifications Active", {
+          body: "You'll get reminders even when the app is closed.",
           icon: "/icon-192.png",
         });
         ok = true;

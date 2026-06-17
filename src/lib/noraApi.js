@@ -93,11 +93,11 @@ export async function loadUserData() {
   return data ?? null;
 }
 
-export async function saveUserData({ tasks, groups, notes, preferences }) {
+export async function saveUserData({ tasks, groups, notes, preferences, boards }) {
   const { data: { user } } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("user_app_data")
-    .upsert({ user_id: user.id, tasks, groups, notes, preferences });
+    .upsert({ user_id: user.id, tasks, groups, notes, preferences, boards });
   if (error) throw error;
 }
 
