@@ -335,6 +335,7 @@
 .wb-block-content {
   font-size: 11px; color: var(--text-muted); margin-top: 5px;
   line-height: 1.45; overflow: hidden;
+  white-space: pre-wrap;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
 }
 .wb-block-date {

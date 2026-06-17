@@ -3665,7 +3665,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           style={{ background: c.bg, borderColor: c.border }}
                           onClick={() => setOpenNoteId(note.id)}>
                           <button className="sticky-card-del" onClick={e => handleCardDelete(e, note.id)}>
-                            <X size={11} />
+                            <Trash2 size={12} />
                           </button>
                           <div className="sticky-card-title" style={{ color: c.text }}>
                             {note.title || "Untitled"}
