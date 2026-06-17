@@ -104,6 +104,46 @@ serve(async (req: Request) => {
     return json({ ok: true });
   }
 
+  // ── test_server_push — immediately push to verify chain end-to-end ───────────
+  if (action === "test_server_push") {
+    if (!userId) return json({ error: "Unauthorized" }, 401);
+
+    const { data: subs } = await admin
+      .from("push_subscriptions")
+      .select("endpoint, keys")
+      .eq("user_id", userId);
+
+    if (!subs?.length) return json({ ok: false, error: "no_subscriptions" });
+
+    const payload = JSON.stringify({
+      title: "✅ Nora · Server Push Active",
+      body: "Background delivery is working correctly.",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: "nora-server-test",
+      data: { action: "test" },
+    });
+
+    let sent = 0;
+    const errors: string[] = [];
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
+        sent++;
+      } catch (e: unknown) {
+        const code = (e as { statusCode?: number }).statusCode;
+        if (code === 410) {
+          await admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+          errors.push("expired");
+        } else {
+          errors.push(String(code ?? "unknown"));
+        }
+      }
+    }
+
+    return json({ ok: sent > 0, sent, total: subs.length, errors });
+  }
+
   // ── fire_due_alarms — called by pg_cron with service role key ──────────────
   if (action === "fire_due_alarms") {
     if (!isServiceRole) return json({ error: "Forbidden" }, 403);

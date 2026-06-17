@@ -4,7 +4,7 @@ import {
   loadUserData, saveUserData,
   saveChatMessage, loadRecentChatMessages, deleteOldChatMessages,
   getUserPreferences, saveUserPreferences,
-  saveMorningCheckup, loadTodayCheckup,
+  saveMorningCheckup, loadTodayCheckup, testServerPush,
 } from "./lib/noraApi";
 import AuthScreen from "./AuthScreen";
 import MobileApp from "./MobileApp";
@@ -695,7 +695,16 @@ export default function App() {
     bannerVisible:     notifBannerVisible,
     dismissBanner:     dismissNotifBanner,
     health:            notifHealth,
+    subscribeToPush,
   } = useNotifications();
+
+  // Re-sync push subscription to server whenever auth session is confirmed.
+  // Belt-and-suspenders: covers the race where SW fired before Supabase session was ready.
+  useEffect(() => {
+    if (session && notifPermission === "granted") {
+      subscribeToPush().catch(() => {});
+    }
+  }, [session?.access_token]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showFilters,    setShowFilters]    = useState(false);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [smartView,      setSmartView]      = useState(true);
@@ -2607,6 +2616,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 setReminderMins={setReminderMins}
                 health={notifHealth}
                 sendTestNotification={sendTestNotification}
+                testServerPush={testServerPush}
               />
             </div>
           )}

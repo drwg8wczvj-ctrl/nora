@@ -262,3 +262,25 @@
   color: var(--success);
   text-align: center;
 }
+
+.ns-server-test-row {
+  margin-top: 10px;
+}
+.ns-server-test-btn {
+  width: 100%;
+  padding: 8px 14px;
+  background: rgba(var(--accent-rgb, 124,58,237), .08);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background var(--tr), color var(--tr);
+}
+.ns-server-test-btn:hover:not(:disabled) { background: rgba(var(--accent-rgb, 124,58,237), .15); color: var(--accent); }
+.ns-server-test-btn:disabled { opacity: .4; cursor: not-allowed; }

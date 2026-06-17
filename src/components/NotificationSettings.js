@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Bell, CheckSquare, Flag, Clock, Brain, Sunrise, Send, Check } from "lucide-react";
+import { Bell, CheckSquare, Flag, Clock, Brain, Sunrise, Send, Check, Server } from "lucide-react";
 import "./NotificationSettings.css";
 
 function NSToggle({ value, onChange, disabled }) {
@@ -68,9 +68,11 @@ export default function NotificationSettings({
   setReminderMins,
   health = {},
   sendTestNotification,
+  testServerPush,
 }) {
-  const [testSent,    setTestSent]    = useState(false);
-  const [testLoading, setTestLoading] = useState(false);
+  const [testSent,         setTestSent]         = useState(false);
+  const [testLoading,      setTestLoading]       = useState(false);
+  const [serverTestState,  setServerTestState]   = useState(null); // null | "loading" | "sent" | "no_sub" | "failed"
 
   const granted = permission === "granted";
   const denied  = permission === "denied";
@@ -84,6 +86,23 @@ export default function NotificationSettings({
       setTimeout(() => setTestSent(false), 4000);
     } catch {}
     setTestLoading(false);
+  };
+
+  const handleServerTest = async () => {
+    setServerTestState("loading");
+    try {
+      const result = await testServerPush();
+      if (result?.ok && result?.sent > 0) {
+        setServerTestState("sent");
+      } else if (result?.error === "no_subscriptions") {
+        setServerTestState("no_sub");
+      } else {
+        setServerTestState("failed");
+      }
+    } catch {
+      setServerTestState("failed");
+    }
+    setTimeout(() => setServerTestState(null), 6000);
   };
 
   return (
@@ -209,14 +228,10 @@ export default function NotificationSettings({
             note={health.swActive ? "active" : "not registered"}
           />
           <HealthRow
-            ok={health.periodicSyncRegistered}
-            warn={health.periodicSyncSupported && !health.periodicSyncRegistered}
-            label="Background wake-up"
-            note={
-              health.periodicSyncRegistered ? "registered"
-              : health.periodicSyncSupported ? "supported, not registered"
-              : "not supported on this platform"
-            }
+            ok={health.pushSubscribed}
+            warn={!health.pushSubscribed && health.swActive}
+            label="Push subscription"
+            note={health.pushSubscribed ? "registered" : "not set up"}
           />
           <HealthRow
             ok={health.alarmCount > 0}
@@ -225,6 +240,23 @@ export default function NotificationSettings({
             note={health.alarmCount === 0 ? "none queued" : `${health.alarmCount} queued`}
           />
         </div>
+
+        {/* Server push test */}
+        {granted && health.swActive && (
+          <div className="ns-server-test-row">
+            <button
+              className="ns-server-test-btn"
+              onClick={handleServerTest}
+              disabled={serverTestState === "loading"}>
+              <Server size={13} />
+              {serverTestState === "loading" ? "Sending…"
+                : serverTestState === "sent"    ? "✓ Check for notification"
+                : serverTestState === "no_sub"  ? "No subscription — reopen app"
+                : serverTestState === "failed"  ? "Failed — check Supabase secrets"
+                : "Test background push"}
+            </button>
+          </div>
+        )}
 
         {health.alarmCount > 0 && (
           <div className="ns-health-meta">
@@ -235,9 +267,9 @@ export default function NotificationSettings({
         {/* iOS explanation */}
         {health.isIOS && (
           <div className="ns-ios-note">
-            <strong>iOS note:</strong> Reminders fire when Nora is open or running in the
-            background. True background delivery requires a push server (coming soon).
-            For best results, add Nora to your Home Screen.
+            <strong>iOS:</strong> Background notifications are delivered via web push.
+            Tap "Test background push" above to verify your device is registered.
+            The app must be added to your Home Screen.
           </div>
         )}
 
@@ -245,7 +277,6 @@ export default function NotificationSettings({
         {!health.periodicSyncSupported && !health.isIOS && health.swActive && (
           <div className="ns-ios-note">
             Background wake-up is not available on this browser.
-            Reminders fire reliably when Nora is open or backgrounded.
             For Android background delivery, use Chrome and install Nora to your Home Screen.
           </div>
         )}
