@@ -529,8 +529,8 @@ export default function App() {
       }
       if (Array.isArray(data.groups) && data.groups.length) setGroups(data.groups);
       if (Array.isArray(data.notes)  && data.notes.length)  setNotes(data.notes);
-      if (Array.isArray(data.boards) && data.boards.length) setBoards(data.boards);
       const p = data.preferences ?? {};
+      if (Array.isArray(p.boards) && p.boards.length) setBoards(p.boards);
       if (p.accountName  != null) setAccountName(p.accountName);
       if (p.dark         != null) setDark(p.dark);
       if (p.reminderMins != null) setReminderMins(p.reminderMins);

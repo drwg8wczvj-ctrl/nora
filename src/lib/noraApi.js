@@ -95,9 +95,11 @@ export async function loadUserData() {
 
 export async function saveUserData({ tasks, groups, notes, preferences, boards }) {
   const { data: { user } } = await supabase.auth.getUser();
+  // boards is stored inside preferences JSON to avoid requiring a schema change
+  const prefsWithBoards = boards !== undefined ? { ...preferences, boards } : preferences;
   const { error } = await supabase
     .from("user_app_data")
-    .upsert({ user_id: user.id, tasks, groups, notes, preferences, boards });
+    .upsert({ user_id: user.id, tasks, groups, notes, preferences: prefsWithBoards });
   if (error) throw error;
 }
 

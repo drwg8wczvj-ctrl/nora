@@ -111,7 +111,7 @@ export default function MobileApp({ ctx }) {
         setMobileView("plan");
         setPlanSubView("day");
         setPlanDate(ctx.today);
-      }} />
+      }} onBoardsClick={() => setMobileView("boards")} />
 
       <main className="mob-main">
         {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} planDate={planDate} setPlanDate={setPlanDate} />}
@@ -127,7 +127,7 @@ export default function MobileApp({ ctx }) {
           ["plan",     "Plan",     <CalendarDays size={21} />],
           ["tasks",    "Tasks",    <CheckSquare size={21} />],
           ["notes",    "Notes",    <FileText size={21} />],
-          ["boards",   "Boards",   <Layers size={21} />],
+          ["status",   "Status",   <Activity size={21} />],
           ["settings", "Settings", <Settings size={21} />],
         ].map(([v, l, icon]) => (
           <button key={v}
@@ -275,7 +275,7 @@ export default function MobileApp({ ctx }) {
 }
 
 // ── Header ───────────────────────────────────────────────────
-function MobileHeader({ ctx, onLogoClick }) {
+function MobileHeader({ ctx, onLogoClick, onBoardsClick }) {
   const { today, dark } = ctx;
   const d = new Date(today + "T00:00:00");
   const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
@@ -289,6 +289,11 @@ function MobileHeader({ ctx, onLogoClick }) {
           alt="Nora" />
       </button>
       <span className="mob-header-date">{dateText}</span>
+      {onBoardsClick && (
+        <button className="mob-header-boards-btn" onClick={onBoardsClick} aria-label="Whiteboards">
+          <Layers size={18} />
+        </button>
+      )}
     </header>
   );
 }
