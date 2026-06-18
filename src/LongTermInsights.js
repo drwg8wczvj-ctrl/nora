@@ -1,9 +1,14 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { X, TrendingUp, TrendingDown, Minus, Activity, Zap, Wind, Brain, Moon, BarChart2 } from "lucide-react";
 
-// ── SVG sparkline ────────────────────────────────────────────────
-function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, minScale, maxScale, showDots = true }) {
+// ── SVG sparkline — interactive scrub ────────────────────────────
+function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, minScale, maxScale, showDots = true, onScrub }) {
+  const svgRef  = useRef(null);
+  const active  = useRef(false);
+  const [scrubIdx, setScrubIdx] = useState(null);
+
   if (!values || values.length < 2) return <div style={{ height }} />;
+
   const scaleMax = maxScale ?? Math.max(...values, 0.1);
   const scaleMin = minScale ?? Math.min(...values);
   const range = scaleMax - scaleMin || 1;
@@ -18,26 +23,80 @@ function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, 
     d += ` C ${cx} ${pts[i - 1].y} ${cx} ${pts[i].y} ${pts[i].x} ${pts[i].y}`;
   }
   const area = `${d} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`;
+
+  const resolveIdx = (clientX) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(frac * (values.length - 1));
+  };
+
+  const doScrub = (clientX) => {
+    const idx = resolveIdx(clientX);
+    if (idx == null) return;
+    setScrubIdx(idx);
+    onScrub?.(idx, values[idx]);
+  };
+
+  const endScrub = () => {
+    active.current = false;
+    setScrubIdx(null);
+    onScrub?.(null, null);
+  };
+
+  const scrubPt = scrubIdx != null ? pts[scrubIdx] : null;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height, display: "block" }}>
+    <svg ref={svgRef}
+      viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
+      style={{ width: "100%", height, display: "block", cursor: "crosshair", touchAction: "pan-y" }}
+      onMouseMove={(e) => { active.current = true; doScrub(e.clientX); }}
+      onMouseLeave={endScrub}
+      onTouchStart={(e) => { active.current = true; doScrub(e.touches[0].clientX); }}
+      onTouchMove={(e) => { if (active.current) doScrub(e.touches[0].clientX); }}
+      onTouchEnd={endScrub}>
       <line x1="0" y1="25" x2="100" y2="25" stroke="currentColor" opacity="0.06" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
       <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" opacity="0.08" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
       <line x1="0" y1="75" x2="100" y2="75" stroke="currentColor" opacity="0.06" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
       {fill && <path d={area} fill={color} opacity="0.12" />}
       <path d={d} stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      {showDots && pts.map((pt, i) => (
+      {/* Static dots — hidden while scrubbing */}
+      {showDots && !scrubPt && pts.map((pt, i) => (
         <circle key={i} cx={pt.x} cy={pt.y}
           r={i === pts.length - 1 ? "3.5" : "2.5"}
           fill={i === pts.length - 1 ? color : "var(--surface, #1a1a2e)"}
           stroke={color} strokeWidth="1.5" opacity={i === pts.length - 1 ? 1 : 0.75}
           vectorEffect="non-scaling-stroke" />
       ))}
+      {/* Scrub cursor + highlight dot */}
+      {scrubPt && (
+        <>
+          <line x1={scrubPt.x} y1="0" x2={scrubPt.x} y2={H}
+            stroke="currentColor" opacity="0.22" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+          <circle cx={scrubPt.x} cy={scrubPt.y} r="5"
+            fill={color} stroke="var(--bg, #0e0d1e)" strokeWidth="2.5"
+            vectorEffect="non-scaling-stroke" />
+        </>
+      )}
     </svg>
   );
 }
 
-// Y-axis + sparkline wrapper
-function SparkWithScale({ values, color, height, fill, minScale, maxScale, topLabel, bottomLabel, showDots, dateLabels }) {
+// Y-axis + sparkline wrapper with floating tooltip
+function SparkWithScale({ values, color, height, fill, minScale, maxScale, topLabel, bottomLabel, showDots, dateLabels, unit = "", onScrub }) {
+  const [scrub, setScrub] = useState(null); // { idx, value }
+
+  const handleScrub = (idx, value) => {
+    const s = idx != null ? { idx, value } : null;
+    setScrub(s);
+    onScrub?.(idx, value);
+  };
+
+  const tipXPct  = scrub != null ? (scrub.idx / Math.max(values.length - 1, 1)) * 100 : null;
+  const tipDate  = scrub != null && dateLabels ? dateLabels[scrub.idx] : null;
+  const fmtV     = (v) => v == null ? "" : typeof v === "number"
+    ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : String(v);
+
   return (
     <div className="lti-spark-wrap">
       <div className="lti-y-axis">
@@ -45,9 +104,20 @@ function SparkWithScale({ values, color, height, fill, minScale, maxScale, topLa
         <span className="lti-y-bot">{bottomLabel}</span>
       </div>
       <div className="lti-spark-area">
+        {scrub != null && (
+          <div className="lti-scrub-tip" style={{
+            left: `${tipXPct}%`,
+            transform: tipXPct > 72 ? "translateX(-100%)" : tipXPct < 14 ? "translateX(0)" : "translateX(-50%)",
+          }}>
+            <span className="lti-scrub-tip-val">{fmtV(scrub.value)}{unit}</span>
+            {tipDate && <span className="lti-scrub-tip-date">{tipDate}</span>}
+          </div>
+        )}
         <SparkLine values={values} color={color} height={height} fill={fill}
-          minScale={minScale} maxScale={maxScale} showDots={showDots} />
-        {dateLabels && (
+          minScale={minScale} maxScale={maxScale}
+          showDots={showDots && !scrub}
+          onScrub={handleScrub} />
+        {scrub == null && dateLabels && (
           <div className="lti-date-labels">
             <span>{dateLabels[0]}</span>
             <span>{dateLabels[dateLabels.length - 1]}</span>
@@ -182,6 +252,9 @@ const SLEEP_SCORE = { poor: 2, okay: 5, good: 8, great: 10 };
 export default function LongTermInsights({ dark, glass, metrics, tasks, onClose }) {
   const [range, setRange] = useState(30);
   const [activeMetric, setActiveMetric] = useState("energy");
+  const [readinessScrub, setReadinessScrub] = useState(null); // { idx, value, date }
+  const [timelineScrub,  setTimelineScrub]  = useState(null);
+  const [metricScrubs,   setMetricScrubs]   = useState({});   // { [key]: { value, date } }
 
   const entries = useMemo(() => getRange(metrics, range), [metrics, range]);
 
@@ -239,8 +312,10 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
                     <div className="lti-card-sub">Combined score from sleep, energy, and workload</div>
                   </div>
                   <div className="lti-big-num">
-                    {readinessSeries[readinessSeries.length - 1]}%
-                    <TrendBadge values={readinessSeries} />
+                    {readinessScrub != null ? `${readinessScrub.value}%` : `${readinessSeries[readinessSeries.length - 1]}%`}
+                    {readinessScrub != null
+                      ? <span className="lti-scrub-date-badge">{readinessScrub.date}</span>
+                      : <TrendBadge values={readinessSeries} />}
                   </div>
                 </div>
                 <SparkWithScale
@@ -248,19 +323,31 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
                   minScale={0} maxScale={100}
                   topLabel="100%" bottomLabel="0%"
                   showDots={readinessSeries.length <= 30}
-                  dateLabels={dates} />
+                  dateLabels={dates}
+                  unit="%"
+                  onScrub={(idx, val) => setReadinessScrub(idx != null ? { value: val, date: dates[idx] } : null)} />
               </div>
             )}
 
             {/* ── Condition timeline ── */}
             <div className="lti-card lti-card-full">
-              <div className="lti-card-title"><BarChart2 size={14} /> Condition Timeline</div>
+              <div className="lti-card-header" style={{ marginBottom: 10 }}>
+                <div className="lti-card-title"><BarChart2 size={14} /> Condition Timeline</div>
+                {timelineScrub != null && (
+                  <div className="lti-big-num" style={{ fontSize: 18 }}>
+                    {typeof timelineScrub.value === "number"
+                      ? (Number.isInteger(timelineScrub.value) ? timelineScrub.value : timelineScrub.value.toFixed(1))
+                      : timelineScrub.value}
+                    <span className="lti-scrub-date-badge">{timelineScrub.date}</span>
+                  </div>
+                )}
+              </div>
               <div className="lti-metric-tabs">
                 {METRIC_DEFS.map(m => (
                   <button key={m.key}
                     className={`lti-metric-tab${activeMetric === m.key ? " active" : ""}`}
                     style={activeMetric === m.key ? { borderColor: m.color, color: m.color, background: `${m.color}14` } : {}}
-                    onClick={() => setActiveMetric(m.key)}>
+                    onClick={() => { setActiveMetric(m.key); setTimelineScrub(null); }}>
                     {m.icon} {m.label}
                   </button>
                 ))}
@@ -281,7 +368,8 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
                     minScale={minS} maxScale={maxS}
                     topLabel={topLbl} bottomLabel={botLbl}
                     showDots={activeSeries.length <= 30}
-                    dateLabels={dates} />
+                    dateLabels={dates}
+                    onScrub={(idx, val) => setTimelineScrub(idx != null ? { value: val, date: dates[idx] } : null)} />
                 );
               })() : (
                 <p className="lti-mini-empty">Not enough data for this metric yet.</p>
@@ -294,20 +382,26 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
                 const series = extractSeries(enrichedEntries, m.key);
                 if (series.length < 2) return null;
                 const current = series[series.length - 1];
+                const ms = metricScrubs[m.key];
+                const displayVal = ms != null ? ms.value : current;
                 return (
                   <div key={m.key} className="lti-metric-card">
                     <div className="lti-metric-card-header">
                       <span className="lti-metric-icon" style={{ color: m.color }}>{m.icon}</span>
                       <span className="lti-metric-name">{m.label}</span>
-                      <TrendBadge values={series} />
+                      {ms != null
+                        ? <span className="lti-scrub-date-badge">{ms.date}</span>
+                        : <TrendBadge values={series} />}
                     </div>
                     <SparkWithScale
                       values={series} color={m.color} height={40}
                       minScale={0} maxScale={10}
                       topLabel="10" bottomLabel="0"
-                      showDots={series.length <= 14} />
+                      showDots={series.length <= 14}
+                      dateLabels={dates}
+                      onScrub={(idx, val) => setMetricScrubs(p => ({ ...p, [m.key]: idx != null ? { value: val, date: dates[idx] } : null }))} />
                     <div className="lti-metric-val">
-                      {typeof current === "number" ? (Number.isInteger(current) ? current : current.toFixed(1)) : current}
+                      {typeof displayVal === "number" ? (Number.isInteger(displayVal) ? displayVal : displayVal.toFixed(1)) : displayVal}
                       <span className="lti-metric-unit"> / 10</span>
                     </div>
                   </div>
