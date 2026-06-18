@@ -301,6 +301,30 @@
   background: var(--accent-light); border-color: rgba(124,58,237,.35); color: var(--accent);
 }
 
+/* Grid zoom bar */
+.mob-zoom-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 16px 6px;
+}
+.mob-zoom-btn {
+  width: 30px; height: 30px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-muted); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .12s; flex-shrink: 0;
+}
+.mob-zoom-btn:disabled { opacity: .35; cursor: default; }
+.mob-zoom-btn:not(:disabled):active { background: var(--surface); color: var(--text); }
+.mob-zoom-label {
+  font-size: 12px; font-weight: 700; color: var(--text-muted);
+  min-width: 38px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.mob-zoom-reset {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  background: none; border: none; cursor: pointer; padding: 4px 6px;
+  border-radius: 6px; transition: color .12s;
+}
+.mob-zoom-reset:active { color: var(--accent); }
+
 /* Filter bottom sheet */
 .mob-sheet-overlay {
   position: fixed; inset: 0;
@@ -708,6 +732,13 @@
 .mob-tt-task:active { opacity: .82; }
 .mob-tt-task.tt-done  { opacity: .38; }
 .mob-tt-task.tt-past  { opacity: .52; }
+/* Tiny task (too short to show text) — just a colored strip */
+.mob-tt-task.tt-tiny {
+  padding: 0;
+  border-radius: 3px;
+  align-items: center;
+  overflow: hidden;
+}
 .mob-tt-task.tt-next  {
   border-left-color: var(--accent);
   box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 22%, transparent);

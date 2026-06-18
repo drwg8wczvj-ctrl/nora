@@ -6,6 +6,7 @@ import {
   TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
   SkipForward, Sparkles, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
+  ZoomIn, ZoomOut,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
@@ -396,6 +397,7 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
                       filterType, filterGroup, filterComplex, hasFilters, onOpenFilters,
                       planDate, setPlanDate }) {
   const { today, tasks, doneToday, totalToday, pct } = ctx;
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const shiftDate = (delta) => {
     const d = new Date(planDate + "T00:00:00");
@@ -456,9 +458,24 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
           <DaySummary tasks={tasks} planDate={planDate} today={today}
             doneToday={doneToday} totalToday={totalToday} pct={pct} />
 
+          {dayMode === "grid" && (
+            <div className="mob-zoom-bar">
+              <button className="mob-zoom-btn" disabled={zoomLevel <= 0.5}
+                onClick={() => setZoomLevel(z => Math.max(0.5, parseFloat((z - 0.25).toFixed(2))))}>
+                <ZoomOut size={14} />
+              </button>
+              <span className="mob-zoom-label">{Math.round(zoomLevel * 100)}%</span>
+              <button className="mob-zoom-btn" disabled={zoomLevel >= 3}
+                onClick={() => setZoomLevel(z => Math.min(3, parseFloat((z + 0.25).toFixed(2))))}>
+                <ZoomIn size={14} />
+              </button>
+              <button className="mob-zoom-reset" onClick={() => setZoomLevel(1)}>Reset</button>
+            </div>
+          )}
+
           {dayMode === "list"
             ? <MobileHome ctx={ctx} planDate={planDate} planTasks={planTasks} />
-            : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks, effectiveDate: planDate ?? today }} />}
+            : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks, effectiveDate: planDate ?? today, zoomLevel }} />}
         </>
       )}
 
@@ -499,7 +516,7 @@ function MobileHome({ ctx, planDate, planTasks }) {
                 : tp === "break"    ? "#94a3b8"
                 : group?.color ?? "var(--accent)";
     const tMins = t.startHour != null ? t.startHour * 60 + (t.startMinute ?? 0) : null;
-    const isPast = tMins != null && tMins < nowMins;
+    const isPast = tMins != null && tMins < nowMins && effectiveDate === today;
     const isNext = t === nextTask;
     const isExp  = expandedId === t.id;
 
@@ -691,12 +708,12 @@ function MobileHome({ ctx, planDate, planTasks }) {
 
 // ── Grid view (timetable) — Google Calendar style ────────────
 function MobileGrid({ ctx }) {
-  const { todayTasks, groups, toggleTask, setEditingTask, setTasks, nowObj, effectiveDate, today } = ctx;
+  const { todayTasks, groups, toggleTask, setEditingTask, setTasks, nowObj, effectiveDate, today, zoomLevel = 1 } = ctx;
   const scrollRef = useRef(null);
   const gridRef   = useRef(null);
 
   // Layout constants — kept in a ref so the passive touchmove listener reads current values
-  const PX_H = 64;
+  const PX_H = Math.round(64 * zoomLevel);
   const PX_M = PX_H / 60;
 
   const scheduled = [...todayTasks]
@@ -745,7 +762,7 @@ function MobileGrid({ ctx }) {
 
   const nowMin  = nowObj.getHours() * 60 + nowObj.getMinutes();
   const nowTop  = (nowMin - firstH * 60) * PX_M;
-  const showNow = nowMin >= firstH * 60 && nowMin <= lastH * 60;
+  const showNow = effectiveDate === today && nowMin >= firstH * 60 && nowMin <= lastH * 60;
 
   // ── Drag state ───────────────────────────────────────────────
   const [dragId,      setDragId]      = useState(null);
@@ -932,15 +949,18 @@ function MobileGrid({ ctx }) {
           const gc    = tp === "deadline" ? "#ef4444"
                       : tp === "break"    ? "#94a3b8"
                       : group?.color ?? "var(--accent)";
-          const top    = isDragging ? dragTop : (t._s - firstH * 60) * PX_M;
-          const height = Math.max(36, (t._e - t._s) * PX_M - 3);
-          const isPast = t._s < nowMin;
+          const top       = isDragging ? dragTop : (t._s - firstH * 60) * PX_M;
+          const height    = Math.max(6, (t._e - t._s) * PX_M - 2);
+          const showTitle = height >= 18;
+          const showMeta  = height >= 42;
+          const isPast = effectiveDate === today && t._s < nowMin;
           const isNext = !isDragging && withCols.find(x => !x.completed && x._s >= nowMin) === t;
 
           return (
             <div key={t.id}
               className={[
                 "mob-tt-task",
+                height < 18     ? "tt-tiny"   : "",
                 t.completed      ? "tt-done"  : "",
                 isPast && !t.completed && !isDragging ? "tt-past"  : "",
                 isNext           ? "tt-next"  : "",
@@ -961,10 +981,12 @@ function MobileGrid({ ctx }) {
               onTouchStart={(e) => handleTaskTouchStart(e, t)}>
               {isDragging && <div className="mob-tt-drag-bar" />}
               <div className="mob-tt-inner">
-                <span className="mob-tt-title">
-                  {t.title || (tp === "break" ? "Break" : "Deadline")}
-                </span>
-                {height > 52 && (
+                {showTitle && (
+                  <span className="mob-tt-title">
+                    {t.title || (tp === "break" ? "Break" : "Deadline")}
+                  </span>
+                )}
+                {showMeta && (
                   <span className="mob-tt-meta">
                     {fmtTime(
                       isDragging ? dragH : t.startHour,
@@ -973,13 +995,13 @@ function MobileGrid({ ctx }) {
                   </span>
                 )}
               </div>
-              {tp === "task" && !isDragging && (
+              {tp === "task" && !isDragging && showTitle && (
                 <button className={`mob-tt-cb${t.completed ? " done" : ""}`}
                   onClick={e => { e.stopPropagation(); toggleTask(t.id); }}>
                   {t.completed && <Check size={9} strokeWidth={3} />}
                 </button>
               )}
-              {tp === "deadline" && <span className="mob-tt-dl-icon"><Flag size={10}/></span>}
+              {tp === "deadline" && showTitle && <span className="mob-tt-dl-icon"><Flag size={10}/></span>}
             </div>
           );
         })}
