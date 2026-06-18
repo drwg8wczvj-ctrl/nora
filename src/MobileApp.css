@@ -302,28 +302,28 @@
 }
 
 /* Grid zoom bar */
-.mob-zoom-bar {
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 16px 6px;
+/* Pinch-to-zoom percentage bubble */
+.mob-pinch-hint {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 300;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 20px; font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  padding: 10px 24px;
+  border-radius: 18px;
+  white-space: nowrap;
+  animation: mobPinchIn 0.1s ease both;
 }
-.mob-zoom-btn {
-  width: 30px; height: 30px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--surface-2);
-  color: var(--text-muted); display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all .12s; flex-shrink: 0;
+@keyframes mobPinchIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
-.mob-zoom-btn:disabled { opacity: .35; cursor: default; }
-.mob-zoom-btn:not(:disabled):active { background: var(--surface); color: var(--text); }
-.mob-zoom-label {
-  font-size: 12px; font-weight: 700; color: var(--text-muted);
-  min-width: 38px; text-align: center; font-variant-numeric: tabular-nums;
-}
-.mob-zoom-reset {
-  font-size: 11px; font-weight: 600; color: var(--text-muted);
-  background: none; border: none; cursor: pointer; padding: 4px 6px;
-  border-radius: 6px; transition: color .12s;
-}
-.mob-zoom-reset:active { color: var(--accent); }
 
 /* Filter bottom sheet */
 .mob-sheet-overlay {

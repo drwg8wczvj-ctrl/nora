@@ -6,7 +6,6 @@ import {
   TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
   SkipForward, Sparkles, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
-  ZoomIn, ZoomOut,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
@@ -458,24 +457,9 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
           <DaySummary tasks={tasks} planDate={planDate} today={today}
             doneToday={doneToday} totalToday={totalToday} pct={pct} />
 
-          {dayMode === "grid" && (
-            <div className="mob-zoom-bar">
-              <button className="mob-zoom-btn" disabled={zoomLevel <= 0.5}
-                onClick={() => setZoomLevel(z => Math.max(0.5, parseFloat((z - 0.25).toFixed(2))))}>
-                <ZoomOut size={14} />
-              </button>
-              <span className="mob-zoom-label">{Math.round(zoomLevel * 100)}%</span>
-              <button className="mob-zoom-btn" disabled={zoomLevel >= 3}
-                onClick={() => setZoomLevel(z => Math.min(3, parseFloat((z + 0.25).toFixed(2))))}>
-                <ZoomIn size={14} />
-              </button>
-              <button className="mob-zoom-reset" onClick={() => setZoomLevel(1)}>Reset</button>
-            </div>
-          )}
-
           {dayMode === "list"
             ? <MobileHome ctx={ctx} planDate={planDate} planTasks={planTasks} />
-            : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks, effectiveDate: planDate ?? today, zoomLevel }} />}
+            : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks, effectiveDate: planDate ?? today, zoomLevel, setZoomLevel }} />}
         </>
       )}
 
@@ -708,9 +692,19 @@ function MobileHome({ ctx, planDate, planTasks }) {
 
 // ── Grid view (timetable) — Google Calendar style ────────────
 function MobileGrid({ ctx }) {
-  const { todayTasks, groups, toggleTask, setEditingTask, setTasks, nowObj, effectiveDate, today, zoomLevel = 1 } = ctx;
+  const { todayTasks, groups, toggleTask, setEditingTask, setTasks, nowObj, effectiveDate, today, zoomLevel = 1, setZoomLevel } = ctx;
   const scrollRef = useRef(null);
   const gridRef   = useRef(null);
+
+  // Pinch-to-zoom
+  const [zoomHint, setZoomHint]  = useState(null); // null = hidden; number = % shown
+  const pinchRef                 = useRef(null);    // { startDist, startZoom }
+  const zoomHintTimerRef         = useRef(null);
+  const zoomLevelRef             = useRef(zoomLevel);
+  const setZoomRef               = useRef(setZoomLevel ?? (() => {}));
+  // Keep refs current every render (stable setters — just being explicit)
+  zoomLevelRef.current = zoomLevel;
+  setZoomRef.current   = setZoomLevel ?? (() => {});
 
   // Layout constants — kept in a ref so the passive touchmove listener reads current values
   const PX_H = Math.round(64 * zoomLevel);
@@ -773,19 +767,50 @@ function MobileGrid({ ctx }) {
   const longPressRef  = useRef(null);
   const clickBlockRef = useRef(false); // prevents click from firing after drag ends
 
-  // Non-passive touchmove — must use addEventListener directly (React synthetic events are passive)
+  // Non-passive touch handlers — must use addEventListener (React synthetic events are passive)
   useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
 
+    const onStart = (e) => {
+      if (e.touches.length !== 2) return;
+      // Two fingers → start pinch; cancel any pending drag
+      clearTimeout(longPressRef.current);
+      dragStartRef.current = null;
+      const [t0, t1] = [e.touches[0], e.touches[1]];
+      const dx = t0.clientX - t1.clientX;
+      const dy = t0.clientY - t1.clientY;
+      pinchRef.current = {
+        startDist: Math.sqrt(dx * dx + dy * dy),
+        startZoom: zoomLevelRef.current,
+      };
+      e.preventDefault();
+    };
+
     const onMove = (e) => {
+      // ── Pinch zoom (2 fingers) ──────────────────────────
+      if (e.touches.length === 2) {
+        if (!pinchRef.current) return;
+        e.preventDefault();
+        const [t0, t1] = [e.touches[0], e.touches[1]];
+        const dx  = t0.clientX - t1.clientX;
+        const dy  = t0.clientY - t1.clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const raw  = pinchRef.current.startZoom * (dist / pinchRef.current.startDist);
+        const next = parseFloat(Math.max(0.5, Math.min(3, raw)).toFixed(2));
+        setZoomRef.current(next);
+        // Show transient percentage indicator
+        clearTimeout(zoomHintTimerRef.current);
+        setZoomHint(Math.round(next * 100));
+        zoomHintTimerRef.current = setTimeout(() => setZoomHint(null), 1200);
+        return;
+      }
+
+      // ── Single-finger drag ──────────────────────────────
       const ref = dragStartRef.current;
       if (!ref) return;
-
       const touch = e.touches[0];
-
       if (!ref.dragging) {
-        // Cancel long-press if user scrolls before 300 ms
         const dy = Math.abs(touch.clientY - ref.startY);
         const dx = Math.abs(touch.clientX - ref.startX);
         if (dy > 8 || dx > 8) {
@@ -794,22 +819,22 @@ function MobileGrid({ ctx }) {
         }
         return;
       }
-
-      // In drag mode — lock scroll
       e.preventDefault();
-
       const { firstH: fH, PX_M: pxm, totalH: tH } = layoutRef.current;
       const dy     = touch.clientY - ref.startY;
       const newTop = Math.max(0, Math.min(tH - 36, ref.origTop + dy));
       const rawMin = fH * 60 + newTop / pxm;
       const snap   = Math.max(0, Math.min(1439, Math.round(rawMin / 5) * 5));
-
       setDragTop(newTop);
       setDragTimeMin(snap);
     };
 
-    container.addEventListener("touchmove", onMove, { passive: false });
-    return () => container.removeEventListener("touchmove", onMove);
+    container.addEventListener("touchstart", onStart, { passive: false });
+    container.addEventListener("touchmove",  onMove,  { passive: false });
+    return () => {
+      container.removeEventListener("touchstart", onStart);
+      container.removeEventListener("touchmove",  onMove);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTaskTouchStart = useCallback((e, task) => {
@@ -844,7 +869,10 @@ function MobileGrid({ ctx }) {
     }, 300);
   }, []); // eslint-disable-line
 
-  const handleContainerTouchEnd = useCallback(() => {
+  const handleContainerTouchEnd = useCallback((e) => {
+    // End pinch when fewer than 2 fingers remain
+    if (!e || e.touches.length < 2) pinchRef.current = null;
+
     clearTimeout(longPressRef.current);
     const ref = dragStartRef.current;
     dragStartRef.current = null;
@@ -904,6 +932,11 @@ function MobileGrid({ ctx }) {
       className="mob-timetable"
       onTouchEnd={handleContainerTouchEnd}
       onTouchCancel={handleContainerTouchEnd}>
+
+      {/* Pinch-zoom percentage indicator */}
+      {zoomHint !== null && (
+        <div className="mob-pinch-hint">{zoomHint}%</div>
+      )}
 
       <div
         ref={gridRef}
