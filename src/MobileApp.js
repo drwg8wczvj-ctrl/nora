@@ -1945,6 +1945,8 @@ function MobileSettings({ ctx }) {
           setReminderMins={setReminderMins}
           health={ctx.notifHealth}
           sendTestNotification={ctx.sendTestNotification}
+          testServerPush={ctx.testServerPush}
+          forceResubscribe={ctx.forceResubscribe}
         />
       </div>
 

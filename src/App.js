@@ -2609,6 +2609,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       requestNotifPermission, showNotification,
       notifBannerVisible, dismissNotifBanner,
       notifHealth, sendTestNotification,
+      testServerPush, forceResubscribe: forceResubscribePush,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
