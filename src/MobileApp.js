@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Check, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
   FileText, Trash2, User, RotateCcw, CalendarDays,
@@ -458,7 +458,7 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
 
           {dayMode === "list"
             ? <MobileHome ctx={ctx} planDate={planDate} planTasks={planTasks} />
-            : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks }} />}
+            : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks, effectiveDate: planDate ?? today }} />}
         </>
       )}
 
@@ -660,18 +660,6 @@ function MobileHome({ ctx, planDate, planTasks }) {
           }}>
             <Sparkles size={15} /> Let Nora plan my day
           </button>
-          <button className="mob-empty-add-task" onClick={() => {
-            ctx.setEditingTask({
-              id: uid(), type: "task",
-              title: "", date: effectiveDate,
-              startHour: null, startMinute: null,
-              duration: null, repeat: null, repeatEnd: null,
-              completed: false, notes: "", complexity: null,
-              groupId: null, reminderOffset: null,
-            });
-          }}>
-            <Plus size={14} /> Add task
-          </button>
         </div>
       )}
 
@@ -701,10 +689,15 @@ function MobileHome({ ctx, planDate, planTasks }) {
   );
 }
 
-// ── Grid view (timetable) ────────────────────────────────────
+// ── Grid view (timetable) — Google Calendar style ────────────
 function MobileGrid({ ctx }) {
-  const { todayTasks, groups, toggleTask, setEditingTask, nowObj } = ctx;
+  const { todayTasks, groups, toggleTask, setEditingTask, setTasks, nowObj, effectiveDate, today } = ctx;
   const scrollRef = useRef(null);
+  const gridRef   = useRef(null);
+
+  // Layout constants — kept in a ref so the passive touchmove listener reads current values
+  const PX_H = 64;
+  const PX_M = PX_H / 60;
 
   const scheduled = [...todayTasks]
     .filter((t) => t.startHour != null)
@@ -712,22 +705,23 @@ function MobileGrid({ ctx }) {
   const unscheduled = todayTasks.filter((t) => t.startHour == null);
   const getGroup = (id) => groups.find((g) => g.id === id);
 
-  const PX_H = 64;
-  const PX_M = PX_H / 60;
-
-  // Hour range
+  // Always show 07:00–22:00 minimum; expand to fit tasks
   const firstH = scheduled.length
-    ? Math.max(0, scheduled[0].startHour - 1)
-    : 8;
+    ? Math.max(0, Math.min(7, scheduled[0].startHour - 1))
+    : 7;
   const lastH = scheduled.length
-    ? Math.min(24, Math.ceil(Math.max(...scheduled.map(
+    ? Math.min(24, Math.max(22, Math.ceil(Math.max(...scheduled.map(
         t => t.startHour + ((t.startMinute ?? 0) + (t.duration ?? 60)) / 60
-      ))) + 1)
-    : 20;
-  const hours = Array.from({ length: lastH - firstH + 1 }, (_, i) => firstH + i);
+      ))) + 1))
+    : 22;
+  const hours  = Array.from({ length: lastH - firstH + 1 }, (_, i) => firstH + i);
   const totalH = (lastH - firstH + 1) * PX_H;
 
-  // Assign columns to handle time overlaps
+  // Keep a ref of layout values so the passive touchmove handler (added once) sees current values
+  const layoutRef = useRef({ firstH, PX_M, totalH });
+  layoutRef.current = { firstH, PX_M, totalH };
+
+  // Overlap columns
   const withCols = (() => {
     const res = scheduled.map(t => ({
       ...t,
@@ -749,99 +743,265 @@ function MobileGrid({ ctx }) {
     return res;
   })();
 
-  const nowMin = nowObj.getHours() * 60 + nowObj.getMinutes();
-  const nowTop = (nowMin - firstH * 60) * PX_M;
+  const nowMin  = nowObj.getHours() * 60 + nowObj.getMinutes();
+  const nowTop  = (nowMin - firstH * 60) * PX_M;
   const showNow = nowMin >= firstH * 60 && nowMin <= lastH * 60;
 
+  // ── Drag state ───────────────────────────────────────────────
+  const [dragId,      setDragId]      = useState(null);
+  const [dragTop,     setDragTop]     = useState(0);
+  const [dragTimeMin, setDragTimeMin] = useState(0);
+
+  const dragStartRef  = useRef(null); // { taskId, startY, startX, origTop, origMin, origH, origM, dragging }
+  const longPressRef  = useRef(null);
+  const clickBlockRef = useRef(false); // prevents click from firing after drag ends
+
+  // Non-passive touchmove — must use addEventListener directly (React synthetic events are passive)
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const onMove = (e) => {
+      const ref = dragStartRef.current;
+      if (!ref) return;
+
+      const touch = e.touches[0];
+
+      if (!ref.dragging) {
+        // Cancel long-press if user scrolls before 300 ms
+        const dy = Math.abs(touch.clientY - ref.startY);
+        const dx = Math.abs(touch.clientX - ref.startX);
+        if (dy > 8 || dx > 8) {
+          clearTimeout(longPressRef.current);
+          dragStartRef.current = null;
+        }
+        return;
+      }
+
+      // In drag mode — lock scroll
+      e.preventDefault();
+
+      const { firstH: fH, PX_M: pxm, totalH: tH } = layoutRef.current;
+      const dy     = touch.clientY - ref.startY;
+      const newTop = Math.max(0, Math.min(tH - 36, ref.origTop + dy));
+      const rawMin = fH * 60 + newTop / pxm;
+      const snap   = Math.max(0, Math.min(1439, Math.round(rawMin / 5) * 5));
+
+      setDragTop(newTop);
+      setDragTimeMin(snap);
+    };
+
+    container.addEventListener("touchmove", onMove, { passive: false });
+    return () => container.removeEventListener("touchmove", onMove);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleTaskTouchStart = useCallback((e, task) => {
+    const touch   = e.touches[0];
+    const origMin = task.startHour * 60 + (task.startMinute ?? 0);
+    const { firstH: fH, PX_M: pxm } = layoutRef.current;
+    const origTop = (origMin - fH * 60) * pxm;
+
+    dragStartRef.current = {
+      taskId: task.id,
+      startY: touch.clientY,
+      startX: touch.clientX,
+      origTop,
+      origMin,
+      origH: task.startHour,
+      origM: task.startMinute ?? 0,
+      dragging: false,
+    };
+
+    clearTimeout(longPressRef.current);
+    longPressRef.current = setTimeout(() => {
+      const ref = dragStartRef.current;
+      if (!ref || ref.taskId !== task.id) return;
+
+      navigator.vibrate?.(50);
+      ref.dragging = true;
+      clickBlockRef.current = true;
+
+      setDragId(task.id);
+      setDragTop(origTop);
+      setDragTimeMin(origMin);
+    }, 300);
+  }, []); // eslint-disable-line
+
+  const handleContainerTouchEnd = useCallback(() => {
+    clearTimeout(longPressRef.current);
+    const ref = dragStartRef.current;
+    dragStartRef.current = null;
+
+    if (!ref?.dragging) {
+      setDragId(null);
+      return;
+    }
+
+    // Snap to 5-minute grid
+    const h = Math.max(0, Math.min(23, Math.floor(dragTimeMin / 60)));
+    const m = Math.min(55, Math.round((dragTimeMin % 60) / 5) * 5);
+
+    if (h !== ref.origH || m !== ref.origM) {
+      setTasks(p => p.map(t =>
+        t.id === ref.taskId ? { ...t, startHour: h, startMinute: m } : t
+      ));
+    }
+
+    setDragId(null);
+    // Block the synthetic click that fires after touchend on mobile
+    setTimeout(() => { clickBlockRef.current = false; }, 80);
+  }, [dragTimeMin, setTasks]);
+
+  // Tap on grid background → create task at that time
+  const handleGridClick = useCallback((e) => {
+    if (e.target !== gridRef.current) return;
+    const rect     = gridRef.current.getBoundingClientRect();
+    const y        = e.clientY - rect.top;
+    const { firstH: fH, PX_M: pxm } = layoutRef.current;
+    const totalMin = fH * 60 + Math.round(y / pxm);
+    const h        = Math.max(0, Math.min(23, Math.floor(totalMin / 60)));
+    const m        = Math.min(55, Math.round((totalMin % 60) / 5) * 5);
+    setEditingTask({
+      id: uid(), type: "task",
+      title: "", date: effectiveDate ?? today,
+      startHour: h, startMinute: m,
+      duration: 60, repeat: null, repeatEnd: null,
+      completed: false, notes: "", complexity: null,
+      groupId: null, reminderOffset: null,
+    });
+  }, [setEditingTask, effectiveDate, today]);
+
+  // Auto-scroll to now on mount
   useEffect(() => {
     if (scrollRef.current && showNow) {
       scrollRef.current.scrollTop = Math.max(0, nowTop - 100);
     }
   }, []); // eslint-disable-line
 
-  if (scheduled.length === 0 && unscheduled.length === 0) {
-    return (
-      <div className="mob-empty-state" style={{ margin: "0 16px" }}>
-        <Sparkles size={36} style={{ opacity: .15 }} />
-        <p>No tasks for this day.</p>
-      </div>
-    );
-  }
+  const dragH = Math.max(0, Math.min(23, Math.floor(dragTimeMin / 60)));
+  const dragM = dragTimeMin % 60;
 
   return (
-    <div ref={scrollRef} className="mob-timetable">
-      {scheduled.length > 0 && (
-        <div className="mob-tt-grid" style={{ height: totalH }}>
-          {/* Hour lines */}
-          {hours.map(h => (
-            <div key={h} className="mob-tt-hour" style={{ top: (h - firstH) * PX_H }}>
-              <span className="mob-tt-hlabel">{fmtTime(h, 0).replace(":00", "")}</span>
-              <span className="mob-tt-hline" />
-            </div>
-          ))}
+    <div
+      ref={scrollRef}
+      className="mob-timetable"
+      onTouchEnd={handleContainerTouchEnd}
+      onTouchCancel={handleContainerTouchEnd}>
 
-          {/* Current time indicator */}
-          {showNow && (
-            <div className="mob-tt-now" style={{ top: nowTop }}>
-              <span className="mob-tt-ndot" />
-              <span className="mob-tt-nbar" />
-            </div>
-          )}
+      <div
+        ref={gridRef}
+        className="mob-tt-grid"
+        style={{ height: totalH }}
+        onClick={handleGridClick}>
 
-          {/* Tasks */}
-          {withCols.map(t => {
-            const tp = t.type ?? "task";
-            const group = getGroup(t.groupId);
-            const gc = tp === "deadline" ? "#ef4444"
-                     : tp === "break"    ? "#94a3b8"
-                     : group?.color ?? "var(--accent)";
-            const top    = (t._s - firstH * 60) * PX_M;
-            const height = Math.max(36, (t._e - t._s) * PX_M - 3);
-            const isPast = t._s < nowMin;
-            const isNext = withCols.find(x => !x.completed && x._s >= nowMin) === t;
+        {/* Hour lines */}
+        {hours.map(h => (
+          <div key={h} className="mob-tt-hour" style={{ top: (h - firstH) * PX_H }}>
+            <span className="mob-tt-hlabel">{fmtTime(h, 0)}</span>
+            <span className="mob-tt-hline" />
+          </div>
+        ))}
 
-            return (
-              <div key={t.id}
-                className={`mob-tt-task${t.completed ? " tt-done" : ""}${isPast && !t.completed ? " tt-past" : ""}${isNext ? " tt-next" : ""}${tp === "break" ? " tt-break" : ""}${tp === "deadline" ? " tt-dl" : ""}`}
-                style={{ top, height, "--gc": gc, "--col": t._col, "--nc": t._nc }}
-                onClick={() => setEditingTask(t)}>
-                <div className="mob-tt-inner">
-                  <span className="mob-tt-title">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
-                  {height > 52 && (
-                    <span className="mob-tt-meta">
-                      {fmtTime(t.startHour, t.startMinute ?? 0)}{t.duration ? ` · ${fmtDur(t.duration)}` : ""}
-                    </span>
-                  )}
-                </div>
-                {tp === "task" && (
-                  <button className={`mob-tt-cb${t.completed ? " done" : ""}`}
-                    onClick={e => { e.stopPropagation(); toggleTask(t.id); }}>
-                    {t.completed && <Check size={9} strokeWidth={3} />}
-                  </button>
+        {/* Empty-day hint */}
+        {scheduled.length === 0 && (
+          <div className="mob-tt-empty-hint" style={{ top: (totalH / 2) - 20 }}>
+            Tap to schedule a task
+          </div>
+        )}
+
+        {/* Current time indicator */}
+        {showNow && (
+          <div className="mob-tt-now" style={{ top: nowTop }}>
+            <span className="mob-tt-ndot" />
+            <span className="mob-tt-nbar" />
+          </div>
+        )}
+
+        {/* Drag time badge — shows current minute while dragging */}
+        {dragId && (
+          <div className="mob-tt-drag-badge" style={{ top: dragTop }}>
+            {fmtTime(dragH, dragM)}
+          </div>
+        )}
+
+        {/* Tasks */}
+        {withCols.map(t => {
+          const isDragging = dragId === t.id;
+          const tp    = t.type ?? "task";
+          const group = getGroup(t.groupId);
+          const gc    = tp === "deadline" ? "#ef4444"
+                      : tp === "break"    ? "#94a3b8"
+                      : group?.color ?? "var(--accent)";
+          const top    = isDragging ? dragTop : (t._s - firstH * 60) * PX_M;
+          const height = Math.max(36, (t._e - t._s) * PX_M - 3);
+          const isPast = t._s < nowMin;
+          const isNext = !isDragging && withCols.find(x => !x.completed && x._s >= nowMin) === t;
+
+          return (
+            <div key={t.id}
+              className={[
+                "mob-tt-task",
+                t.completed      ? "tt-done"  : "",
+                isPast && !t.completed && !isDragging ? "tt-past"  : "",
+                isNext           ? "tt-next"  : "",
+                tp === "break"   ? "tt-break" : "",
+                tp === "deadline"? "tt-dl"    : "",
+                isDragging       ? "tt-dragging" : "",
+              ].filter(Boolean).join(" ")}
+              style={{
+                top, height,
+                "--gc":  gc,
+                "--col": isDragging ? 0 : t._col,
+                "--nc":  isDragging ? 1 : t._nc,
+              }}
+              onClick={() => {
+                if (clickBlockRef.current) return;
+                setEditingTask(t);
+              }}
+              onTouchStart={(e) => handleTaskTouchStart(e, t)}>
+              <div className="mob-tt-inner">
+                <span className="mob-tt-title">
+                  {t.title || (tp === "break" ? "Break" : "Deadline")}
+                </span>
+                {height > 52 && (
+                  <span className="mob-tt-meta">
+                    {fmtTime(
+                      isDragging ? dragH : t.startHour,
+                      isDragging ? dragM : (t.startMinute ?? 0)
+                    )}{t.duration ? ` · ${fmtDur(t.duration)}` : ""}
+                  </span>
                 )}
-                {tp === "deadline" && <span className="mob-tt-dl-icon"><Flag size={10}/></span>}
               </div>
-            );
-          })}
-        </div>
-      )}
+              {tp === "task" && !isDragging && (
+                <button className={`mob-tt-cb${t.completed ? " done" : ""}`}
+                  onClick={e => { e.stopPropagation(); toggleTask(t.id); }}>
+                  {t.completed && <Check size={9} strokeWidth={3} />}
+                </button>
+              )}
+              {tp === "deadline" && <span className="mob-tt-dl-icon"><Flag size={10}/></span>}
+            </div>
+          );
+        })}
+      </div>
 
       {/* Unscheduled tasks */}
       {unscheduled.length > 0 && (
         <div className="mob-tt-unsched">
           <p className="mob-tt-usec-lbl">Unscheduled</p>
           {unscheduled.map(t => {
-            const tp = t.type ?? "task";
+            const tp    = t.type ?? "task";
             const group = getGroup(t.groupId);
-            const gc = tp === "deadline" ? "#ef4444"
-                     : tp === "break"    ? "#94a3b8"
-                     : group?.color ?? "var(--accent)";
+            const gc    = tp === "deadline" ? "#ef4444"
+                        : tp === "break"    ? "#94a3b8"
+                        : group?.color ?? "var(--accent)";
             return (
               <div key={t.id}
                 className={`mob-tt-ui${t.completed ? " tt-done" : ""}`}
                 style={{ "--gc": gc }}
                 onClick={() => setEditingTask(t)}>
-                <span className="mob-tt-title" style={{ flex:1 }}>{t.title || (tp==="break"?"Break":"Task")}</span>
+                <span className="mob-tt-title" style={{ flex: 1 }}>
+                  {t.title || (tp === "break" ? "Break" : "Task")}
+                </span>
                 {tp === "task" && (
                   <button className={`mob-tt-cb${t.completed ? " done" : ""}`}
                     onClick={e => { e.stopPropagation(); toggleTask(t.id); }}>
@@ -1970,7 +2130,7 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
 function MobileEditModal({ ctx }) {
   const { draft, setDraft, saveTask, deleteTask, groups } = ctx; // eslint-disable-line
 
-  const HOURS_RANGE = Array.from({ length: 18 }, (_, i) => i + 6);
+  const HOURS_RANGE = Array.from({ length: 24 }, (_, i) => i);
 
   return (
     <div className="mob-modal-overlay" onClick={() => ctx.setEditingTask(null)}>
@@ -2032,8 +2192,8 @@ function MobileEditModal({ ctx }) {
                 disabled={draft.startHour == null}
                 value={draft.startMinute ?? 0}
                 onChange={(e) => setDraft((d) => ({ ...d, startMinute: Number(e.target.value) }))}>
-                {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
-                  <option key={m} value={m}>{`:${pad(m)}`}</option>
+                {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                  <option key={m} value={m}>:{pad(m)}</option>
                 ))}
               </select>
             </div>
@@ -2078,6 +2238,23 @@ function MobileEditModal({ ctx }) {
                     style={{ "--gc": g.color }}
                     onClick={() => setDraft((d) => ({ ...d, groupId: d.groupId === g.id ? null : g.id }))}>
                     <span className="mob-gdot" />{g.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Complexity */}
+          {(draft.type ?? "task") === "task" && (
+            <div className="mob-modal-field">
+              <label className="mob-modal-label">Complexity</label>
+              <div className="mob-type-row">
+                {[["easy","Easy","#22c55e"],["medium","Medium","#f59e0b"],["hard","Hard","#ef4444"]].map(([val, lbl, color]) => (
+                  <button key={val}
+                    className={`mob-type-btn mob-complexity-btn${draft.complexity === val ? " active" : ""}`}
+                    style={draft.complexity === val ? { background: color + "22", borderColor: color, color } : {}}
+                    onClick={() => setDraft((d) => ({ ...d, complexity: d.complexity === val ? null : val }))}>
+                    {lbl}
                   </button>
                 ))}
               </div>

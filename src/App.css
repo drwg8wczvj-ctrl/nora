@@ -679,6 +679,21 @@
   pointer-events: none; z-index: 10; border-radius: 1px;
 }
 
+.tl-drag-time {
+  position: absolute;
+  left: -52px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 5px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
 /* ── Task Chip (unscheduled) ───────────────────────────── */
 .task-chip {
   display: flex; flex-direction: column; gap: 8px;

@@ -2472,7 +2472,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
   const handleTimelineDragOver = (e) => {
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
-    setDragOver({ y: e.clientY - rect.top });
+    const snap = snapToGrid(e);
+    setDragOver({ y: e.clientY - rect.top, snap });
   };
 
   const handleTimelineDrop = (e) => {
@@ -3129,7 +3130,13 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
                   {/* Drag position indicator */}
                   {dragOver?.y != null && (
-                    <div className="tl-drag-line" style={{ top: dragOver.y }} />
+                    <div className="tl-drag-line" style={{ top: dragOver.y }}>
+                      {dragOver.snap && (
+                        <span className="tl-drag-time">
+                          {fmtTime(dragOver.snap.hour, dragOver.snap.minute)}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
