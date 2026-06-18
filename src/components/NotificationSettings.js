@@ -96,7 +96,10 @@ export default function NotificationSettings({
     setServerTestErrors([]);
     try {
       const result = await testServerPush();
-      if (result?.ok && result?.sent > 0) {
+      if (result === null) {
+        setServerTestState("failed");
+        setServerTestErrors(["null_response: function crashed or no session"]);
+      } else if (result?.ok && result?.sent > 0) {
         setServerTestState("sent");
         setTimeout(() => setServerTestState(null), 6000);
       } else if (result?.error === "no_subscriptions") {
@@ -104,11 +107,17 @@ export default function NotificationSettings({
         setTimeout(() => setServerTestState(null), 6000);
       } else {
         setServerTestState("failed");
-        if (result?.errors?.length) setServerTestErrors(result.errors);
-        // Don't auto-dismiss on failure so user can read the error
+        // Show webpush errors array, or top-level error string if no array
+        const details = result?.errors?.length
+          ? result.errors
+          : result?.error
+          ? [`server_error: ${result.error}`]
+          : ["unknown: no error detail returned"];
+        setServerTestErrors(details);
       }
-    } catch {
+    } catch (err) {
       setServerTestState("failed");
+      setServerTestErrors([`exception: ${err?.message ?? String(err)}`]);
     }
   };
 
