@@ -1626,7 +1626,7 @@ export default function App() {
     if (checkup.restedScore  != null) setRelaxation(checkup.restedScore); // rested ↔ low stress
     if (checkup.clarityScore != null) setFocus(checkup.clarityScore);     // clarity ↔ focus
     // Sync Sleep & Recovery
-    if (checkup.sleepQuality) setSleepQuality(checkup.sleepQuality);
+    if (checkup.sleepQuality) setSleepQuality(checkup.sleepQuality === "great" ? "good" : checkup.sleepQuality);
     // Save coaching insights
     if (checkup.bedtime)  setUserPrefs(p => ({ ...p, typical_bedtime: checkup.bedtime }));
     if (checkup.wakeTime) setUserPrefs(p => ({ ...p, typical_wake_time: checkup.wakeTime }));

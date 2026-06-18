@@ -2,17 +2,16 @@ import React, { useState, useMemo } from "react";
 import { X, TrendingUp, TrendingDown, Minus, Activity, Zap, Wind, Brain, Moon, BarChart2 } from "lucide-react";
 
 // ── SVG sparkline ────────────────────────────────────────────────
-function SparkLine({ values, color = "var(--accent)", height = 48, fill = true }) {
+function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, minScale, maxScale, showDots = true }) {
   if (!values || values.length < 2) return <div style={{ height }} />;
-  const max = Math.max(...values, 0.1);
-  const min = Math.min(...values);
-  const range = max - min || 1;
+  const scaleMax = maxScale ?? Math.max(...values, 0.1);
+  const scaleMin = minScale ?? Math.min(...values);
+  const range = scaleMax - scaleMin || 1;
   const W = 100, H = 100;
   const pts = values.map((v, i) => ({
     x: (i / (values.length - 1)) * W,
-    y: H - ((v - min) / range) * H,
+    y: H - ((v - scaleMin) / range) * H,
   }));
-  // smooth bezier
   let d = `M ${pts[0].x} ${pts[0].y}`;
   for (let i = 1; i < pts.length; i++) {
     const cx = (pts[i - 1].x + pts[i].x) / 2;
@@ -21,9 +20,41 @@ function SparkLine({ values, color = "var(--accent)", height = 48, fill = true }
   const area = `${d} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height, display: "block" }}>
+      <line x1="0" y1="25" x2="100" y2="25" stroke="currentColor" opacity="0.06" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+      <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" opacity="0.08" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+      <line x1="0" y1="75" x2="100" y2="75" stroke="currentColor" opacity="0.06" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
       {fill && <path d={area} fill={color} opacity="0.12" />}
       <path d={d} stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      {showDots && pts.map((pt, i) => (
+        <circle key={i} cx={pt.x} cy={pt.y}
+          r={i === pts.length - 1 ? "3.5" : "2.5"}
+          fill={i === pts.length - 1 ? color : "var(--surface, #1a1a2e)"}
+          stroke={color} strokeWidth="1.5" opacity={i === pts.length - 1 ? 1 : 0.75}
+          vectorEffect="non-scaling-stroke" />
+      ))}
     </svg>
+  );
+}
+
+// Y-axis + sparkline wrapper
+function SparkWithScale({ values, color, height, fill, minScale, maxScale, topLabel, bottomLabel, showDots, dateLabels }) {
+  return (
+    <div className="lti-spark-wrap">
+      <div className="lti-y-axis">
+        <span className="lti-y-top">{topLabel}</span>
+        <span className="lti-y-bot">{bottomLabel}</span>
+      </div>
+      <div className="lti-spark-area">
+        <SparkLine values={values} color={color} height={height} fill={fill}
+          minScale={minScale} maxScale={maxScale} showDots={showDots} />
+        {dateLabels && (
+          <div className="lti-date-labels">
+            <span>{dateLabels[0]}</span>
+            <span>{dateLabels[dateLabels.length - 1]}</span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -47,7 +78,7 @@ function HourBars({ hourCounts, peakHour }) {
       {hours.map(h => (
         <div key={h} className={`lti-hour-bar-wrap${h === peakHour ? " peak" : ""}`}>
           <div className="lti-hour-bar" style={{ height: `${Math.max(2, ((hourCounts[h] || 0) / max) * 100)}%` }} />
-          {h % 6 === 0 && <span className="lti-hour-lbl">{h === 0 ? "12a" : h === 12 ? "12p" : h < 12 ? `${h}a` : `${h - 12}p`}</span>}
+          {h % 6 === 0 && <span className="lti-hour-lbl">{h === 0 ? "0:00" : `${h}:00`}</span>}
         </div>
       ))}
     </div>
@@ -212,10 +243,12 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
                     <TrendBadge values={readinessSeries} />
                   </div>
                 </div>
-                <SparkLine values={readinessSeries} color="#818cf8" height={72} />
-                <div className="lti-date-labels">
-                  <span>{dates[0]}</span><span>{dates[dates.length - 1]}</span>
-                </div>
+                <SparkWithScale
+                  values={readinessSeries} color="#818cf8" height={72}
+                  minScale={0} maxScale={100}
+                  topLabel="100%" bottomLabel="0%"
+                  showDots={readinessSeries.length <= 30}
+                  dateLabels={dates} />
               </div>
             )}
 
@@ -232,17 +265,25 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
                   </button>
                 ))}
               </div>
-              {activeSeries.length >= 2 ? (
-                <>
-                  <SparkLine
+              {activeSeries.length >= 2 ? (() => {
+                const def = METRIC_DEFS.find(m => m.key === activeMetric);
+                const isReadiness = activeMetric === "readinessScore";
+                const isSleep = activeMetric === "sleepScore";
+                const maxS = isReadiness ? 100 : isSleep ? 10 : 10;
+                const minS = 0;
+                const topLbl = isReadiness ? "100%" : isSleep ? "10" : "10";
+                const botLbl = isReadiness ? "0%" : "0";
+                return (
+                  <SparkWithScale
                     values={activeSeries}
-                    color={METRIC_DEFS.find(m => m.key === activeMetric)?.color ?? "var(--accent)"}
-                    height={80} />
-                  <div className="lti-date-labels">
-                    <span>{dates[0]}</span><span>{dates[dates.length - 1]}</span>
-                  </div>
-                </>
-              ) : (
+                    color={def?.color ?? "var(--accent)"}
+                    height={80}
+                    minScale={minS} maxScale={maxS}
+                    topLabel={topLbl} bottomLabel={botLbl}
+                    showDots={activeSeries.length <= 30}
+                    dateLabels={dates} />
+                );
+              })() : (
                 <p className="lti-mini-empty">Not enough data for this metric yet.</p>
               )}
             </div>
@@ -260,8 +301,15 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
                       <span className="lti-metric-name">{m.label}</span>
                       <TrendBadge values={series} />
                     </div>
-                    <SparkLine values={series} color={m.color} height={40} />
-                    <div className="lti-metric-val">{typeof current === "number" ? (Number.isInteger(current) ? current : current.toFixed(1)) : current}</div>
+                    <SparkWithScale
+                      values={series} color={m.color} height={40}
+                      minScale={0} maxScale={10}
+                      topLabel="10" bottomLabel="0"
+                      showDots={series.length <= 14} />
+                    <div className="lti-metric-val">
+                      {typeof current === "number" ? (Number.isInteger(current) ? current : current.toFixed(1)) : current}
+                      <span className="lti-metric-unit"> / 10</span>
+                    </div>
                   </div>
                 );
               })}

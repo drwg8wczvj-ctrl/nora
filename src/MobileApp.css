@@ -718,6 +718,16 @@
   cursor: grabbing;
 }
 
+/* Green top bar shown on the dragging task block */
+.mob-tt-drag-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: #22c55e;
+  border-radius: 4px 4px 0 0;
+  z-index: 2;
+}
+
 /* Time badge shown at drag position */
 .mob-tt-drag-badge {
   position: absolute;
@@ -1845,7 +1855,9 @@
 .mob-sleep-body { display: flex; flex-direction: column; gap: 12px; }
 
 .mob-sleep-checkin { display: flex; flex-direction: column; gap: 8px; }
+.mob-sleep-checkin-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .mob-sleep-checkin-lbl { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.mob-sleep-from-checkup { font-size: 10px; font-weight: 700; color: #22c55e; background: rgba(34,197,94,.12); padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
 .mob-sleep-q-row { display: flex; gap: 8px; }
 .mob-sleep-q-btn {
   flex: 1; padding: 8px 6px; border-radius: 20px;

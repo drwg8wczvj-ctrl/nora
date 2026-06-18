@@ -959,6 +959,7 @@ function MobileGrid({ ctx }) {
                 setEditingTask(t);
               }}
               onTouchStart={(e) => handleTaskTouchStart(e, t)}>
+              {isDragging && <div className="mob-tt-drag-bar" />}
               <div className="mob-tt-inner">
                 <span className="mob-tt-title">
                   {t.title || (tp === "break" ? "Break" : "Deadline")}
@@ -1563,7 +1564,12 @@ function MobileStatus({ ctx }) {
         <div className="mob-sleep-body">
           {/* Check-in */}
           <div className="mob-sleep-checkin">
-            <span className="mob-sleep-checkin-lbl">How was your sleep?</span>
+            <div className="mob-sleep-checkin-header">
+              <span className="mob-sleep-checkin-lbl">How was your sleep?</span>
+              {ctx.morningCheckup?.sleepQuality && ctx.morningCheckup.sleepQuality === todaySleepQuality && (
+                <span className="mob-sleep-from-checkup">✓ from check-up</span>
+              )}
+            </div>
             <div className="mob-sleep-q-row">
               {[["poor","Poor"],["okay","Okay"],["good","Good"]].map(([val, label]) => (
                 <button key={val}
@@ -1745,7 +1751,12 @@ function MobileStatus({ ctx }) {
         {(() => {
           const entries = Object.entries(ctx.dailyMetrics || {});
           const hasData = entries.length >= 3;
-          if (!hasData) return <p className="mob-checkup-cta-text">Complete a few check-ins to unlock your trends.</p>;
+          if (!hasData) return (
+            <div className="mob-lti-preview">
+              <p className="mob-checkup-cta-text">Complete a few check-ins to unlock your trends.</p>
+              <button className="mob-checkup-btn" onClick={() => ctx.setShowLongTermInsights(true)}>Open Insights →</button>
+            </div>
+          );
           const recent = entries.slice(-7).map(([, v]) => v.energy).filter(Boolean);
           const trend = recent.length >= 3 && recent.slice(-3).reduce((a, b) => a + b, 0) / 3 > recent.slice(0, 3).reduce((a, b) => a + b, 0) / 3 ? "↑ improving" : "→ stable";
           return (

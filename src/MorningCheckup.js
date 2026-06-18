@@ -151,10 +151,9 @@ export default function MorningCheckup({
   const progressPct = Math.min(step / TOTAL_STEPS, 1) * 100;
 
   const SLEEP_OPTIONS = [
-    { key: "poor",  label: "Poor",  sub: "Restless or too short",    color: "#ef4444" },
-    { key: "okay",  label: "Okay",  sub: "Not great, not terrible",  color: "#f97316" },
-    { key: "good",  label: "Good",  sub: "Felt rested",              color: "#22c55e" },
-    { key: "great", label: "Great", sub: "Deep and refreshing",      color: "#10b981" },
+    { key: "poor", label: "Poor", sub: "Restless or too short",   color: "#ef4444" },
+    { key: "okay", label: "Okay", sub: "Not great, not terrible", color: "#f97316" },
+    { key: "good", label: "Good", sub: "Rested and refreshed",    color: "#22c55e" },
   ];
 
   return (
