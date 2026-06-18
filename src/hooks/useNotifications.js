@@ -77,10 +77,14 @@ export function useNotifications() {
           let vapidKey;
           try {
             const EDGE = process.env.REACT_APP_SUPABASE_URL;
+            const ANON = process.env.REACT_APP_SUPABASE_ANON_KEY;
             if (EDGE) {
               const res = await fetch(`${EDGE}/functions/v1/nora-push`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(ANON ? { "Authorization": `Bearer ${ANON}` } : {}),
+                },
                 body: JSON.stringify({ action: "get_vapid_key" }),
               });
               const data = await res.json();
@@ -166,10 +170,14 @@ export function useNotifications() {
     let vapidKey;
     try {
       const EDGE = process.env.REACT_APP_SUPABASE_URL;
+      const ANON = process.env.REACT_APP_SUPABASE_ANON_KEY;
       if (EDGE) {
         const res = await fetch(`${EDGE}/functions/v1/nora-push`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(ANON ? { "Authorization": `Bearer ${ANON}` } : {}),
+          },
           body: JSON.stringify({ action: "get_vapid_key" }),
         });
         const data = await res.json();
@@ -352,6 +360,21 @@ export function useNotifications() {
     }));
   }, []);
 
+  const forceResubscribe = useCallback(async () => {
+    const reg = swRegRef.current;
+    if (!reg?.pushManager) return false;
+    try {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe().catch(() => {});
+      localStorage.removeItem("nora_vapid_key_v1");
+      setHealth(h => ({ ...h, pushSubscribed: false }));
+      return await subscribeToPush();
+    } catch (e) {
+      console.warn("forceResubscribe:", e);
+      return false;
+    }
+  }, [subscribeToPush]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return {
     permission,
     settings,
@@ -366,5 +389,6 @@ export function useNotifications() {
     health,
     registerPeriodicSync,
     subscribeToPush,
+    forceResubscribe,
   };
 }

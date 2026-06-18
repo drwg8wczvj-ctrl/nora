@@ -699,6 +699,7 @@ export default function App() {
     dismissBanner:     dismissNotifBanner,
     health:            notifHealth,
     subscribeToPush,
+    forceResubscribe:  forceResubscribePush,
   } = useNotifications();
 
   // Re-sync push subscription to server whenever auth session is confirmed.
@@ -2676,6 +2677,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 health={notifHealth}
                 sendTestNotification={sendTestNotification}
                 testServerPush={testServerPush}
+                forceResubscribe={forceResubscribePush}
               />
             </div>
           )}

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Bell, CheckSquare, Flag, Clock, Brain, Sunrise, Send, Check, Server } from "lucide-react";
+import { Bell, CheckSquare, Flag, Clock, Brain, Sunrise, Send, Check, Server, RefreshCw } from "lucide-react";
 import "./NotificationSettings.css";
 
 function NSToggle({ value, onChange, disabled }) {
@@ -69,10 +69,13 @@ export default function NotificationSettings({
   health = {},
   sendTestNotification,
   testServerPush,
+  forceResubscribe,
 }) {
   const [testSent,         setTestSent]         = useState(false);
   const [testLoading,      setTestLoading]       = useState(false);
   const [serverTestState,  setServerTestState]   = useState(null); // null | "loading" | "sent" | "no_sub" | "failed"
+  const [serverTestErrors, setServerTestErrors]  = useState([]);
+  const [reregState,       setReregState]        = useState(null); // null | "loading" | "done" | "failed"
 
   const granted = permission === "granted";
   const denied  = permission === "denied";
@@ -90,19 +93,37 @@ export default function NotificationSettings({
 
   const handleServerTest = async () => {
     setServerTestState("loading");
+    setServerTestErrors([]);
     try {
       const result = await testServerPush();
       if (result?.ok && result?.sent > 0) {
         setServerTestState("sent");
+        setTimeout(() => setServerTestState(null), 6000);
       } else if (result?.error === "no_subscriptions") {
         setServerTestState("no_sub");
+        setTimeout(() => setServerTestState(null), 6000);
       } else {
         setServerTestState("failed");
+        if (result?.errors?.length) setServerTestErrors(result.errors);
+        // Don't auto-dismiss on failure so user can read the error
       }
     } catch {
       setServerTestState("failed");
     }
-    setTimeout(() => setServerTestState(null), 6000);
+  };
+
+  const handleReregister = async () => {
+    if (!forceResubscribe) return;
+    setReregState("loading");
+    setServerTestState(null);
+    setServerTestErrors([]);
+    try {
+      const ok = await forceResubscribe();
+      setReregState(ok ? "done" : "failed");
+    } catch {
+      setReregState("failed");
+    }
+    setTimeout(() => setReregState(null), 5000);
   };
 
   return (
@@ -245,16 +266,61 @@ export default function NotificationSettings({
         {granted && health.swActive && (
           <div className="ns-server-test-row">
             <button
-              className="ns-server-test-btn"
+              className={`ns-server-test-btn${serverTestState === "failed" ? " failed" : ""}`}
               onClick={handleServerTest}
               disabled={serverTestState === "loading"}>
               <Server size={13} />
               {serverTestState === "loading" ? "Sending…"
                 : serverTestState === "sent"    ? "✓ Check for notification"
-                : serverTestState === "no_sub"  ? "No subscription — reopen app"
-                : serverTestState === "failed"  ? "Failed — check Supabase secrets"
+                : serverTestState === "no_sub"  ? "No subscription — tap Re-register below"
+                : serverTestState === "failed"  ? "Push failed — see details below"
                 : "Test background push"}
             </button>
+
+            {serverTestState === "failed" && (
+              <>
+                {serverTestErrors.length > 0 && (
+                  <div className="ns-push-error-detail">
+                    {serverTestErrors.map((e, i) => {
+                      const [code, ...rest] = e.split(":");
+                      const detail = rest.join(":");
+                      const label =
+                        e === "vapid_keys_missing" ? "⚠ VAPID keys not set in Supabase Secrets" :
+                        e === "expired:410"        ? "Subscription expired — tap Re-register" :
+                        code === "403"             ? `403 Forbidden — VAPID key mismatch (tap Re-register)` :
+                        code === "400"             ? `400 Bad Request${detail ? ": " + detail.slice(0, 120) : ""}` :
+                        `Error ${code}${detail ? ": " + detail.slice(0, 120) : ""}`;
+                      return <div key={i}>{label}</div>;
+                    })}
+                  </div>
+                )}
+                {forceResubscribe && (
+                  <button
+                    className="ns-reregister-btn"
+                    onClick={handleReregister}
+                    disabled={reregState === "loading"}>
+                    <RefreshCw size={12} />
+                    {reregState === "loading" ? "Re-registering…"
+                      : reregState === "done"    ? "✓ Re-registered — test again"
+                      : reregState === "failed"  ? "Re-register failed"
+                      : "Re-register push subscription"}
+                  </button>
+                )}
+              </>
+            )}
+
+            {(serverTestState === "no_sub" || (!serverTestState && !health.pushSubscribed)) && forceResubscribe && (
+              <button
+                className="ns-reregister-btn"
+                onClick={handleReregister}
+                disabled={reregState === "loading"}>
+                <RefreshCw size={12} />
+                {reregState === "loading" ? "Re-registering…"
+                  : reregState === "done"    ? "✓ Re-registered — test again"
+                  : reregState === "failed"  ? "Re-register failed"
+                  : "Re-register push subscription"}
+              </button>
+            )}
           </div>
         )}
 

@@ -139,6 +139,11 @@ serve(async (req: Request) => {
       data: { action: "test" },
     });
 
+    // Verify VAPID keys are configured before attempting to send
+    if (!Deno.env.get("VAPID_PUBLIC_KEY") || !Deno.env.get("VAPID_PRIVATE_KEY")) {
+      return json({ ok: false, sent: 0, total: subs.length, errors: ["vapid_keys_missing"] });
+    }
+
     let sent = 0;
     const errors: string[] = [];
     for (const sub of subs) {
@@ -146,12 +151,15 @@ serve(async (req: Request) => {
         await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
         sent++;
       } catch (e: unknown) {
-        const code = (e as { statusCode?: number }).statusCode;
-        if (code === 410) {
+        const err = e as { statusCode?: number; message?: string; body?: string };
+        const code = err.statusCode;
+        // Include the actual response body so the client can show the real reason
+        const detail = (err.body ?? err.message ?? String(e)).toString().slice(0, 300);
+        if (code === 410 || code === 404) {
           await admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
-          errors.push("expired");
+          errors.push("expired:410");
         } else {
-          errors.push(String(code ?? "unknown"));
+          errors.push(`${code ?? "err"}:${detail}`);
         }
       }
     }
