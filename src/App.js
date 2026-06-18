@@ -2453,9 +2453,10 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
   // ── Timeline click / drag handlers ────────────────────
   const snapToGrid = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const y    = e.clientY - rect.top;
-    const x    = e.clientX - rect.left;
+    const rect   = e.currentTarget.getBoundingClientRect();
+    const offset = window.__dragOffset ?? 0;
+    const y      = e.clientY - rect.top - offset;
+    const x      = e.clientX - rect.left;
     if (x < LABEL_W) return null;
     const totalMins  = Math.round((y / zoomedH) * 60 / 5) * 5;
     const clamped    = Math.max(0, Math.min(totalMins, HOURS.length * 60 - 5));
@@ -2482,6 +2483,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
     const snap = snapToGrid(e);
     if (snap) moveToSlot(window.__dragId, snap.hour, snap.minute);
     window.__dragId = null;
+    window.__dragOffset = 0;
     setDragOver(null);
   };
 
@@ -2831,7 +2833,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                       const tp    = t.type ?? "task";
                       const group = getGroup(t.groupId);
                       const cx    = t.complexity ? COMPLEXITY[t.complexity] : null;
-                      const gc    = tp === "deadline" ? "#ef4444" : tp === "break" ? "#94a3b8" : group?.color ?? cx?.color ?? "var(--accent)";
+                      const gc    = tp === "deadline" ? (t.completed ? "#22c55e" : "#ef4444") : tp === "break" ? "#94a3b8" : group?.color ?? cx?.color ?? "var(--accent)";
                       const isPast = selectedDate === today && (t.startHour * 60 + (t.startMinute ?? 0)) < nowMins;
                       const isNext = t === nextTask;
                       return (
@@ -2850,7 +2852,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                                   {t.completed && <Check size={9} strokeWidth={3} />}
                                 </button>
                               )}
-                              {tp === "deadline" && <Flag size={13} style={{ color: "#ef4444", flexShrink: 0 }} />}
+                              {tp === "deadline" && <Flag size={13} style={{ color: t.completed ? "#22c55e" : "#ef4444", flexShrink: 0 }} />}
                               {tp === "break" && <Coffee size={13} style={{ color: "#94a3b8", flexShrink: 0 }} />}
                               <span className="sc-title" onClick={() => setEditingTask(t)}>
                                 {t.title || (tp === "break" ? "Break" : "Deadline")}
@@ -3063,7 +3065,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           className={`tl-task-chip${t.completed ? " done" : ""}${isDeferred ? " deferred" : ""}`}
                           style={{ "--gc": gc, top, height }}
                           draggable
-                          onDragStart={(e) => { e.stopPropagation(); window.__dragId = t.id; }}
+                          onDragStart={(e) => { e.stopPropagation(); window.__dragId = t.id; window.__dragOffset = e.clientY - e.currentTarget.getBoundingClientRect().top; }}
                           onClick={(e) => { e.stopPropagation(); setEditingTask(t); }}>
                           <button className={`chip-check${t.completed ? " checked" : ""}`}
                             onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>

@@ -2927,6 +2927,7 @@
 .smart-card:hover { background: var(--surface-2); box-shadow: 0 2px 12px rgba(0,0,0,.06); }
 .smart-card.sc-done { opacity: .55; }
 .smart-card.sc-past { opacity: .7; }
+.smart-card.sc-deadline.sc-done { border-left-color: #22c55e; background: rgba(34,197,94,.03); }
 .smart-card.sc-next {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent-light), 0 4px 16px rgba(124,58,237,.12);
@@ -3135,11 +3136,24 @@
 
 /* Unscheduled deadline done-state */
 .unsched-deadline { display: flex; align-items: center; gap: 6px; }
-.unsched-dl-done { opacity: 0.45; text-decoration: line-through; }
+.unsched-dl-done { opacity: 0.55; text-decoration: line-through; }
+.unsched-deadline.unsched-dl-done {
+  color: #22c55e;
+  border-color: rgba(34,197,94,.3);
+  background: rgba(34,197,94,.08);
+}
 
 /* Timeline deadline done */
 .tl-deadline { display: flex; align-items: center; gap: 6px; }
 .tl-dl-done { opacity: 0.45; }
+.tl-deadline.tl-dl-done .tl-deadline-flag { color: #22c55e; }
+.tl-deadline.tl-dl-done .tl-deadline-body {
+  border-left-color: #22c55e;
+  border-top-color: rgba(34,197,94,.3);
+  border-bottom-color: rgba(34,197,94,.3);
+  background: rgba(34,197,94,.06);
+  color: #22c55e;
+}
 
 
 /* ── Page transition ── */
