@@ -491,6 +491,9 @@ export default function App() {
   const [dailyMetrics,        setDailyMetrics]         = useState(() => {
     try { return JSON.parse(localStorage.getItem("nora_daily_metrics") || "{}"); } catch { return {}; }
   });
+  const [metricHistory, setMetricHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("nora_metric_history") || "[]"); } catch { return []; }
+  });
   const isMobile = useMobile();
 
   useEffect(() => {
@@ -1388,13 +1391,53 @@ export default function App() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
 
-  // Auto-save daily metrics snapshot for long-term trends
+  // ── 25-minute debounced metric commits ─────────────────────────
+  // Wellness sliders only "count" after being stable for 25 min.
+  // Nora tracks the shift history to notice changes over time.
+  const metricTimers = useRef({});
+  const committed    = useRef({ energy, stress: relaxation, focus, motivation });
+  const todayRef     = useRef(today);
+  useEffect(() => { todayRef.current = today; }, [today]);
+
+  function startCommitTimer(key, newVal) {
+    clearTimeout(metricTimers.current[key]);
+    metricTimers.current[key] = setTimeout(() => {
+      const prev = committed.current[key];
+      committed.current[key] = newVal;
+      if (prev !== newVal) {
+        const entry = { key, from: prev, to: newVal, at: new Date().toISOString() };
+        setMetricHistory(h => {
+          const next = [...h.slice(-9), entry];
+          localStorage.setItem("nora_metric_history", JSON.stringify(next));
+          return next;
+        });
+      }
+      const d = todayRef.current;
+      if (!d) return;
+      setDailyMetrics(p => {
+        const n = { ...p, [d]: { ...p[d], [key]: newVal, updatedAt: Date.now() } };
+        localStorage.setItem("nora_daily_metrics", JSON.stringify(n));
+        return n;
+      });
+    }, 25 * 60 * 1000);
+  }
+
+  useEffect(() => { startCommitTimer("energy",     energy);     return () => clearTimeout(metricTimers.current.energy); },     [energy]);     // eslint-disable-line
+  useEffect(() => { startCommitTimer("stress",     relaxation); return () => clearTimeout(metricTimers.current.stress); },     [relaxation]); // eslint-disable-line
+  useEffect(() => { startCommitTimer("focus",      focus);      return () => clearTimeout(metricTimers.current.focus); },      [focus]);      // eslint-disable-line
+  useEffect(() => { startCommitTimer("motivation", motivation); return () => clearTimeout(metricTimers.current.motivation); }, [motivation]); // eslint-disable-line
+
+  // Auto-save daily metrics snapshot — task/sleep fields update immediately;
+  // energy/stress/focus/motivation are written by the commit timers above.
   useEffect(() => {
     if (!session || !today) return;
     const snapshot = {
-      energy, stress: relaxation, focus, motivation,
-      sleepQuality: todaySleepQuality,
-      loadLevel: workloadForecast[0]?.level ?? "light",
+      energy:         committed.current.energy,
+      stress:         committed.current.stress,
+      focus:          committed.current.focus,
+      motivation:     committed.current.motivation,
+      sleepQuality:   todaySleepQuality,
+      loadLevel:      workloadForecast[0]?.level ?? "light",
       readinessScore: morningCheckup?.readinessScore ?? null,
       tasksCompleted: doneToday, tasksTotal: totalToday,
       updatedAt: Date.now(),
@@ -1404,7 +1447,7 @@ export default function App() {
       localStorage.setItem("nora_daily_metrics", JSON.stringify(next));
       return next;
     });
-  }, [energy, relaxation, focus, motivation, doneToday, totalToday, today, session]); // eslint-disable-line
+  }, [doneToday, totalToday, todaySleepQuality, today, session]); // eslint-disable-line
 
   // Save chat to localStorage on every change (instant persistence across refreshes)
   useEffect(() => {
@@ -1904,6 +1947,18 @@ ${prefsBlock}
 ━━━ CURRENT WELLNESS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Energy ${energy}/10 · Stress relief ${relaxation}/10 · Focus ${focus}/10 · Motivation ${motivation}/10
+(Values shown are live. A value is only "recorded" after holding steady for 25 minutes.)
+${(() => {
+  const LABELS = { energy: "Energy", stress: "Stress relief", focus: "Focus", motivation: "Motivation" };
+  const recent = metricHistory.filter(e => Date.now() - new Date(e.at).getTime() < 6 * 60 * 60 * 1000);
+  if (!recent.length) return "";
+  const lines = recent.map(e => {
+    const min = Math.round((Date.now() - new Date(e.at).getTime()) / 60000);
+    const ago = min < 60 ? `${min}m ago` : `${Math.round(min / 60)}h ago`;
+    return `  • ${LABELS[e.key] ?? e.key}: ${e.from} → ${e.to} ${e.to > e.from ? "↑" : "↓"}  (committed ${ago})`;
+  }).join("\n");
+  return `\nConfirmed status shifts today (each held ≥25 min):\n${lines}`;
+})()}
 Confidence: ${userConfidence.label}
 → ${
     relaxation <= 2 && energy <= 2
