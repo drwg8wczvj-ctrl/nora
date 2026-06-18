@@ -2471,9 +2471,10 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
   const handleTimelineDragOver = (e) => {
     e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
     const snap = snapToGrid(e);
-    setDragOver({ y: e.clientY - rect.top, snap });
+    if (!snap) return;
+    const y = cTop(snap.hour, snap.minute);
+    setDragOver({ y, snap });
   };
 
   const handleTimelineDrop = (e) => {

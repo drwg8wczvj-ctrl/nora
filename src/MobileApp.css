@@ -673,13 +673,15 @@
   z-index: 4; pointer-events: none;
 }
 .mob-tt-ndot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--accent);
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34,197,94,0.2), 0 0 8px rgba(34,197,94,0.45);
   margin-left: 46px; margin-right: -4px; flex-shrink: 0;
 }
 .mob-tt-nbar {
   flex: 1; height: 2px;
-  background: var(--accent);
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34,197,94,0.35);
   margin-right: 16px;
 }
 
@@ -689,7 +691,7 @@
   left: calc(58px + var(--col, 0) / var(--nc, 1) * (100% - 74px));
   width: calc((100% - 74px) / var(--nc, 1) - 3px);
   border-left: 3px solid var(--gc, var(--accent));
-  background: var(--surface);
+  background: color-mix(in srgb, var(--gc, var(--accent)) 12%, var(--chip-base, rgba(255,255,255,0.88)));
   border-radius: 7px;
   padding: 4px 26px 4px 8px;
   cursor: pointer; overflow: hidden;
@@ -697,6 +699,11 @@
   transition: box-shadow .12s;
   z-index: 1;
   box-shadow: 0 1px 4px rgba(0,0,0,.10);
+}
+.dark .mob-tt-task {
+  background: color-mix(in srgb, var(--gc, var(--accent)) 22%, var(--surface-solid));
+  border-color: color-mix(in srgb, var(--gc, var(--accent)) 35%, transparent);
+  border-left: 3px solid var(--gc, var(--accent));
 }
 .mob-tt-task:active { opacity: .82; }
 .mob-tt-task.tt-done  { opacity: .38; }

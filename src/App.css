@@ -589,6 +589,11 @@
   border: 1px solid color-mix(in srgb, var(--gc) 20%, transparent);
   border-left: 3px solid var(--gc);
 }
+.dark .tl-task-chip {
+  background: color-mix(in srgb, var(--gc) 22%, var(--surface-solid));
+  border-color: color-mix(in srgb, var(--gc) 35%, transparent);
+  border-left: 3px solid var(--gc);
+}
 .tl-task-chip:hover {
   box-shadow: 0 4px 16px rgba(0,0,0,.15), 0 0 12px color-mix(in srgb, var(--gc) 22%, transparent);
   transform: scale(1.005);
@@ -673,23 +678,31 @@
 .tl-drag-line {
   position: absolute;
   left: 56px; right: 0;
-  height: 2px;
-  background: var(--grad);
-  box-shadow: 0 0 8px rgba(124,58,237,0.5);
-  pointer-events: none; z-index: 10; border-radius: 1px;
+  height: 3px;
+  background: #22c55e;
+  box-shadow: 0 0 10px rgba(34,197,94,0.55);
+  pointer-events: none; z-index: 10; border-radius: 2px;
+}
+.tl-drag-line::before {
+  content: "";
+  position: absolute;
+  left: -6px; top: 50%; transform: translateY(-50%);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34,197,94,0.2);
 }
 
 .tl-drag-time {
   position: absolute;
-  left: -52px;
+  left: -62px;
   top: 50%;
   transform: translateY(-50%);
-  background: var(--accent);
+  background: #22c55e;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: 5px;
   white-space: nowrap;
 }
