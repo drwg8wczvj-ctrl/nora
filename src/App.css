@@ -1657,8 +1657,39 @@
   white-space: nowrap;
 }
 
+/* Expand button on each chart card */
+.lti-expand-btn {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.lti-expand-btn:hover { background: var(--accent-light); color: var(--accent); border-color: rgba(124,58,237,.35); }
+.lti-expand-btn-sm { width: 22px; height: 22px; border-radius: 6px; }
+
+/* Back button in focus mode */
+.lti-focus-back {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px 6px 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-muted); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.lti-focus-back:hover { background: var(--surface); color: var(--text); }
+
+/* Focus / expanded chart view */
+.lti-focus-view { display: flex; flex-direction: column; gap: 16px; }
+.lti-metric-card-expanded { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px; }
+
 @media (max-width: 600px) {
-  .lti-page { padding: 20px 16px 48px; }
+  .lti-page {
+    padding-top: calc(max(44px, env(safe-area-inset-top, 44px)) + 20px);
+    padding-bottom: 48px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .lti-title { font-size: 20px; }
   .lti-metrics-grid { grid-template-columns: repeat(2, 1fr); }
 }
 

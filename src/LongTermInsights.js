@@ -1,10 +1,103 @@
-import React, { useState, useMemo, useRef } from "react";
-import { X, TrendingUp, TrendingDown, Minus, Activity, Zap, Wind, Brain, Moon, BarChart2 } from "lucide-react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
+import { X, TrendingUp, TrendingDown, Minus, Activity, Zap, Wind, Brain, Moon, BarChart2, Maximize2, ChevronLeft } from "lucide-react";
 
-// ── SVG sparkline — interactive scrub ────────────────────────────
+// ── Data helpers ─────────────────────────────────────────────────
+function getRange(metrics, days) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  return Object.entries(metrics)
+    .filter(([date]) => new Date(date) >= cutoff)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function extractSeries(entries, key) {
+  return entries.map(([, v]) => v[key] ?? null).filter(v => v != null);
+}
+
+function avg(arr) {
+  return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+}
+
+function computeTaskStats(tasks) {
+  const completed = tasks.filter(t => t.completed && t.startHour != null);
+  const hourCounts = {};
+  completed.forEach(t => { hourCounts[t.startHour] = (hourCounts[t.startHour] || 0) + 1; });
+  const peakHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const byType = {};
+  tasks.forEach(t => { const tp = t.type ?? "task"; byType[tp] = (byType[tp] || 0) + 1; });
+  const byComplexity = { easy: 0, medium: 0, hard: 0 };
+  const byComplexityDone = { easy: 0, medium: 0, hard: 0 };
+  tasks.forEach(t => {
+    if (t.complexity) { byComplexity[t.complexity] = (byComplexity[t.complexity] || 0) + 1; }
+    if (t.completed && t.complexity) { byComplexityDone[t.complexity] = (byComplexityDone[t.complexity] || 0) + 1; }
+  });
+  const bestComplexity = Object.entries(byComplexityDone)
+    .map(([k, v]) => ({ k, rate: byComplexity[k] ? v / byComplexity[k] : 0 }))
+    .sort((a, b) => b.rate - a.rate)[0]?.k;
+  const completedDays = new Set(tasks.filter(t => t.completed).map(t => t.date));
+  let maxStreak = 0, cur = 0;
+  const today = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+    if (completedDays.has(ds)) { cur++; maxStreak = Math.max(maxStreak, cur); }
+    else cur = 0;
+    if (ds === today && !completedDays.has(ds)) cur = 0;
+  }
+  return { hourCounts, peakHour: peakHour != null ? Number(peakHour) : null, bestComplexity, maxStreak, totalCompleted: completed.length };
+}
+
+function generateInsights(entries, tasks) {
+  const insights = [];
+  const energy = extractSeries(entries, "energy");
+  const stress  = extractSeries(entries, "stress");
+  const focus   = extractSeries(entries, "focus");
+  const sleep   = entries.map(([, v]) => v.sleepQuality);
+  if (energy.length >= 7) {
+    const late = entries.filter(([, v]) => v.loadLevel === "heavy");
+    if (late.length >= 3) insights.push("High-load days tend to correlate with lower energy the following morning.");
+  }
+  const completed = tasks.filter(t => t.completed && t.startHour != null);
+  const hourCounts = {};
+  completed.forEach(t => { hourCounts[t.startHour] = (hourCounts[t.startHour] || 0) + 1; });
+  const peakH = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (peakH != null) {
+    const h = Number(peakH);
+    const label = h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
+    insights.push(`Your completion rate is highest in the ${label} — around ${h}:00.`);
+  }
+  if (focus.length >= 5 && avg(focus.slice(-3)) > avg(focus.slice(0, 3)) + 0.5) {
+    insights.push("Your focus is trending upward this period — a good sign of consistency.");
+  } else if (focus.length >= 5 && avg(focus.slice(-3)) < avg(focus.slice(0, 3)) - 0.5) {
+    insights.push("Focus has been declining recently. Shorter sessions and earlier starts may help.");
+  }
+  if (stress.length >= 5 && avg(stress.slice(-3)) < avg(stress.slice(0, 3)) - 0.5) {
+    insights.push("Stress levels have been rising. Consider protecting more of your evenings.");
+  }
+  const poorSleep = sleep.filter(v => v === "poor" || v === "okay").length;
+  if (poorSleep > sleep.length * 0.5 && sleep.length >= 5) {
+    insights.push("Sleep quality has been mixed. Even small improvements in bedtime can lift next-day energy.");
+  }
+  return insights.slice(0, 3);
+}
+
+// ── Constants ────────────────────────────────────────────────────
+const METRIC_DEFS = [
+  { key: "energy",     label: "Energy",     icon: <Zap size={14} />,      color: "#7c3aed" },
+  { key: "stress",     label: "Calm",       icon: <Wind size={14} />,     color: "#3b82f6", invert: true },
+  { key: "focus",      label: "Focus",      icon: <Brain size={14} />,    color: "#22c55e" },
+  { key: "motivation", label: "Motivation", icon: <Activity size={14} />, color: "#f59e0b" },
+  { key: "sleepScore", label: "Sleep",      icon: <Moon size={14} />,     color: "#818cf8" },
+];
+
+const SLEEP_SCORE = { poor: 2, okay: 5, good: 8, great: 10 };
+
+// ── SVG sparkline — interactive scrub (rAF throttled) ────────────
 function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, minScale, maxScale, showDots = true, onScrub }) {
-  const svgRef  = useRef(null);
-  const active  = useRef(false);
+  const svgRef   = useRef(null);
+  const active   = useRef(false);
+  const rafRef   = useRef(null);
+  const lastXRef = useRef(null);
   const [scrubIdx, setScrubIdx] = useState(null);
 
   if (!values || values.length < 2) return <div style={{ height }} />;
@@ -32,14 +125,20 @@ function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, 
   };
 
   const doScrub = (clientX) => {
-    const idx = resolveIdx(clientX);
-    if (idx == null) return;
-    setScrubIdx(idx);
-    onScrub?.(idx, values[idx]);
+    lastXRef.current = clientX;
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const idx = resolveIdx(lastXRef.current);
+      if (idx == null) return;
+      setScrubIdx(idx);
+      onScrub?.(idx, values[idx]);
+    });
   };
 
   const endScrub = () => {
     active.current = false;
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     setScrubIdx(null);
     onScrub?.(null, null);
   };
@@ -60,7 +159,6 @@ function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, 
       <line x1="0" y1="75" x2="100" y2="75" stroke="currentColor" opacity="0.06" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
       {fill && <path d={area} fill={color} opacity="0.12" />}
       <path d={d} stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      {/* Static dots — hidden while scrubbing */}
       {showDots && !scrubPt && pts.map((pt, i) => (
         <circle key={i} cx={pt.x} cy={pt.y}
           r={i === pts.length - 1 ? "3.5" : "2.5"}
@@ -68,7 +166,6 @@ function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, 
           stroke={color} strokeWidth="1.5" opacity={i === pts.length - 1 ? 1 : 0.75}
           vectorEffect="non-scaling-stroke" />
       ))}
-      {/* Scrub cursor + highlight dot */}
       {scrubPt && (
         <>
           <line x1={scrubPt.x} y1="0" x2={scrubPt.x} y2={H}
@@ -82,19 +179,19 @@ function SparkLine({ values, color = "var(--accent)", height = 48, fill = true, 
   );
 }
 
-// Y-axis + sparkline wrapper with floating tooltip
+// Y-axis + sparkline with floating tooltip
 function SparkWithScale({ values, color, height, fill, minScale, maxScale, topLabel, bottomLabel, showDots, dateLabels, unit = "", onScrub }) {
-  const [scrub, setScrub] = useState(null); // { idx, value }
+  const [scrub, setScrub] = useState(null);
 
-  const handleScrub = (idx, value) => {
+  const handleScrub = useCallback((idx, value) => {
     const s = idx != null ? { idx, value } : null;
     setScrub(s);
     onScrub?.(idx, value);
-  };
+  }, [onScrub]);
 
-  const tipXPct  = scrub != null ? (scrub.idx / Math.max(values.length - 1, 1)) * 100 : null;
-  const tipDate  = scrub != null && dateLabels ? dateLabels[scrub.idx] : null;
-  const fmtV     = (v) => v == null ? "" : typeof v === "number"
+  const tipXPct = scrub != null ? (scrub.idx / Math.max(values.length - 1, 1)) * 100 : null;
+  const tipDate = scrub != null && dateLabels ? dateLabels[scrub.idx] : null;
+  const fmtV    = (v) => v == null ? "" : typeof v === "number"
     ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : String(v);
 
   return (
@@ -155,106 +252,140 @@ function HourBars({ hourCounts, peakHour }) {
   );
 }
 
-// ── Data helpers ─────────────────────────────────────────────────
-function getRange(metrics, days) {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  return Object.entries(metrics)
-    .filter(([date]) => new Date(date) >= cutoff)
-    .sort((a, b) => a[0].localeCompare(b[0]));
+// ── Self-contained section components (localized scrub — no parent re-render) ─
+
+function ReadinessTrendSection({ series, dates, expanded, onExpand }) {
+  const [scrub, setScrub] = useState(null);
+  const onScrub = useCallback((idx, val) =>
+    setScrub(idx != null ? { value: val, date: dates?.[idx] } : null), [dates]);
+
+  return (
+    <div className="lti-card lti-card-full">
+      <div className="lti-card-header">
+        <div>
+          <div className="lti-card-title"><Activity size={14} /> Readiness Trend</div>
+          <div className="lti-card-sub">Combined score from sleep, energy, and workload</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <div className="lti-big-num">
+            {scrub != null ? `${scrub.value}%` : `${series[series.length - 1]}%`}
+            {scrub != null
+              ? <span className="lti-scrub-date-badge">{scrub.date}</span>
+              : <TrendBadge values={series} />}
+          </div>
+          {!expanded && (
+            <button className="lti-expand-btn" onClick={onExpand} title="Expand chart">
+              <Maximize2 size={13} />
+            </button>
+          )}
+        </div>
+      </div>
+      <SparkWithScale
+        values={series} color="#818cf8" height={expanded ? 200 : 72}
+        minScale={0} maxScale={100}
+        topLabel="100%" bottomLabel="0%"
+        showDots={series.length <= 30}
+        dateLabels={dates} unit="%" onScrub={onScrub} />
+    </div>
+  );
 }
 
-function extractSeries(entries, key) {
-  return entries.map(([, v]) => v[key] ?? null).filter(v => v != null);
+function TimelineSection({ entries, dates, expanded, onExpand }) {
+  const [activeMetric, setActiveMetric] = useState("energy");
+  const [scrub, setScrub] = useState(null);
+
+  const activeSeries = extractSeries(entries, activeMetric);
+  const def = METRIC_DEFS.find(m => m.key === activeMetric);
+  const isSleep = activeMetric === "sleepScore";
+
+  const onScrub = useCallback((idx, val) =>
+    setScrub(idx != null ? { value: val, date: dates?.[idx] } : null), [dates]);
+
+  return (
+    <div className="lti-card lti-card-full">
+      <div className="lti-card-header" style={{ marginBottom: 10 }}>
+        <div className="lti-card-title"><BarChart2 size={14} /> Condition Timeline</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {scrub != null && (
+            <div className="lti-big-num" style={{ fontSize: 18 }}>
+              {typeof scrub.value === "number"
+                ? (Number.isInteger(scrub.value) ? scrub.value : scrub.value.toFixed(1))
+                : scrub.value}
+              <span className="lti-scrub-date-badge">{scrub.date}</span>
+            </div>
+          )}
+          {!expanded && (
+            <button className="lti-expand-btn" onClick={onExpand} title="Expand chart">
+              <Maximize2 size={13} />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="lti-metric-tabs">
+        {METRIC_DEFS.map(m => (
+          <button key={m.key}
+            className={`lti-metric-tab${activeMetric === m.key ? " active" : ""}`}
+            style={activeMetric === m.key ? { borderColor: m.color, color: m.color, background: `${m.color}14` } : {}}
+            onClick={() => { setActiveMetric(m.key); setScrub(null); }}>
+            {m.icon} {m.label}
+          </button>
+        ))}
+      </div>
+      {activeSeries.length >= 2 ? (
+        <SparkWithScale
+          values={activeSeries}
+          color={def?.color ?? "var(--accent)"}
+          height={expanded ? 220 : 80}
+          minScale={0} maxScale={isSleep ? 10 : 10}
+          topLabel={isSleep ? "10" : "10"} bottomLabel="0"
+          showDots={activeSeries.length <= 30}
+          dateLabels={dates} onScrub={onScrub} />
+      ) : (
+        <p className="lti-mini-empty">Not enough data for this metric yet.</p>
+      )}
+    </div>
+  );
 }
 
-function avg(arr) {
-  return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-}
+function MetricCard({ m, series, dates, expanded, onExpand }) {
+  const [scrub, setScrub] = useState(null);
+  const onScrub = useCallback((idx, val) =>
+    setScrub(idx != null ? { value: val, date: dates?.[idx] } : null), [dates]);
 
-function computeTaskStats(tasks) {
-  const completed = tasks.filter(t => t.completed && t.startHour != null);
-  const hourCounts = {};
-  completed.forEach(t => { hourCounts[t.startHour] = (hourCounts[t.startHour] || 0) + 1; });
-  const peakHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-  const byType = {};
-  tasks.forEach(t => { const tp = t.type ?? "task"; byType[tp] = (byType[tp] || 0) + 1; });
-  const byComplexity = { easy: 0, medium: 0, hard: 0 };
-  const byComplexityDone = { easy: 0, medium: 0, hard: 0 };
-  tasks.forEach(t => {
-    if (t.complexity) { byComplexity[t.complexity] = (byComplexity[t.complexity] || 0) + 1; }
-    if (t.completed && t.complexity) { byComplexityDone[t.complexity] = (byComplexityDone[t.complexity] || 0) + 1; }
-  });
-  const bestComplexity = Object.entries(byComplexityDone)
-    .map(([k, v]) => ({ k, rate: byComplexity[k] ? v / byComplexity[k] : 0 }))
-    .sort((a, b) => b.rate - a.rate)[0]?.k;
-  // Streak
-  const completedDays = new Set(tasks.filter(t => t.completed).map(t => t.date));
-  let maxStreak = 0, cur = 0;
-  const today = new Date().toISOString().slice(0, 10);
-  for (let i = 0; i < 90; i++) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
-    if (completedDays.has(ds)) { cur++; maxStreak = Math.max(maxStreak, cur); }
-    else cur = 0;
-    if (ds === today && !completedDays.has(ds)) cur = 0;
-  }
-  return { hourCounts, peakHour: peakHour != null ? Number(peakHour) : null, bestComplexity, maxStreak, totalCompleted: completed.length };
-}
+  const displayVal = scrub != null ? scrub.value : series[series.length - 1];
 
-function generateInsights(entries, tasks) {
-  const insights = [];
-  const energy = extractSeries(entries, "energy");
-  const stress  = extractSeries(entries, "stress");
-  const focus   = extractSeries(entries, "focus");
-
-  const sleep   = entries.map(([, v]) => v.sleepQuality);
-
-  if (energy.length >= 7) {
-      const late  = entries.filter(([, v]) => v.loadLevel === "heavy");
-    if (late.length >= 3) insights.push("High-load days tend to correlate with lower energy the following morning.");
-  }
-  const completed = tasks.filter(t => t.completed && t.startHour != null);
-  const hourCounts = {};
-  completed.forEach(t => { hourCounts[t.startHour] = (hourCounts[t.startHour] || 0) + 1; });
-  const peakH = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-  if (peakH != null) {
-    const h = Number(peakH);
-    const label = h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
-    insights.push(`Your completion rate is highest in the ${label} — around ${h}:00.`);
-  }
-  if (focus.length >= 5 && avg(focus.slice(-3)) > avg(focus.slice(0, 3)) + 0.5) {
-    insights.push("Your focus is trending upward this period — a good sign of consistency.");
-  } else if (focus.length >= 5 && avg(focus.slice(-3)) < avg(focus.slice(0, 3)) - 0.5) {
-    insights.push("Focus has been declining recently. Shorter sessions and earlier starts may help.");
-  }
-  if (stress.length >= 5 && avg(stress.slice(-3)) < avg(stress.slice(0, 3)) - 0.5) {
-    insights.push("Stress levels have been rising. Consider protecting more of your evenings.");
-  }
-  const poorSleep = sleep.filter(v => v === "poor" || v === "okay").length;
-  if (poorSleep > sleep.length * 0.5 && sleep.length >= 5) {
-    insights.push("Sleep quality has been mixed. Even small improvements in bedtime can lift next-day energy.");
-  }
-  return insights.slice(0, 3);
+  return (
+    <div className={`lti-metric-card${expanded ? " lti-metric-card-expanded" : ""}`}>
+      <div className="lti-metric-card-header">
+        <span className="lti-metric-icon" style={{ color: m.color }}>{m.icon}</span>
+        <span className="lti-metric-name">{m.label}</span>
+        {scrub != null
+          ? <span className="lti-scrub-date-badge">{scrub.date}</span>
+          : <TrendBadge values={series} />}
+        {!expanded && (
+          <button className="lti-expand-btn lti-expand-btn-sm" onClick={onExpand} title="Expand chart">
+            <Maximize2 size={11} />
+          </button>
+        )}
+      </div>
+      <SparkWithScale
+        values={series} color={m.color} height={expanded ? 200 : 40}
+        minScale={0} maxScale={10}
+        topLabel="10" bottomLabel="0"
+        showDots={series.length <= 14}
+        dateLabels={dates} onScrub={onScrub} />
+      <div className="lti-metric-val">
+        {typeof displayVal === "number" ? (Number.isInteger(displayVal) ? displayVal : displayVal.toFixed(1)) : displayVal}
+        <span className="lti-metric-unit"> / 10</span>
+      </div>
+    </div>
+  );
 }
 
 // ── Main component ───────────────────────────────────────────────
-const METRIC_DEFS = [
-  { key: "energy",     label: "Energy",     icon: <Zap size={14} />,      color: "#7c3aed" },
-  { key: "stress",     label: "Calm",       icon: <Wind size={14} />,     color: "#3b82f6",  invert: true },
-  { key: "focus",      label: "Focus",      icon: <Brain size={14} />,    color: "#22c55e" },
-  { key: "motivation", label: "Motivation", icon: <Activity size={14} />, color: "#f59e0b" },
-  { key: "sleepScore", label: "Sleep",      icon: <Moon size={14} />,     color: "#818cf8" },
-];
-
-const SLEEP_SCORE = { poor: 2, okay: 5, good: 8, great: 10 };
-
 export default function LongTermInsights({ dark, glass, metrics, tasks, onClose }) {
-  const [range, setRange] = useState(30);
-  const [activeMetric, setActiveMetric] = useState("energy");
-  const [readinessScrub, setReadinessScrub] = useState(null); // { idx, value, date }
-  const [timelineScrub,  setTimelineScrub]  = useState(null);
-  const [metricScrubs,   setMetricScrubs]   = useState({});   // { [key]: { value, date } }
+  const [range, setRange]         = useState(30);
+  const [focusChart, setFocusChart] = useState(null); // null | "readiness" | "timeline" | metric key
 
   const entries = useMemo(() => getRange(metrics, range), [metrics, range]);
 
@@ -264,13 +395,16 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
     stress: v.stress != null ? v.stress : null,
   }]), [entries]);
 
-  const dates = enrichedEntries.map(([d]) => d.slice(5)); // MM-DD
-  const insights = useMemo(() => generateInsights(enrichedEntries, tasks), [enrichedEntries, tasks]);
-  const taskStats = useMemo(() => computeTaskStats(tasks), [tasks]);
+  const dates           = enrichedEntries.map(([d]) => d.slice(5));
+  const insights        = useMemo(() => generateInsights(enrichedEntries, tasks), [enrichedEntries, tasks]);
+  const taskStats       = useMemo(() => computeTaskStats(tasks), [tasks]);
   const readinessSeries = extractSeries(enrichedEntries, "readinessScore");
-  const activeSeries    = extractSeries(enrichedEntries, activeMetric);
 
-  const noData = enrichedEntries.length < 3;
+  const noData     = enrichedEntries.length < 1;
+  const inFocus    = focusChart !== null;
+
+  const focusMetricDef = inFocus ? METRIC_DEFS.find(m => m.key === focusChart) : null;
+  const focusSeries    = focusMetricDef ? extractSeries(enrichedEntries, focusChart) : null;
 
   return (
     <div className={`lti-overlay${dark ? " dark" : ""}${glass ? " glass" : ""}`}>
@@ -279,20 +413,31 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
         {/* Header */}
         <div className="lti-header">
           <div className="lti-header-left">
-            <h1 className="lti-title">Long-Term Insights</h1>
-            <p className="lti-subtitle">Your patterns over time</p>
+            {inFocus ? (
+              <button className="lti-focus-back" onClick={() => setFocusChart(null)}>
+                <ChevronLeft size={18} />
+                <span>All Charts</span>
+              </button>
+            ) : (
+              <>
+                <h1 className="lti-title">Long-Term Insights</h1>
+                <p className="lti-subtitle">Your patterns over time</p>
+              </>
+            )}
           </div>
           <button className="lti-close" onClick={onClose}><X size={20} /></button>
         </div>
 
-        {/* Time range */}
-        <div className="lti-range-row">
-          {[7, 30, 90].map(d => (
-            <button key={d} className={`lti-range-btn${range === d ? " active" : ""}`} onClick={() => setRange(d)}>
-              {d}d
-            </button>
-          ))}
-        </div>
+        {/* Time range (hidden in focus mode) */}
+        {!inFocus && (
+          <div className="lti-range-row">
+            {[7, 30, 90].map(d => (
+              <button key={d} className={`lti-range-btn${range === d ? " active" : ""}`} onClick={() => setRange(d)}>
+                {d}d
+              </button>
+            ))}
+          </div>
+        )}
 
         {noData ? (
           <div className="lti-no-data">
@@ -300,116 +445,48 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
             <p>Complete a few daily check-ins to unlock your trends.</p>
             <p style={{ opacity: .6, fontSize: 13 }}>Data appears here as you log energy, sleep, and focus.</p>
           </div>
+
+        ) : inFocus ? (
+          /* ── Focused / expanded single chart ── */
+          <div className="lti-focus-view">
+            {focusChart === "readiness" && readinessSeries.length >= 2 && (
+              <ReadinessTrendSection series={readinessSeries} dates={dates} expanded onExpand={() => {}} />
+            )}
+            {focusChart === "timeline" && (
+              <TimelineSection entries={enrichedEntries} dates={dates} expanded onExpand={() => {}} />
+            )}
+            {focusMetricDef && focusSeries && focusSeries.length >= 2 && (
+              <MetricCard m={focusMetricDef} series={focusSeries} dates={dates} expanded onExpand={() => {}} />
+            )}
+          </div>
+
         ) : (
+          /* ── Normal scrollable view ── */
           <div className="lti-content">
 
-            {/* ── Readiness trend ── */}
-            {readinessSeries.length >= 3 && (
-              <div className="lti-card lti-card-full">
-                <div className="lti-card-header">
-                  <div>
-                    <div className="lti-card-title"><Activity size={14} /> Readiness Trend</div>
-                    <div className="lti-card-sub">Combined score from sleep, energy, and workload</div>
-                  </div>
-                  <div className="lti-big-num">
-                    {readinessScrub != null ? `${readinessScrub.value}%` : `${readinessSeries[readinessSeries.length - 1]}%`}
-                    {readinessScrub != null
-                      ? <span className="lti-scrub-date-badge">{readinessScrub.date}</span>
-                      : <TrendBadge values={readinessSeries} />}
-                  </div>
-                </div>
-                <SparkWithScale
-                  values={readinessSeries} color="#818cf8" height={72}
-                  minScale={0} maxScale={100}
-                  topLabel="100%" bottomLabel="0%"
-                  showDots={readinessSeries.length <= 30}
-                  dateLabels={dates}
-                  unit="%"
-                  onScrub={(idx, val) => setReadinessScrub(idx != null ? { value: val, date: dates[idx] } : null)} />
-              </div>
+            {readinessSeries.length >= 2 && (
+              <ReadinessTrendSection
+                series={readinessSeries} dates={dates}
+                onExpand={() => setFocusChart("readiness")} />
             )}
 
-            {/* ── Condition timeline ── */}
-            <div className="lti-card lti-card-full">
-              <div className="lti-card-header" style={{ marginBottom: 10 }}>
-                <div className="lti-card-title"><BarChart2 size={14} /> Condition Timeline</div>
-                {timelineScrub != null && (
-                  <div className="lti-big-num" style={{ fontSize: 18 }}>
-                    {typeof timelineScrub.value === "number"
-                      ? (Number.isInteger(timelineScrub.value) ? timelineScrub.value : timelineScrub.value.toFixed(1))
-                      : timelineScrub.value}
-                    <span className="lti-scrub-date-badge">{timelineScrub.date}</span>
-                  </div>
-                )}
-              </div>
-              <div className="lti-metric-tabs">
-                {METRIC_DEFS.map(m => (
-                  <button key={m.key}
-                    className={`lti-metric-tab${activeMetric === m.key ? " active" : ""}`}
-                    style={activeMetric === m.key ? { borderColor: m.color, color: m.color, background: `${m.color}14` } : {}}
-                    onClick={() => { setActiveMetric(m.key); setTimelineScrub(null); }}>
-                    {m.icon} {m.label}
-                  </button>
-                ))}
-              </div>
-              {activeSeries.length >= 2 ? (() => {
-                const def = METRIC_DEFS.find(m => m.key === activeMetric);
-                const isReadiness = activeMetric === "readinessScore";
-                const isSleep = activeMetric === "sleepScore";
-                const maxS = isReadiness ? 100 : isSleep ? 10 : 10;
-                const minS = 0;
-                const topLbl = isReadiness ? "100%" : isSleep ? "10" : "10";
-                const botLbl = isReadiness ? "0%" : "0";
-                return (
-                  <SparkWithScale
-                    values={activeSeries}
-                    color={def?.color ?? "var(--accent)"}
-                    height={80}
-                    minScale={minS} maxScale={maxS}
-                    topLabel={topLbl} bottomLabel={botLbl}
-                    showDots={activeSeries.length <= 30}
-                    dateLabels={dates}
-                    onScrub={(idx, val) => setTimelineScrub(idx != null ? { value: val, date: dates[idx] } : null)} />
-                );
-              })() : (
-                <p className="lti-mini-empty">Not enough data for this metric yet.</p>
-              )}
-            </div>
+            <TimelineSection
+              entries={enrichedEntries} dates={dates}
+              onExpand={() => setFocusChart("timeline")} />
 
-            {/* ── Metric cards grid ── */}
+            {/* Metric mini-cards */}
             <div className="lti-metrics-grid">
               {METRIC_DEFS.map(m => {
                 const series = extractSeries(enrichedEntries, m.key);
                 if (series.length < 2) return null;
-                const current = series[series.length - 1];
-                const ms = metricScrubs[m.key];
-                const displayVal = ms != null ? ms.value : current;
                 return (
-                  <div key={m.key} className="lti-metric-card">
-                    <div className="lti-metric-card-header">
-                      <span className="lti-metric-icon" style={{ color: m.color }}>{m.icon}</span>
-                      <span className="lti-metric-name">{m.label}</span>
-                      {ms != null
-                        ? <span className="lti-scrub-date-badge">{ms.date}</span>
-                        : <TrendBadge values={series} />}
-                    </div>
-                    <SparkWithScale
-                      values={series} color={m.color} height={40}
-                      minScale={0} maxScale={10}
-                      topLabel="10" bottomLabel="0"
-                      showDots={series.length <= 14}
-                      dateLabels={dates}
-                      onScrub={(idx, val) => setMetricScrubs(p => ({ ...p, [m.key]: idx != null ? { value: val, date: dates[idx] } : null }))} />
-                    <div className="lti-metric-val">
-                      {typeof displayVal === "number" ? (Number.isInteger(displayVal) ? displayVal : displayVal.toFixed(1)) : displayVal}
-                      <span className="lti-metric-unit"> / 10</span>
-                    </div>
-                  </div>
+                  <MetricCard key={m.key} m={m} series={series} dates={dates}
+                    onExpand={() => setFocusChart(m.key)} />
                 );
               })}
             </div>
 
-            {/* ── Productivity by hour ── */}
+            {/* Productivity by hour */}
             {Object.keys(taskStats.hourCounts).length > 0 && (
               <div className="lti-card lti-card-full">
                 <div className="lti-card-header">
@@ -425,7 +502,7 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
               </div>
             )}
 
-            {/* ── Your patterns ── */}
+            {/* Your patterns */}
             <div className="lti-card lti-card-full">
               <div className="lti-card-title"><Activity size={14} /> Your Patterns</div>
               <div className="lti-stats-grid">
@@ -457,16 +534,15 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
                     <span className="lti-stat-lbl">Avg readiness</span>
                   </div>
                 )}
-                {activeSeries.length >= 3 && (
+                {extractSeries(enrichedEntries, "energy").length >= 2 && (
                   <div className="lti-stat">
-                    <span className="lti-stat-val">{Math.round(avg(extractSeries(enrichedEntries, "energy") || [0]) * 10) / 10}</span>
+                    <span className="lti-stat-val">{Math.round(avg(extractSeries(enrichedEntries, "energy")) * 10) / 10}</span>
                     <span className="lti-stat-lbl">Avg energy (/10)</span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* ── NORA's insights ── */}
             {insights.length > 0 && (
               <div className="lti-card lti-card-full lti-insights-card">
                 <div className="lti-card-title">Nora's Read on You</div>
