@@ -504,14 +504,19 @@ export default function App() {
   const isMobile = useMobile();
 
   useEffect(() => {
+    // Safety timeout — if Supabase hangs (PWA cache miss, no network) unblock after 8 s
+    const authTimeout = setTimeout(() => setAuthLoading(false), 8000);
+
     supabase.auth.getSession()
-      .then(({ data: { session } }) => { setSession(session); setAuthLoading(false); })
-      .catch(() => setAuthLoading(false));
+      .then(({ data: { session } }) => { clearTimeout(authTimeout); setSession(session); setAuthLoading(false); })
+      .catch(() => { clearTimeout(authTimeout); setAuthLoading(false); });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      clearTimeout(authTimeout);
       setSession(session); setAuthLoading(false);
       if (event === "PASSWORD_RECOVERY") setIsResettingPw(true);
     });
-    return () => subscription.unsubscribe();
+    return () => { clearTimeout(authTimeout); subscription.unsubscribe(); };
   }, []);
 
   // Load all app data from Supabase when user logs in
@@ -2725,8 +2730,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
   // ── Auth guard ────────────────────────────────────────
   if (authLoading) return (
-    <div className={`app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""} auth-loading-wrap`}>
-      <div className="auth-spinner" />
+    <div style={{ minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", background:"#0e0d1e" }}>
+      <div style={{ width:36, height:36, borderRadius:"50%", border:"3px solid rgba(139,92,246,.25)", borderTopColor:"#8b5cf6", animation:"spin .7s linear infinite" }} />
     </div>
   );
 
