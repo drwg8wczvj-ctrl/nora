@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { X, ChevronLeft, ChevronRight, Sunrise, Zap, Brain } from "lucide-react";
 
 // ── Readiness computation (NaN-safe) ───────────────────────────
@@ -147,6 +147,42 @@ export default function MorningCheckup({
   const finalSummary = finalReadiness
     ? generateNoraSummary({ ...data, focusChoices: data.focusChoices ?? [], readiness: finalReadiness })
     : null;
+
+  // AI-generated tips — fetched when summary screen appears
+  const [aiTips,       setAiTips]       = useState(null);  // null = not yet fetched
+  const [tipsLoading,  setTipsLoading]  = useState(false);
+  const tipsRequestedRef = useRef(false);
+
+  useEffect(() => {
+    if (step < TOTAL_STEPS || tipsRequestedRef.current) return;
+    tipsRequestedRef.current = true;
+    setTipsLoading(true);
+    fetch("/api/tips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "morning",
+        context: {
+          readinessLabel: finalReadiness?.label,
+          readinessPct:   finalReadiness?.pct,
+          sleepQuality:   data.sleepQuality,
+          sleepDuration:  sd,
+          energyScore:    data.energyScore,
+          restedScore:    data.restedScore,
+          clarityScore:   data.clarityScore,
+          dayPressure:    data.dayPressure,
+          focusChoices:   data.focusChoices ?? [],
+          tasks:          (todayTasks ?? []).map(t => ({ title: t.title, type: t.type })),
+        },
+      }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.tips?.length) setAiTips(d.tips); })
+      .catch(() => {/* fall back to static tips */})
+      .finally(() => setTipsLoading(false));
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const displayTips = aiTips ?? finalSummary?.tips ?? [];
 
   const progressPct = Math.min(step / TOTAL_STEPS, 1) * 100;
 
@@ -337,12 +373,23 @@ export default function MorningCheckup({
               )}
 
               <div className="mcu-tips">
-                {finalSummary.tips.map((tip, i) => (
-                  <div key={i} className="mcu-tip">
-                    <span className="mcu-tip-dot" style={{ background: finalReadiness.color }} />
-                    {tip}
-                  </div>
-                ))}
+                {tipsLoading && !aiTips ? (
+                  <>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="mcu-tip mcu-tip-skeleton">
+                        <span className="mcu-tip-dot" style={{ background: finalReadiness.color }} />
+                        <span className="mcu-tip-shimmer" />
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  displayTips.map((tip, i) => (
+                    <div key={i} className={`mcu-tip${aiTips ? " mcu-tip-ai" : ""}`}>
+                      <span className="mcu-tip-dot" style={{ background: finalReadiness.color }} />
+                      {tip}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}

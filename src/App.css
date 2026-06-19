@@ -1896,7 +1896,19 @@
 .mcu-summary-chip { padding: 5px 12px; border-radius: 18px; border: 1px solid; font-size: 12px; font-weight: 600; }
 .mcu-tips { display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; }
 .mcu-tip { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.mcu-tip-ai { color: var(--text); }
 .mcu-tip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.mcu-tip-shimmer {
+  display: block; height: 14px; border-radius: 6px;
+  flex: 1;
+  background: linear-gradient(90deg, var(--border) 25%, var(--surface-2) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: mcuShimmer 1.4s ease-in-out infinite;
+}
+@keyframes mcuShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 
 /* Footer */
 .mcu-footer { padding: 14px 24px 22px; flex-shrink: 0; border-top: 1px solid var(--border); }

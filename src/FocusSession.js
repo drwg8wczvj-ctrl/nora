@@ -107,6 +107,52 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   const distractRef  = useRef(0);
   const intervalRef  = useRef(null);
 
+  const [aiTip,      setAiTip]      = useState(null);
+  const [aiComplete, setAiComplete] = useState(null);
+  const tipFetchedRef = useRef(false);
+
+  // Fetch AI tip once when prepare phase is active
+  useEffect(() => {
+    if (phase !== "prepare" || tipFetchedRef.current) return;
+    tipFetchedRef.current = true;
+    fetch("/api/tips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "focus_start",
+        context: {
+          taskTitle:    task?.title ?? "this task",
+          blockReason:  blockReason?.label ?? null,
+          daysDeferred: daysDeferred,
+          duration:     duration,
+        },
+      }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.tip) setAiTip(d.tip); })
+      .catch(() => {});
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch AI completion note when session ends
+  useEffect(() => {
+    if (phase !== "completed") return;
+    fetch("/api/tips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "focus_complete",
+        context: {
+          taskTitle:    task?.title ?? "this task",
+          distractCount: distractCount,
+          duration:     duration,
+        },
+      }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.tip) setAiComplete(d.tip); })
+      .catch(() => {});
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
   const microStarts = getMicroStart(task?.title);
@@ -225,10 +271,10 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
         {/* ── Prepare ── */}
         {phase === "prepare" && (
           <div className="fs-phase">
-            {blockReason && (
+            {(aiTip || blockReason) && (
               <div className="fs-nora-tip">
                 <Zap size={13} />
-                <span>Nora: "{blockReason.msg}"</span>
+                <span>{aiTip ?? `Nora: "${blockReason.msg}"`}</span>
               </div>
             )}
 
@@ -383,13 +429,15 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
             <div className="fs-phase-icon fs-icon-success"><Check size={28} /></div>
             <h2 className="fs-title">Session complete.</h2>
             <p className="fs-sub">
-              {distractCount === 0
-                ? "Clean focus — no distractions. That's real momentum."
-                : distractCount === 1
-                  ? "You got distracted once and came back. That's the skill."
-                  : `You recovered from ${distractCount} distractions and finished. That counts.`}
+              {aiComplete ?? (
+                distractCount === 0
+                  ? "Clean focus — no distractions. That's real momentum."
+                  : distractCount === 1
+                    ? "You got distracted once and came back. That's the skill."
+                    : `You recovered from ${distractCount} distractions and finished. That counts.`
+              )}
             </p>
-            {distractCount > 0 && (
+            {!aiComplete && distractCount > 0 && (
               <div className="fs-nora-tip">
                 <Zap size={13} />
                 <span>Returning from distraction is itself a focus skill. You practiced it.</span>
