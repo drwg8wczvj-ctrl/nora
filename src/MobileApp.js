@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Check, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
+  Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
   FileText, Trash2, User, RotateCcw, CalendarDays,
   Flag, Coffee, Bell, Activity, Wind, TrendingUp,
   TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
   SkipForward, Sparkles, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
-  Share2, Users,
+  Share2, Users, Search,
 } from "lucide-react";
+import NoteCard from "./components/NoteCard";
+import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
 import { supabase } from "./lib/supabase";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
 import LongTermInsights from "./LongTermInsights";
@@ -1491,113 +1493,134 @@ function MobileTasks({ ctx }) {
 }
 
 // ── Notes view ───────────────────────────────────────────────
-const MOB_NOTE_COLORS = {
-  yellow: { bg: "#fef9c3", border: "#fde68a", text: "#78350f" },
-  pink:   { bg: "#fce7f3", border: "#f9a8d4", text: "#701a75" },
-  blue:   { bg: "#dbeafe", border: "#93c5fd", text: "#1e3a8a" },
-  green:  { bg: "#dcfce7", border: "#86efac", text: "#14532d" },
-};
-
 function MobileNotes({ ctx }) {
   const { notes, setNotes, deleteNote, patchNote } = ctx;
-  const [openId,     setOpenId]     = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
+  const [openId,      setOpenId]      = useState(null);
+  const [deletingId,  setDeletingId]  = useState(null);
+  const [noteSearch,  setNoteSearch]  = useState("");
+  const [quickAddOpen,setQuickAddOpen]= useState(false);
 
-  const openNote = notes.find(n => n.id === openId);
-  const nc = (color) => MOB_NOTE_COLORS[color ?? "yellow"];
-
-  const handleCardDelete = (e, id) => {
-    e.stopPropagation();
-    setDeletingId(id);
-    setTimeout(() => { deleteNote(id); setDeletingId(null); }, 210);
-  };
-
-  const handleCreate = () => {
-    const n = { id: uid(), title: "", content: "", color: "yellow", done: false, createdAt: Date.now() };
-    setNotes(p => [...p, n]);
-    setOpenId(n.id);
-  };
+  const openNote = openId ? notes.find(n => n.id === openId) : null;
+  const migrated = openNote ? migrateNote(openNote) : null;
 
   const closeNote = () => {
-    if (openNote && !openNote.title?.trim() && !openNote.content?.trim()) {
-      deleteNote(openNote.id);
+    if (openNote) {
+      const m = migrateNote(openNote);
+      if (!m.title?.trim() && !m.content?.trim() && !m.items?.length) {
+        deleteNote(openNote.id);
+      }
     }
     setOpenId(null);
+    setQuickAddOpen(false);
   };
+
+  const handleDelete = (id) => {
+    setDeletingId(id);
+    if (openId === id) setOpenId(null);
+    setTimeout(() => { deleteNote(id); setDeletingId(null); }, 200);
+  };
+
+  const handleCreate = (type = "note") => {
+    const n = { id: uid(), type, title: "", content: "", items: [], color: "default", pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() };
+    setNotes(p => [...p, n]);
+    setOpenId(n.id);
+    setQuickAddOpen(false);
+  };
+
+  const migratedNotes = notes.map(migrateNote);
+  const filtered = migratedNotes.filter(n => {
+    if (!noteSearch) return true;
+    const q = noteSearch.toLowerCase();
+    return n.title?.toLowerCase().includes(q) ||
+           n.content?.toLowerCase().includes(q) ||
+           n.items?.some(i => i.text?.toLowerCase().includes(q));
+  });
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    if (a.starred !== b.starred) return a.starred ? -1 : 1;
+    return (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0);
+  });
 
   return (
     <div className="mob-notes-v2">
-      {notes.length === 0 ? (
+      {/* Search */}
+      <div className="mob-notes-search-bar">
+        <Search size={13} className="mob-notes-search-icon" />
+        <input
+          className="mob-notes-search-input"
+          value={noteSearch}
+          onChange={e => setNoteSearch(e.target.value)}
+          placeholder="Search notes…"
+        />
+        {noteSearch && (
+          <button className="mob-notes-search-clear" onClick={() => setNoteSearch("")}>
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* Empty state */}
+      {sorted.length === 0 && (
         <div className="mob-empty-state" style={{ padding: "40px 0" }}>
-          <FileText size={36} style={{ opacity: .15 }} />
-          <p>No notes yet.</p>
-        </div>
-      ) : (
-        <div className="mob-sticky-grid">
-          {[...notes].reverse().map((note) => {
-            const c = nc(note.color);
-            return (
-              <div key={note.id}
-                className={`mob-sticky-card${deletingId === note.id ? " deleting" : ""}`}
-                style={{ background: c.bg, borderColor: c.border }}
-                onClick={() => setOpenId(note.id)}>
-                <button className="mob-sticky-card-del" onClick={e => handleCardDelete(e, note.id)}>
-                  <X size={10} />
-                </button>
-                <div className="mob-sticky-title" style={{ color: c.text }}>
-                  {note.title || "Untitled"}
-                </div>
-                {note.content && (
-                  <div className="mob-sticky-preview" style={{ color: c.text }}>
-                    {note.content}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          <FileText size={36} style={{ opacity: .12 }} />
+          <p>{noteSearch ? "No notes match." : "No notes yet."}</p>
         </div>
       )}
 
-      {/* Floating action button — single entry point */}
-      <button className="mob-note-fab" onClick={handleCreate}>
-        <Plus size={22} />
-      </button>
-
-      {/* Expanded note bottom sheet */}
-      {openNote && (
-        <div className="mob-sticky-overlay" onClick={closeNote}>
-          <div className="mob-sticky-sheet"
-            style={{ background: nc(openNote.color).bg, borderColor: nc(openNote.color).border }}
-            onClick={e => e.stopPropagation()}>
-            <div className="mob-modal-handle" />
-            <div className="mob-sticky-sheet-top">
-              <input className="mob-sticky-sheet-title"
-                style={{ color: nc(openNote.color).text }}
-                value={openNote.title ?? ""}
-                onChange={e => patchNote(openNote.id, { title: e.target.value })}
-                placeholder="Note title"
-                autoFocus />
-              <button className="mob-modal-close" onClick={closeNote}>
-                <X size={20} />
-              </button>
+      {/* Masonry grid */}
+      {sorted.length > 0 && (
+        <div className="mob-notes-masonry">
+          {sorted.map(note => (
+            <div key={note.id} className="mob-notes-masonry-item">
+              <NoteCard
+                note={note}
+                deleting={deletingId === note.id}
+                onClick={() => setOpenId(note.id)}
+                onDelete={() => handleDelete(note.id)}
+                onPin={() => patchNote(note.id, { pinned: !note.pinned })}
+                onStar={() => patchNote(note.id, { starred: !note.starred })}
+              />
             </div>
-            <div className="mob-sticky-color-row">
-              {Object.entries(MOB_NOTE_COLORS).map(([key, val]) => (
-                <button key={key} className={`mob-sticky-color-dot${openNote.color === key ? " active" : ""}`}
-                  style={{ background: val.bg, borderColor: val.border, outlineColor: val.text }}
-                  onClick={() => patchNote(openNote.id, { color: key })} />
-              ))}
-              <button className="mob-sticky-del" onClick={() => { deleteNote(openNote.id); setOpenId(null); }}>
-                <Trash2 size={15} />
-              </button>
-            </div>
-            <textarea className="mob-sticky-content"
-              style={{ color: nc(openNote.color).text }}
-              value={openNote.content ?? ""}
-              onChange={e => patchNote(openNote.id, { content: e.target.value })}
-              placeholder="Write your note…" />
-          </div>
+          ))}
         </div>
+      )}
+
+      {/* Quick-add FAB */}
+      <div className="mob-notes-fab-wrap">
+        {quickAddOpen && (
+          <>
+            <div className="mob-notes-fab-backdrop" onClick={() => setQuickAddOpen(false)} />
+            <div className="mob-notes-fab-menu">
+              {NOTE_TYPE_DEFS.map(t => {
+                const Icon = t.icon;
+                return (
+                  <button key={t.key} className="mob-notes-fab-item"
+                    onClick={() => handleCreate(t.key)}>
+                    <Icon size={15} />
+                    <span>{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+        <button
+          className={`mob-note-fab${quickAddOpen ? " mob-note-fab-open" : ""}`}
+          onClick={() => setQuickAddOpen(v => !v)}
+        >
+          <Plus size={22} />
+        </button>
+      </div>
+
+      {/* Note editor — bottom sheet */}
+      {migrated && (
+        <NoteEditor
+          note={migrated}
+          isMobile={true}
+          onPatch={fields => patchNote(openNote.id, fields)}
+          onDelete={() => handleDelete(openNote.id)}
+          onClose={closeNote}
+        />
       )}
     </div>
   );
@@ -2097,8 +2120,9 @@ function MobileChat({ ctx }) {
   const [aiChatSuggestions, setAiChatSuggestions] = useState(null);
   const [aiChatSugLoading,  setAiChatSugLoading]  = useState(false);
   const aiChatSugFetchedRef = useRef(false);
-  const endRef   = useRef(null);
-  const inputRef = useRef(null);
+  const endRef      = useRef(null);
+  const inputRef    = useRef(null);
+  const [chatAtBottom, setChatAtBottom] = useState(true);
 
   useEffect(() => {
     if (chatOpen) {
@@ -2133,6 +2157,7 @@ function MobileChat({ ctx }) {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
+    setChatAtBottom(true);
   }, [messages, chatLoading]);
 
   // Reset textarea height when input is cleared after send
@@ -2159,20 +2184,32 @@ function MobileChat({ ctx }) {
         </button>
       </div>
 
-      <div className="mob-chat-messages">
-        {messages.map((m, i) => (
-          <div key={i} className={`mob-chat-msg mob-chat-${m.role}`}>
-            <div className="mob-chat-bubble">{m.content}</div>
-          </div>
-        ))}
-        {chatLoading && (
-          <div className="mob-chat-msg mob-chat-assistant">
-            <div className="mob-chat-bubble mob-chat-typing">
-              <span /><span /><span />
+      <div className="mob-chat-messages-wrap">
+        <div className="mob-chat-messages"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setChatAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+          }}>
+          {messages.map((m, i) => (
+            <div key={i} className={`mob-chat-msg mob-chat-${m.role}`}>
+              <div className="mob-chat-bubble">{m.content}</div>
             </div>
-          </div>
+          ))}
+          {chatLoading && (
+            <div className="mob-chat-msg mob-chat-assistant">
+              <div className="mob-chat-bubble mob-chat-typing">
+                <span /><span /><span />
+              </div>
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+        {!chatAtBottom && (
+          <button className="chat-scroll-btn"
+            onClick={() => endRef.current?.scrollIntoView({ behavior: "smooth" })}>
+            <ChevronDown size={16} />
+          </button>
         )}
-        <div ref={endRef} />
       </div>
 
       <div className="mob-chat-suggestions">

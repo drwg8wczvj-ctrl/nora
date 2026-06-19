@@ -27,3 +27,14 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 server/.envl
+
+# ── QA system (developer-only, never commit) ──────────────────
+qa/.env
+qa/.auth/
+qa/screenshots/
+qa/reports/
+qa/playwright-report/
+qa/test-results/
+# Playwright cache
+/playwright-report
+/test-results

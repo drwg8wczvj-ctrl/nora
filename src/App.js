@@ -36,9 +36,11 @@ import {
   ZoomIn, ZoomOut,
   Brain, Target, Lightbulb, BarChart2, AlertTriangle,
   Pencil, SkipForward, Sparkles, Moon, Sunrise,
-  Share2, Users,
+  Share2, Users, Search,
 } from "lucide-react";
 import { calculateTaskWeight } from "./utils/taskUtils";
+import NoteCard from "./components/NoteCard";
+import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
 import "./App.css";
 import "./glass.css";
 
@@ -163,13 +165,7 @@ const getChatAlternatives = (input, ghost) => {
     .slice(0, 6);
 };
 
-// ── Note colors (Apple Stickies palette) ───────────────
-const NOTE_COLORS = {
-  yellow: { bg: "#fef9c3", border: "#fde68a", text: "#78350f" },
-  pink:   { bg: "#fce7f3", border: "#f9a8d4", text: "#701a75" },
-  blue:   { bg: "#dbeafe", border: "#93c5fd", text: "#1e3a8a" },
-  green:  { bg: "#dcfce7", border: "#86efac", text: "#14532d" },
-};
+// Note palette moved to NoteEditor.js (migrateNote, NOTE_TYPE_DEFS, NOTE_COLORS)
 
 // ── Helpers ────────────────────────────────────────────
 const uid      = () => Math.random().toString(36).slice(2);
@@ -676,7 +672,9 @@ export default function App() {
 
   const [userPrefs,   setUserPrefs]   = useState({});
   const chatEndRef   = useRef(null);
+  const chatMsgRef   = useRef(null);
   const chatInputRef = useRef(null);
+  const [chatAtBottom, setChatAtBottom] = useState(true);
 
   const [showLanding,    setShowLanding]    = useState(() => !localStorage.getItem("nora_visited"));
   const [notes,          setNotes]          = useLocalStorage("nora_notes", []);
@@ -1415,7 +1413,10 @@ export default function App() {
   }, [view, selectedDate, zoomedH]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (addingAt !== null) addInputRef.current?.focus(); }, [addingAt]);
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setChatAtBottom(true);
+  }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
   // ── Collaboration: load shared objects + realtime ─────────────
   useEffect(() => {
@@ -1850,12 +1851,17 @@ export default function App() {
 
   const [openNoteId,     setOpenNoteId]     = useState(null);
   const [deletingNoteId, setDeletingNoteId] = useState(null);
-  const createStickyNote = (color = "yellow") => {
-    const n = { id: uid(), title: "", content: "", color, done: false, createdAt: Date.now() };
+  const [noteSearch,     setNoteSearch]     = useState("");
+  const [noteQuickAdd,   setNoteQuickAdd]   = useState(false);
+
+  const createNote = (type = "note") => {
+    const n = { id: uid(), type, title: "", content: "", items: [], color: "default", pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() };
     setNotes((p) => [...p, n]);
     setOpenNoteId(n.id);
   };
-  const patchNote  = (id, fields) => setNotes((p) => p.map((n) => n.id === id ? { ...n, ...fields } : n));
+  // Keep for mobileCtx backward compat
+  const createStickyNote = () => createNote("note");
+  const patchNote  = (id, fields) => setNotes((p) => p.map((n) => n.id === id ? { ...n, ...fields, updatedAt: Date.now() } : n));
   // eslint-disable-next-line no-unused-vars
   const addNote    = () => { /* kept for mobileCtx compat */ };
   const toggleNote = (id) => patchNote(id, { done: !notes.find(n => n.id === id)?.done });
@@ -2741,8 +2747,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       adaptiveRecs, weeklyReflection, mostAvoided, focusPatterns,
       doneToday, totalToday, pct,
       toggleTask, skipTask, askNORAtoReschedule, saveTask, deleteTask,
-      addNote: (text) => setNotes((p) => [...p, { id: uid(), title: "", content: text, color: "yellow", done: false, createdAt: Date.now() }]),
-      toggleNote, updateNote, deleteNote, patchNote, createStickyNote, getGroup,
+      addNote: (text) => setNotes((p) => [...p, { id: uid(), title: "", content: text, color: "default", type: "note", items: [], pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() }]),
+      toggleNote, updateNote, deleteNote, patchNote, createStickyNote, createNote, getGroup,
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
       microStartMode, setMicroStartMode,
       boards,
@@ -3872,91 +3878,122 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           })()}
 
           {view === "notes" && (() => {
-            const openNote = notes.find(n => n.id === openNoteId);
-            const nc = (color) => NOTE_COLORS[color ?? "yellow"];
+            const openNote  = openNoteId ? notes.find(n => n.id === openNoteId) : null;
+            const migrated  = openNote ? migrateNote(openNote) : null;
+
             const closeNote = () => {
-              if (openNote && !openNote.title?.trim() && !openNote.content?.trim()) {
-                deleteNote(openNote.id);
-              } else {
-                setOpenNoteId(null);
+              if (openNote) {
+                const m = migrateNote(openNote);
+                const empty = !m.title?.trim() && !m.content?.trim() && !m.items?.length;
+                if (empty) deleteNote(openNote.id);
               }
+              setOpenNoteId(null);
+              setNoteQuickAdd(false);
             };
-            const handleCardDelete = (e, id) => {
-              e.stopPropagation();
+
+            const handleDelete = (id) => {
               setDeletingNoteId(id);
-              setTimeout(() => { deleteNote(id); setDeletingNoteId(null); }, 210);
+              if (openNoteId === id) setOpenNoteId(null);
+              setTimeout(() => { deleteNote(id); setDeletingNoteId(null); }, 200);
             };
+
+            const migratedNotes = notes.map(migrateNote);
+            const filtered = migratedNotes.filter(n => {
+              if (!noteSearch) return true;
+              const q = noteSearch.toLowerCase();
+              return n.title?.toLowerCase().includes(q) ||
+                     n.content?.toLowerCase().includes(q) ||
+                     n.items?.some(i => i.text?.toLowerCase().includes(q));
+            });
+            const sorted = [...filtered].sort((a, b) => {
+              if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+              if (a.starred !== b.starred) return a.starred ? -1 : 1;
+              return (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0);
+            });
+
             return (
               <div className="notes-view">
-                <div className="notes-view-header">
-                  <button className="sticky-add-note-btn" onClick={() => createStickyNote("yellow")}>
-                    <Plus size={14} /> New Note
-                  </button>
+                {/* Search bar */}
+                <div className="notes-search-bar">
+                  <Search size={14} className="notes-search-icon" />
+                  <input
+                    className="notes-search-input"
+                    value={noteSearch}
+                    onChange={e => setNoteSearch(e.target.value)}
+                    placeholder="Search notes…"
+                  />
+                  {noteSearch && (
+                    <button className="notes-search-clear" onClick={() => setNoteSearch("")}>
+                      <X size={13} />
+                    </button>
+                  )}
                 </div>
-                {notes.length === 0 ? (
+
+                {/* Empty state */}
+                {sorted.length === 0 && (
                   <div className="notes-empty">
-                    <FileText size={40} style={{ opacity: .1 }} />
-                    <p>No notes yet.</p>
-                  </div>
-                ) : (
-                  <div className="sticky-grid">
-                    {[...notes].reverse().map((note) => {
-                      const c = nc(note.color);
-                      return (
-                        <div key={note.id}
-                          className={`sticky-card${deletingNoteId === note.id ? " deleting" : ""}`}
-                          style={{ background: c.bg, borderColor: c.border }}
-                          onClick={() => setOpenNoteId(note.id)}>
-                          <button className="sticky-card-del" onClick={e => handleCardDelete(e, note.id)}>
-                            <Trash2 size={12} />
-                          </button>
-                          <div className="sticky-card-title" style={{ color: c.text }}>
-                            {note.title || "Untitled"}
-                          </div>
-                          {note.content && (
-                            <div className="sticky-card-preview" style={{ color: c.text }}>
-                              {note.content}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    <FileText size={42} style={{ opacity: .07 }} />
+                    <p>{noteSearch ? "No notes match your search." : "No notes yet. Create your first one →"}</p>
                   </div>
                 )}
 
-                {/* Expanded note modal */}
-                {openNote && (
-                  <div className="sticky-modal-overlay" onClick={closeNote}>
-                    <div className="sticky-modal" style={{ background: nc(openNote.color).bg, borderColor: nc(openNote.color).border }}
-                      onClick={e => e.stopPropagation()}>
-                      <div className="sticky-modal-top">
-                        <input className="sticky-modal-title"
-                          style={{ color: nc(openNote.color).text }}
-                          value={openNote.title ?? ""}
-                          onChange={e => patchNote(openNote.id, { title: e.target.value })}
-                          placeholder="Note title"
-                          autoFocus />
-                        <button className="sticky-modal-close" onClick={closeNote}>
-                          <X size={16} />
-                        </button>
+                {/* Masonry grid */}
+                {sorted.length > 0 && (
+                  <div className="notes-masonry">
+                    {sorted.map(note => (
+                      <div key={note.id} className="notes-masonry-item">
+                        <NoteCard
+                          note={note}
+                          deleting={deletingNoteId === note.id}
+                          onClick={() => setOpenNoteId(note.id)}
+                          onDelete={() => handleDelete(note.id)}
+                          onPin={() => patchNote(note.id, { pinned: !note.pinned })}
+                          onStar={() => patchNote(note.id, { starred: !note.starred })}
+                        />
                       </div>
-                      <div className="sticky-color-row">
-                        {Object.entries(NOTE_COLORS).map(([key, val]) => (
-                          <button key={key} className={`sticky-color-dot${openNote.color === key ? " active" : ""}`}
-                            style={{ background: val.bg, borderColor: val.border, outlineColor: val.text }}
-                            onClick={() => patchNote(openNote.id, { color: key })} />
-                        ))}
-                        <button className="sticky-modal-delete" onClick={() => deleteNote(openNote.id)}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                      <textarea className="sticky-modal-content"
-                        style={{ color: nc(openNote.color).text }}
-                        value={openNote.content ?? ""}
-                        onChange={e => patchNote(openNote.id, { content: e.target.value })}
-                        placeholder="Write your note…" />
-                    </div>
+                    ))}
                   </div>
+                )}
+
+                {/* Quick-add FAB */}
+                <div className="notes-fab-wrap">
+                  {noteQuickAdd && (
+                    <>
+                      <div className="notes-fab-backdrop" onClick={() => setNoteQuickAdd(false)} />
+                      <div className="notes-fab-menu">
+                        {NOTE_TYPE_DEFS.map(t => {
+                          const Icon = t.icon;
+                          return (
+                            <button key={t.key} className="notes-fab-item"
+                              onClick={() => { createNote(t.key); setNoteQuickAdd(false); }}>
+                              <Icon size={14} />
+                              <div>
+                                <div className="notes-fab-item-label">{t.label}</div>
+                                <div className="notes-fab-item-desc">{t.desc}</div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <button
+                    className={`notes-fab${noteQuickAdd ? " notes-fab-open" : ""}`}
+                    onClick={() => setNoteQuickAdd(v => !v)}
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
+
+                {/* Note editor */}
+                {migrated && (
+                  <NoteEditor
+                    note={migrated}
+                    isMobile={false}
+                    onPatch={fields => patchNote(openNote.id, fields)}
+                    onDelete={() => handleDelete(openNote.id)}
+                    onClose={closeNote}
+                  />
                 )}
               </div>
             );
@@ -4013,12 +4050,24 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </div>
           <button className="chat-close" onClick={() => setChatOpen(false)}><X size={16} /></button>
         </div>
-        <div className="chat-messages">
-          {messages.map((m, i) => (
-            <div key={i} className={`chat-msg ${m.role}`}><div className="chat-bubble">{m.content}</div></div>
-          ))}
-          {chatLoading && <div className="chat-msg assistant"><div className="chat-bubble typing"><span /><span /><span /></div></div>}
-          <div ref={chatEndRef} />
+        <div className="chat-messages-wrap">
+          <div className="chat-messages" ref={chatMsgRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              setChatAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+            }}>
+            {messages.map((m, i) => (
+              <div key={i} className={`chat-msg ${m.role}`}><div className="chat-bubble">{m.content}</div></div>
+            ))}
+            {chatLoading && <div className="chat-msg assistant"><div className="chat-bubble typing"><span /><span /><span /></div></div>}
+            <div ref={chatEndRef} />
+          </div>
+          {!chatAtBottom && (
+            <button className="chat-scroll-btn"
+              onClick={() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" })}>
+              <ChevronDown size={16} />
+            </button>
+          )}
         </div>
         <div className="chat-suggestions">
           {!chatInput ? (

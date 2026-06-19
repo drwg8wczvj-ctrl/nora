@@ -18,11 +18,20 @@ const PROFILE_FIELDS = "user_id, name, username, avatar_type, avatar_color, avat
 export async function getMyProfile() {
   const user = await currentUser();
   if (!user) return null;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("user_profile")
     .select(PROFILE_FIELDS)
     .eq("user_id", user.id)
     .maybeSingle();
+  if (error) {
+    // Columns don't exist yet — migration hasn't been run. Fall back to basics.
+    const { data: basic } = await supabase
+      .from("user_profile")
+      .select("user_id, name, birthday, created_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    return basic ?? null;
+  }
   return data;
 }
 
@@ -52,7 +61,13 @@ export async function saveFullProfile(updates) {
   const { error } = await supabase
     .from("user_profile")
     .upsert({ user_id: user.id, ...updates }, { onConflict: "user_id" });
-  if (error) throw error;
+  if (error) {
+    // Migration not run yet — columns don't exist. Tell the user clearly.
+    if (error.message?.includes("schema cache") || error.message?.includes("column")) {
+      throw new Error("Database not set up yet. Please run supabase_full_migration.sql in your Supabase SQL Editor.");
+    }
+    throw error;
+  }
 }
 
 export async function setUsername(username) {
