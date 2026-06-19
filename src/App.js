@@ -595,10 +595,12 @@ export default function App() {
     const upsertData = { user_id: session.user.id };
     if (meta.name)     upsertData.name     = meta.name;
     if (meta.birthday) upsertData.birthday = meta.birthday;
-    upsertData.updated_at = new Date().toISOString();
+    // Note: do NOT include updated_at — that column may not exist in the table.
+    // If the upsert fails (e.g. missing column), still load the profile below.
 
     supabase.from("user_profile")
       .upsert(upsertData, { onConflict: "user_id" })
+      .catch(e => console.warn("[Profile sync]", e.message)) // don't break the chain
       .then(() => getMyProfile())
       .then((data) => {
         if (!data) return;

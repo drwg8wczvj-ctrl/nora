@@ -933,6 +933,7 @@
 /* NoteCard overrides for mobile — no hover actions, slightly tighter */
 .mob-notes-v2 .nc { border-radius: 14px; padding: 12px 12px 10px; }
 .mob-notes-v2 .nc:active { transform: scale(.97); }
+.mob-notes-v2 .nc-hover-actions { display: none !important; }
 
 /* FAB */
 .mob-notes-fab-wrap {
