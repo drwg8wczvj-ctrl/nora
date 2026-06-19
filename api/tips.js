@@ -62,6 +62,28 @@ Max 15 words. No quotes. No explanation. Just the tip.`;
 Give one short, specific, genuine reaction to their performance.
 Max 18 words. No quotes. No explanation. Be real, not cheerful-corporate.`;
 
+  } else if (type === "chat_prompts") {
+    const { todayTaskCount, todayTasks = [], deferredCount, dayOfWeek, energy, focus } = context;
+
+    const taskList = todayTasks.length
+      ? todayTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ")
+      : "no tasks scheduled";
+
+    systemPrompt = `You are Nora, a productivity assistant. Generate 3 short, personalized conversation starters a user would genuinely want to ask their AI planner right now. Make them feel specific and relevant — never generic.`;
+
+    userPrompt = `User's situation right now:
+- Today is ${dayOfWeek ?? "today"}
+- Tasks today: ${todayTaskCount ?? 0} (${taskList})
+- Deferred/pending tasks: ${deferredCount ?? 0}
+${energy != null ? `- Energy: ${energy}/10` : ""}
+${focus != null ? `- Focus: ${focus}/10` : ""}
+
+Write exactly 3 short questions or requests this user would naturally type to their productivity assistant.
+Max 7 words each. Vary the topics: one about planning, one about priorities, one about energy or next steps.
+Be specific to their actual task count / task names where helpful.
+Return a JSON array of 3 strings only. No explanation.
+Example: ["What should I tackle first today?","Help me fit in the math homework","I'm low on energy, what's realistic?"]`;
+
   } else {
     return res.status(400).json({ error: "Unknown tip type" });
   }
@@ -92,7 +114,7 @@ Max 18 words. No quotes. No explanation. Be real, not cheerful-corporate.`;
     const data = await upstream.json();
     const text = data.choices?.[0]?.message?.content?.trim() ?? "";
 
-    if (type === "morning") {
+    if (type === "morning" || type === "chat_prompts") {
       let tips;
       try {
         // Model should return a JSON array; be robust if it wraps in markdown fences

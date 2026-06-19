@@ -954,15 +954,47 @@
 /* Suggestion bubbles — appear above the input row */
 /* ── Chat suggestion pill strip ──────────────────────────── */
 .chat-suggestions {
-  padding: 8px 12px 4px;
+  padding: 6px 12px 4px;
   border-top: 1px solid var(--border);
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
 }
-.chat-suggestions::-webkit-scrollbar { display: none; }
 
-/* Single connected pill containing all chips */
+/* AI vertical bubbles — default empty state */
+.chat-ai-bubbles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-ai-bubble {
+  text-align: left;
+  padding: 8px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  white-space: normal;
+  line-height: 1.35;
+  transition: background .12s, color .12s, border-color .12s;
+  animation: pillIn .2s cubic-bezier(.25,1,.35,1) both;
+}
+.chat-ai-bubble:nth-child(1) { animation-delay: .03s; }
+.chat-ai-bubble:nth-child(2) { animation-delay: .07s; }
+.chat-ai-bubble:nth-child(3) { animation-delay: .11s; }
+.chat-ai-bubble:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.chat-ai-bubble-shimmer {
+  height: 34px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: mcuShimmer 1.2s infinite;
+}
+
+/* Horizontal chips — shown while user is typing */
 .chat-chips-pill {
   display: inline-flex;
   border-radius: 22px;

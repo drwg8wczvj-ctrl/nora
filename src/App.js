@@ -637,6 +637,9 @@ export default function App() {
   const [microStartMode,  setMicroStartMode]  = useState(false);
   const [chatSuggestions, setChatSuggestions] = useState(DEFAULT_CHAT_CHIPS);
   const [chatGhost,       setChatGhost]       = useState("");
+  const [aiChatSuggestions, setAiChatSuggestions] = useState(null);
+  const [aiChatSugLoading,  setAiChatSugLoading]  = useState(false);
+  const aiChatSugFetchedRef = useRef(false);
   const [rescheduleTask,  setRescheduleTask]  = useState(null);
   const [inAppAlert,      setInAppAlert]      = useState(null);
 
@@ -1400,6 +1403,30 @@ export default function App() {
   useEffect(() => { if (addingAt !== null) addInputRef.current?.focus(); }, [addingAt]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
+  useEffect(() => {
+    if (!chatOpen || aiChatSugFetchedRef.current) return;
+    aiChatSugFetchedRef.current = true;
+    setAiChatSugLoading(true);
+    fetch("/api/tips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "chat_prompts",
+        context: {
+          todayTaskCount: todayTasks.length,
+          todayTasks: todayTasks.slice(0, 4).map((t) => ({ title: t.title })),
+          deferredCount: deferredTasks.length,
+          dayOfWeek: new Date().toLocaleDateString("en-US", { weekday: "long" }),
+          energy,
+          focus,
+        },
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (d.tips?.length) setAiChatSuggestions(d.tips.slice(0, 3)); })
+      .catch(() => {})
+      .finally(() => setAiChatSugLoading(false));
+  }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 25-minute debounced metric commits ─────────────────────────
   // Wellness sliders only "count" after being stable for 25 min.
@@ -3866,14 +3893,31 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           <div ref={chatEndRef} />
         </div>
         <div className="chat-suggestions">
-          <div className="chat-chips-pill">
-            {chatSuggestions.map((s, i) => (
-              <button key={i} className="chat-chip" onClick={() => {
-                setChatInput(s); setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
-                chatInputRef.current?.focus();
-              }}>{s}</button>
-            ))}
-          </div>
+          {!chatInput ? (
+            <div className="chat-ai-bubbles">
+              {aiChatSugLoading ? (
+                [0, 1, 2].map((i) => <div key={i} className="chat-ai-bubble-shimmer" />)
+              ) : (
+                (aiChatSuggestions ?? ["What should I focus on today?", "Help me plan my day", "How's my workload this week?"]).map((s, i) => (
+                  <button key={i} className="chat-ai-bubble" onClick={() => {
+                    setChatInput(s); setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
+                    chatInputRef.current?.focus();
+                  }}>{s}</button>
+                ))
+              )}
+            </div>
+          ) : (
+            chatSuggestions.length > 0 && (
+              <div className="chat-chips-pill">
+                {chatSuggestions.map((s, i) => (
+                  <button key={i} className="chat-chip" onClick={() => {
+                    setChatInput(s); setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
+                    chatInputRef.current?.focus();
+                  }}>{s}</button>
+                ))}
+              </div>
+            )
+          )}
         </div>
         <div className="chat-input-row">
           <button
