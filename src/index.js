@@ -38,9 +38,11 @@ class ErrorBoundary extends React.Component {
           >
             Reload Nora
           </button>
-          {process.env.NODE_ENV === "development" && this.state.error && (
-            <pre style={{ fontSize: 11, opacity: .5, maxWidth: 360, overflowX: "auto", textAlign: "left" }}>
+          {this.state.error && (
+            <pre style={{ fontSize: 11, opacity: .6, maxWidth: 380, overflowX: "auto", textAlign: "left", marginTop: 8, padding: 12, background: "rgba(255,255,255,.05)", borderRadius: 8, whiteSpace: "pre-wrap" }}>
               {this.state.error.toString()}
+              {"\n\n"}
+              {this.state.error.stack?.split("\n").slice(0, 6).join("\n")}
             </pre>
           )}
         </div>
