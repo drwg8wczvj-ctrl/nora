@@ -1,10 +1,12 @@
 // ─── Notifications Tests ─────────────────────────────────────
 const { test, expect } = require("@playwright/test");
+const { APP_SELECTOR } = require("../helpers/auth");
 
 test.describe("Notifications", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.locator(".app, [class*='app']").first().waitFor({ timeout: 20_000 });
+    await page.locator(APP_SELECTOR).waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(400);
   });
 
   test("notification permission banner or settings is present", async ({ page }) => {
@@ -41,7 +43,7 @@ test.describe("Notifications", () => {
   test("app does not crash on notification interaction", async ({ page }) => {
     // Verify the app is still stable
     await page.waitForTimeout(1000);
-    await expect(page.locator(".app, [class*='app']").first()).toBeVisible();
+    await expect(page.locator(APP_SELECTOR)).toBeVisible();
     const hasError = await page.locator('text=/uncaught error|something went wrong|unexpected error/i').first().isVisible({ timeout: 2_000 }).catch(() => false);
     expect(hasError).toBe(false);
   });

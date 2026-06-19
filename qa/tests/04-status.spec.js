@@ -1,20 +1,18 @@
 // ─── Status View Tests ───────────────────────────────────────
 const { test, expect } = require("@playwright/test");
+const { APP_SELECTOR, navigateTo } = require("../helpers/auth");
 
 test.describe("Status view", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.locator(".app, [class*='app']").first().waitFor({ timeout: 20_000 });
-
-    const statusBtn = page.locator('button:has-text("Status"), [data-view="status"], nav >> text=Status').first();
-    if (await statusBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await statusBtn.click();
-      await page.waitForTimeout(500);
-    }
+    await page.locator(APP_SELECTOR).waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(400);
+    await navigateTo(page, "status");
+    await page.waitForTimeout(500);
   });
 
   test("status view renders without crash", async ({ page }) => {
-    await expect(page.locator(".app").first()).toBeVisible();
+    await expect(page.locator(APP_SELECTOR)).toBeVisible();
     await page.screenshot({ path: "qa/screenshots/status-view.png", fullPage: true });
   });
 

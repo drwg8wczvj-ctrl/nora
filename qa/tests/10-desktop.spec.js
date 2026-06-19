@@ -2,11 +2,13 @@
 //  Run only on the "desktop" project (1440×900 Chrome)
 // ─────────────────────────────────────────────────────────────
 const { test, expect } = require("@playwright/test");
+const { APP_SELECTOR } = require("../helpers/auth");
 
 test.describe("Desktop layout", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.locator(".app, [class*='app']").first().waitFor({ timeout: 20_000 });
+    await page.locator(APP_SELECTOR).waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(400);
   });
 
   test("sidebar navigation is visible", async ({ page }) => {
@@ -25,7 +27,7 @@ test.describe("Desktop layout", () => {
         await btn.click();
         await page.waitForTimeout(400);
 
-        await expect(page.locator(".app").first()).toBeVisible();
+        await expect(page.locator(APP_SELECTOR)).toBeVisible();
         await page.screenshot({
           path: `qa/screenshots/desktop-view-${view.toLowerCase()}.png`,
           fullPage: false,

@@ -1,17 +1,14 @@
 // ─── Notes Tests ─────────────────────────────────────────────
 const { test, expect } = require("@playwright/test");
+const { APP_SELECTOR, navigateTo } = require("../helpers/auth");
 
 test.describe("Notes", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.locator(".app, [class*='app']").first().waitFor({ timeout: 20_000 });
-
-    // Navigate to Notes view
-    const notesBtn = page.locator('button:has-text("Notes"), [data-view="notes"], nav >> text=Notes').first();
-    if (await notesBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await notesBtn.click();
-      await page.waitForTimeout(400);
-    }
+    await page.locator(APP_SELECTOR).waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(400);
+    await navigateTo(page, "notes");
+    await page.waitForTimeout(400);
   });
 
   test("notes view renders", async ({ page }) => {

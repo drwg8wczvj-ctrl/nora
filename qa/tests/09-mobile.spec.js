@@ -2,11 +2,13 @@
 //  These run only on the "mobile" project (iPhone 14 Pro viewport)
 // ─────────────────────────────────────────────────────────────
 const { test, expect } = require("@playwright/test");
+const { APP_SELECTOR } = require("../helpers/auth");
 
 test.describe("Mobile layout", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.locator(".app, [class*='app']").first().waitFor({ timeout: 20_000 });
+    await page.locator(APP_SELECTOR).waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(400);
   });
 
   test("bottom navigation is visible", async ({ page }) => {
@@ -25,7 +27,7 @@ test.describe("Mobile layout", () => {
   });
 
   test("plan view renders on mobile", async ({ page }) => {
-    await expect(page.locator(".app, [class*='app']").first()).toBeVisible();
+    await expect(page.locator(APP_SELECTOR)).toBeVisible();
     await page.screenshot({ path: "qa/screenshots/mobile-plan.png", fullPage: true });
   });
 

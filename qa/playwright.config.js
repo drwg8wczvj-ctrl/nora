@@ -3,9 +3,13 @@
 //  DEVELOPER-ONLY. Never imported by the app. Never deployed.
 // ─────────────────────────────────────────────────────────────
 const { defineConfig, devices } = require("@playwright/test");
+const path = require("path");
 
 // Load QA-only env vars from qa/.env (never exposed to the frontend)
-require("dotenv").config({ path: require("path").join(__dirname, ".env") });
+require("dotenv").config({ path: path.join(__dirname, ".env") });
+
+// Auth state path — absolute so it resolves correctly regardless of CWD
+const AUTH_FILE = path.join(__dirname, ".auth/user.json");
 
 const BASE_URL = process.env.QA_BASE_URL || "http://localhost:3000";
 
@@ -45,7 +49,7 @@ module.exports = defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
-        storageState: ".auth/user.json",
+        storageState: AUTH_FILE,
       },
       dependencies: ["setup"],
       testIgnore: /mobile\.spec\.js/,
@@ -56,7 +60,7 @@ module.exports = defineConfig({
       name: "mobile",
       use: {
         ...devices["iPhone 14 Pro"],
-        storageState: ".auth/user.json",
+        storageState: AUTH_FILE,
       },
       dependencies: ["setup"],
       testIgnore: /desktop\.spec\.js/,

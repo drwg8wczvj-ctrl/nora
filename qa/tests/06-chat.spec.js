@@ -1,10 +1,12 @@
 // ─── AI Chat Tests ───────────────────────────────────────────
 const { test, expect } = require("@playwright/test");
+const { APP_SELECTOR } = require("../helpers/auth");
 
 test.describe("AI Chat (NORA)", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.locator(".app, [class*='app']").first().waitFor({ timeout: 20_000 });
+    await page.locator(APP_SELECTOR).waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(400);
   });
 
   test("chat panel opens", async ({ page }) => {
