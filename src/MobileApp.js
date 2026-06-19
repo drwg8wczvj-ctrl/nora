@@ -16,6 +16,7 @@ import NotificationPermissionBanner from "./components/NotificationPermissionBan
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
+import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
 import ProfileModal from "./components/ProfileModal";
 import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
 import { MobileWhiteboardView } from "./Whiteboard";
@@ -296,6 +297,14 @@ export default function MobileApp({ ctx }) {
             ));
             setSharingTask?.((prev) => prev ? { ...prev, sharedObjectId: id } : null);
           }}
+        />
+      )}
+
+      {/* Username nudge banner */}
+      {ctx.showUsernameBanner && !ctx.showOnboarding && (
+        <UsernameNudgeBanner
+          onSetUp={() => { ctx.setShowUsernameBanner?.(false); ctx.setShowOnboarding?.(true); }}
+          onLater={() => ctx.setShowUsernameBanner?.(false)}
         />
       )}
 
@@ -2314,7 +2323,7 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
 
 // ── Task edit modal ───────────────────────────────────────────
 function MobileEditModal({ ctx }) {
-  const { draft, setDraft, saveTask, deleteTask, groups } = ctx; // eslint-disable-line
+  const { draft, setDraft, saveTask, deleteTask, groups, setSharingTask } = ctx; // eslint-disable-line
 
   const HOURS_RANGE = Array.from({ length: 24 }, (_, i) => i);
 
@@ -2461,6 +2470,10 @@ function MobileEditModal({ ctx }) {
         <div className="mob-modal-footer">
           <button className="mob-modal-delete" onClick={() => deleteTask(draft.id)}>
             <Trash2 size={15} /> Delete
+          </button>
+          <button className="mob-modal-share" title="Share"
+            onClick={() => { ctx.setEditingTask(null); setSharingTask?.(draft); }}>
+            {draft.sharedObjectId ? <Users size={15} /> : <Share2 size={15} />}
           </button>
           <button className="mob-modal-save" onClick={saveTask}>Save</button>
         </div>

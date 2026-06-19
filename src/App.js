@@ -19,6 +19,7 @@ import NotificationPermissionBanner from "./components/NotificationPermissionBan
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
+import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
 import ProfileModal from "./components/ProfileModal";
 import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
 import {
@@ -607,7 +608,7 @@ export default function App() {
         if (!data) return;
         setUserProfile(data);
         if (data.name && !accountName) setAccountName(data.name);
-        if (!data.username) setShowOnboarding(true);
+        if (!data.username) setShowUsernameBanner(true);
       })
       .catch(console.error);
   }, [session]); // eslint-disable-line
@@ -697,6 +698,7 @@ export default function App() {
   const [userProfile,    setUserProfile]    = useState({});
   const [showOnboarding,  setShowOnboarding]  = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showUsernameBanner, setShowUsernameBanner] = useState(false);
   const notifTimers       = useRef({});
   const syncTimer         = useRef(null);
 
@@ -2764,6 +2766,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       userProfile, setUserProfile,
       showOnboarding, setShowOnboarding,
       showProfileModal, setShowProfileModal,
+      showUsernameBanner, setShowUsernameBanner,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
@@ -4384,7 +4387,15 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         />
       )}
 
-      {/* Username onboarding — shown on first login if no username set */}
+      {/* Username nudge banner — shown when user has no username */}
+      {showUsernameBanner && !showOnboarding && (
+        <UsernameNudgeBanner
+          onSetUp={() => { setShowUsernameBanner(false); setShowOnboarding(true); }}
+          onLater={() => setShowUsernameBanner(false)}
+        />
+      )}
+
+      {/* Username onboarding — full-screen modal, opened from banner or profile */}
       {showOnboarding && (
         <UsernameOnboarding
           displayName={userProfile?.name ?? accountName ?? ""}
