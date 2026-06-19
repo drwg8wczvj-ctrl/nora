@@ -3,8 +3,14 @@ import {
   Plus, X, Trash2, Link2, Target, Zap, List, Calendar,
   FileText, GitBranch, ChevronLeft, Sparkles, Check,
   ZoomIn, ZoomOut, Edit3, Layers, ArrowRight, Activity, Flag,
+  Share2, Users,
 } from "lucide-react";
 import "./Whiteboard.css";
+import ShareModal from "./components/ShareModal";
+import CollaboratorAvatars from "./components/CollaboratorAvatars";
+import {
+  updateSharedObject, getCollaborators,
+} from "./lib/sharingApi";
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
@@ -139,10 +145,26 @@ function smartPath(a, b) {
 // ─────────────────────────────────────────────────────────────────
 // WhiteboardList
 // ─────────────────────────────────────────────────────────────────
-function WhiteboardList({ boards, setBoards, onOpen, onClose }) {
+function WhiteboardList({ boards, setBoards, onOpen, onClose, session, boardShareIds, setBoardShareIds }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [showTpl, setShowTpl] = useState(false);
+  const [sharingBoard, setSharingBoard] = useState(null); // board being shared
+  const [boardCollaborators, setBoardCollaborators] = useState({}); // boardId → collabs[]
+
+  // Load collaborators for shared boards
+  useEffect(() => {
+    const sharedBoardIds = Object.values(boardShareIds ?? {});
+    if (!sharedBoardIds.length) return;
+    Promise.all(
+      Object.entries(boardShareIds).map(async ([boardId, sharedObjId]) => {
+        const c = await getCollaborators(sharedObjId);
+        return [boardId, c];
+      })
+    ).then(entries => {
+      setBoardCollaborators(Object.fromEntries(entries));
+    });
+  }, [boardShareIds]);
 
   const createBlank = () => {
     const name = newName.trim() || "New Whiteboard";
@@ -227,7 +249,21 @@ function WhiteboardList({ boards, setBoards, onOpen, onClose }) {
                   {goalBlock && <div className="wb-card-goal">{goalBlock.title}</div>}
                   <div className="wb-card-meta">{blockCount} block{blockCount!==1?'s':''} · {new Date(board.updatedAt).toLocaleDateString()}</div>
                 </div>
-                <button className="wb-card-del" onClick={e=>deleteBoard(e,board.id)}><Trash2 size={13}/></button>
+                <div className="wb-card-footer-actions">
+                  {boardCollaborators[board.id]?.length > 0 && (
+                    <CollaboratorAvatars
+                      collaborators={boardCollaborators[board.id]}
+                      max={3} size={18}
+                      onClick={e => { e.stopPropagation(); setSharingBoard(board); }}
+                    />
+                  )}
+                  <button className="wb-card-share" title="Share board"
+                    onClick={e => { e.stopPropagation(); setSharingBoard(board); }}>
+                    <Share2 size={12} />
+                    {boardShareIds?.[board.id] ? <Users size={11} /> : "Share"}
+                  </button>
+                  <button className="wb-card-del" onClick={e=>deleteBoard(e,board.id)}><Trash2 size={13}/></button>
+                </div>
               </div>
             );
           })}
@@ -235,6 +271,19 @@ function WhiteboardList({ boards, setBoards, onOpen, onClose }) {
       )}
 
       </div>{/* wb-list-body */}
+
+      {sharingBoard && (
+        <ShareModal
+          objectType="whiteboard"
+          objectData={sharingBoard}
+          sharedObjectId={boardShareIds?.[sharingBoard.id] ?? null}
+          session={session}
+          onClose={() => setSharingBoard(null)}
+          onSharedObjectId={(id) => {
+            setBoardShareIds?.(prev => ({ ...(prev ?? {}), [sharingBoard.id]: id }));
+          }}
+        />
+      )}
 
       {showTpl && (
         <div className="wb-overlay" onClick={()=>setShowTpl(false)}>
@@ -262,7 +311,7 @@ function WhiteboardList({ boards, setBoards, onOpen, onClose }) {
 // ─────────────────────────────────────────────────────────────────
 // WhiteboardEditor
 // ─────────────────────────────────────────────────────────────────
-function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }) {
+function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask, sharedObjectId, session, onSharedObjectId }) {
   const [blocks, setBlocks] = useState(board.blocks ?? []);
   const [conns,  setConns]  = useState(board.connections ?? []);
   const [vp,     setVp]     = useState({ x: 80, y: 60, zoom: 0.85 });
@@ -271,6 +320,7 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
   const [editing,    setEditing]    = useState(null);
   const [showAI,     setShowAI]     = useState(false);
   const [isPanning,  setIsPanning]  = useState(false);
+  const [showShare,  setShowShare]  = useState(false);
 
   const wrapRef  = useRef(null);
   const drag     = useRef(null);
@@ -444,10 +494,25 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
           <span className="wb-hpill">{total} block{total!==1?'s':''}</span>
           <span className="wb-hpill" style={{color:riskColor}}>Risk: {risk}</span>
         </div>
+        <button className="wb-share-btn" onClick={()=>setShowShare(true)} title="Share whiteboard">
+          <Share2 size={14}/>
+          {sharedObjectId ? <Users size={12}/> : "Share"}
+        </button>
         <button className={`wb-ai-btn${showAI?' wb-ai-btn-on':''}`} onClick={()=>setShowAI(v=>!v)}>
           <Sparkles size={14}/> Ask Nora
         </button>
       </div>
+
+      {showShare && (
+        <ShareModal
+          objectType="whiteboard"
+          objectData={board}
+          sharedObjectId={sharedObjectId}
+          session={session}
+          onClose={()=>setShowShare(false)}
+          onSharedObjectId={onSharedObjectId}
+        />
+      )}
 
       {/* Toolbar */}
       <div className="wb-toolbar">
@@ -633,16 +698,21 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask }
 // ─────────────────────────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────────────────────────
-export default function Whiteboard({ onAskNora, onConvertTask, onClose, boards: boardsProp, setBoards: setBoardsProp }) {
+export default function Whiteboard({ onAskNora, onConvertTask, onClose, boards: boardsProp, setBoards: setBoardsProp, session }) {
   const [boardsLocal, setBoardsLocal] = useLocalStorage("nora_whiteboards", []);
   const boards = boardsProp ?? boardsLocal;
   const setBoards = setBoardsProp ?? setBoardsLocal;
+  const [boardShareIds, setBoardShareIds] = useLocalStorage("nora_board_share_ids", {});
   const [openId, setOpenId] = useState(null);
   const openBoard = boards.find(b=>b.id===openId);
 
   const handleChange = useCallback(updated => {
     setBoards(p => p.map(b => b.id===updated.id ? updated : b));
-  }, [setBoards]);
+    // Sync to shared_objects if board is shared
+    if (boardShareIds[updated.id]) {
+      updateSharedObject(boardShareIds[updated.id], updated, "updated").catch(() => {});
+    }
+  }, [setBoards, boardShareIds]);
 
   if (openBoard) {
     return (
@@ -653,10 +723,23 @@ export default function Whiteboard({ onAskNora, onConvertTask, onClose, boards: 
         onClose={()=>setOpenId(null)}
         onAskNora={onAskNora}
         onConvertTask={onConvertTask}
+        sharedObjectId={boardShareIds[openBoard.id] ?? null}
+        session={session}
+        onSharedObjectId={(id) => setBoardShareIds(p => ({ ...p, [openBoard.id]: id }))}
       />
     );
   }
-  return <WhiteboardList boards={boards} setBoards={setBoards} onOpen={setOpenId} onClose={onClose}/>;
+  return (
+    <WhiteboardList
+      boards={boards}
+      setBoards={setBoards}
+      onOpen={setOpenId}
+      onClose={onClose}
+      session={session}
+      boardShareIds={boardShareIds}
+      setBoardShareIds={setBoardShareIds}
+    />
+  );
 }
 
 // ── Lightweight mobile read-only viewer ─────────────────────────

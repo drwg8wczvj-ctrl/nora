@@ -123,14 +123,38 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .wb-card-meta { font-size: 11px; color: var(--text-muted); }
-.wb-card-del {
+.wb-card-footer-actions {
   position: absolute; top: 10px; right: 10px;
+  display: flex; align-items: center; gap: 6px;
+  opacity: 0; transition: opacity .15s;
+}
+.wb-card:hover .wb-card-footer-actions { opacity: 1; }
+.wb-card-del {
   width: 28px; height: 28px; border-radius: 50%;
   background: rgba(220,38,38,.88); color: #fff; border: none;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; opacity: 0; transition: opacity .15s;
+  cursor: pointer;
 }
-.wb-card:hover .wb-card-del { opacity: 1; }
+.wb-card-share {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 8px; height: 28px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 11px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
+  transition: background .1s, color .1s;
+}
+.wb-card-share:hover { background: var(--accent-light); color: var(--accent); }
+
+/* Share button in editor top bar */
+.wb-share-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 12px; height: 32px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.wb-share-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
 
 /* ── Template modal ─────────────────────────────────────────── */
 .wb-overlay {

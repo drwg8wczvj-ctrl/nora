@@ -6,6 +6,7 @@ import {
   TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
   SkipForward, Sparkles, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
+  Share2, Users,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
@@ -13,6 +14,10 @@ import LongTermInsights from "./LongTermInsights";
 import FocusSession from "./FocusSession";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
+import ShareModal from "./components/ShareModal";
+import UsernameOnboarding from "./components/UsernameOnboarding";
+import ProfileModal from "./components/ProfileModal";
+import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
 import { MobileWhiteboardView } from "./Whiteboard";
 import "./MobileApp.css";
 
@@ -105,7 +110,8 @@ export default function MobileApp({ ctx }) {
   const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
           rescheduleTask, setRescheduleTask, saveReschedule, groups,
           focusTask, setFocusTask, userPrefs, setUserPrefs, toggleTask,
-          notifBannerVisible, dismissNotifBanner, requestNotifPermission } = ctx;
+          notifBannerVisible, dismissNotifBanner, requestNotifPermission,
+          sharingTask, setSharingTask, session } = ctx;
 
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
@@ -273,6 +279,48 @@ export default function MobileApp({ ctx }) {
           onAllow={requestNotifPermission}
           onLater={() => dismissNotifBanner(false)}
           onNever={() => dismissNotifBanner(true)}
+        />
+      )}
+
+      {/* Share modal */}
+      {sharingTask && (
+        <ShareModal
+          objectType={sharingTask.type === "deadline" ? "deadline" : "task"}
+          objectData={sharingTask}
+          sharedObjectId={sharingTask.sharedObjectId ?? null}
+          session={session}
+          onClose={() => setSharingTask?.(null)}
+          onSharedObjectId={(id) => {
+            ctx.setTasks?.((prev) => prev.map((t) =>
+              t.id === sharingTask.id ? { ...t, sharedObjectId: id } : t
+            ));
+            setSharingTask?.((prev) => prev ? { ...prev, sharedObjectId: id } : null);
+          }}
+        />
+      )}
+
+      {/* Username onboarding */}
+      {ctx.showOnboarding && (
+        <UsernameOnboarding
+          displayName={ctx.userProfile?.name ?? ctx.accountName ?? ""}
+          onComplete={(result) => {
+            ctx.setShowOnboarding?.(false);
+            ctx.setUserProfile?.((p) => ({ ...p, ...result }));
+            if (result.name) ctx.setAccountName?.(result.name);
+          }}
+          onSkip={() => ctx.setShowOnboarding?.(false)}
+        />
+      )}
+
+      {/* Profile modal */}
+      {ctx.showProfileModal && (
+        <ProfileModal
+          session={session}
+          onClose={() => ctx.setShowProfileModal?.(false)}
+          onSaved={(updated) => {
+            ctx.setUserProfile?.((p) => ({ ...p, ...updated }));
+            if (updated.name) ctx.setAccountName?.(updated.name);
+          }}
         />
       )}
 
@@ -1190,7 +1238,8 @@ function MobileMonth({ ctx, onSelectDate }) {
 
 // ── Tasks view ───────────────────────────────────────────────
 function MobileTasks({ ctx }) {
-  const { tasks, today, toggleTask, skipTask, setRescheduleTask, setEditingTask, groups, setFocusTask } = ctx;
+  const { tasks, today, toggleTask, skipTask, setRescheduleTask, setEditingTask, groups, setFocusTask,
+          setSharingTask } = ctx;
   const [filterType, setFilterType]       = useState(null);
   const [filterGroup, setFilterGroup]     = useState(null);
   const [filterComplex, setFilterComplex] = useState(null);
@@ -1301,6 +1350,12 @@ function MobileTasks({ ctx }) {
                 <CalendarDays size={15} />
               </button>
             )}
+            <button className="mtr-act mtr-act-share" title="Share"
+              onClick={() => setSharingTask?.(t)}>
+              {t.sharedObjectId
+                ? <Users size={14} style={{ color: "var(--accent)" }} />
+                : <Share2 size={14} />}
+            </button>
           </div>
         )}
       </div>
@@ -1889,6 +1944,7 @@ function MobileSettings({ ctx }) {
     reminderMins, setReminderMins,
     session, groups, setGroups,
     notifPermission, notifSettings, updateNotifSettings, requestNotifPermission,
+    userProfile, setShowProfileModal,
   } = ctx;
 
   const [newGroupName,  setNewGroupName]  = useState("");
@@ -1912,14 +1968,20 @@ function MobileSettings({ ctx }) {
       <div className="mob-sett-card">
         <div className="mob-sett-card-title"><User size={15} /> Profile</div>
         <div className="mob-sett-avatar-row">
-          <div className="mob-sett-avatar">
-            {(accountName?.trim()?.[0] ?? session?.user?.email?.[0] ?? "U").toUpperCase()}
-          </div>
+          <button className="mob-sett-avatar-btn" onClick={() => setShowProfileModal?.(true)}>
+            <AvatarDisplay avatar={profileToAvatar(userProfile)} size={44} />
+          </button>
           <div className="mob-sett-avatar-info">
             <MobNameEditor name={accountName} onSave={setAccountName} />
             <span className="mob-sett-email-sm">{session?.user?.email}</span>
+            {userProfile?.username && (
+              <span className="mob-sett-username">@{userProfile.username}</span>
+            )}
           </div>
         </div>
+        <button className="mob-edit-profile-btn" onClick={() => setShowProfileModal?.(true)}>
+          Edit profile &amp; avatar
+        </button>
       </div>
 
       {/* Appearance */}

@@ -1276,6 +1276,15 @@
   transition: all var(--tr);
 }
 .btn-danger:hover { background: rgba(220,38,38,0.1); border-color: var(--danger); box-shadow: 0 0 12px rgba(220,38,38,0.25); }
+.btn-share {
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border-radius: 10px;
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  margin-left: auto;
+  transition: all var(--tr);
+}
+.btn-share:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 .btn-secondary {
   padding: 9px 18px; border-radius: 10px;
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted);
@@ -2728,6 +2737,22 @@
   color: #fff; font-size: 16px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
+.acc-avatar-btn {
+  background: none; border: none; padding: 0; cursor: pointer; flex-shrink: 0;
+  border-radius: 50%; transition: opacity .15s;
+}
+.acc-avatar-btn:hover { opacity: .85; }
+.acc-username {
+  font-size: 11px; color: var(--text-muted);
+}
+.acc-edit-profile-btn {
+  width: 100%; padding: 8px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: background .12s;
+  margin-top: 2px;
+}
+.acc-edit-profile-btn:hover { background: var(--surface); color: var(--text); }
 .acc-profile-info {
   display: flex; flex-direction: column; gap: 2px; min-width: 0;
 }

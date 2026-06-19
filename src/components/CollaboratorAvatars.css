@@ -1,0 +1,24 @@
+.ca-stack {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.ca-avatar {
+  width: var(--ca-size);
+  height: var(--ca-size);
+  border-radius: 50%;
+  border: 1.5px solid var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; color: #fff;
+  margin-left: calc(var(--ca-size) * -0.25);
+  flex-shrink: 0;
+  transition: transform .1s;
+  user-select: none;
+}
+.ca-avatar:first-child { margin-left: 0; }
+.ca-stack:hover .ca-avatar { transform: scale(1.1); }
+.ca-avatar-extra {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-color: var(--border);
+}

@@ -17,6 +17,15 @@ import { useMobile } from "./hooks/useMobile";
 import { useNotifications } from "./hooks/useNotifications";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
+import ShareModal from "./components/ShareModal";
+import UsernameOnboarding from "./components/UsernameOnboarding";
+import ProfileModal from "./components/ProfileModal";
+import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
+import {
+  getMySharedObjects, updateSharedObject,
+  subscribeToSharedObject, subscribeToCollaboratorInvites,
+  getCollaborators, getMyProfile,
+} from "./lib/sharingApi";
 import {
   Plus, Check, ChevronLeft, ChevronRight, CalendarDays,
   Clock, MessageSquare, X, Send, FileText, Trash2,
@@ -26,6 +35,7 @@ import {
   ZoomIn, ZoomOut,
   Brain, Target, Lightbulb, BarChart2, AlertTriangle,
   Pencil, SkipForward, Sparkles, Moon, Sunrise,
+  Share2, Users,
 } from "lucide-react";
 import { calculateTaskWeight } from "./utils/taskUtils";
 import "./App.css";
@@ -580,7 +590,7 @@ export default function App() {
       .catch(console.warn);
   }, [session]); // eslint-disable-line
 
-  // Load user profile (name + birthday) from Supabase on login
+  // Load user profile from Supabase on login (name, birthday, avatar, username, etc.)
   // Also syncs auth.user_metadata → user_profile table so it appears in the dashboard
   useEffect(() => {
     if (!session) return;
@@ -592,16 +602,12 @@ export default function App() {
 
     supabase.from("user_profile")
       .upsert(upsertData, { onConflict: "user_id" })
-      .then(() =>
-        supabase.from("user_profile")
-          .select("name, birthday")
-          .eq("user_id", session.user.id)
-          .single()
-      )
-      .then(({ data }) => {
+      .then(() => getMyProfile())
+      .then((data) => {
         if (!data) return;
         setUserProfile(data);
         if (data.name && !accountName) setAccountName(data.name);
+        if (!data.username) setShowOnboarding(true);
       })
       .catch(console.error);
   }, [session]); // eslint-disable-line
@@ -642,6 +648,10 @@ export default function App() {
   const aiChatSugFetchedRef = useRef(false);
   const [rescheduleTask,  setRescheduleTask]  = useState(null);
   const [inAppAlert,      setInAppAlert]      = useState(null);
+  // Collaboration
+  const [sharingTask,     setSharingTask]     = useState(null); // task being shared
+  const [sharedObjects,   setSharedObjects]   = useState([]);   // [{id, type, data, collaborators}]
+  const sharedRealtimeSubs = useRef({});                        // objectId → unsubscribe fn
 
   // ── Persistent chat history (localStorage, 24-hour TTL) ────────
   const NORA_GREETING = "Hi! I'm Nora, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?";
@@ -685,6 +695,8 @@ export default function App() {
   const [motivation,     setMotivation]     = useLocalStorage("nora_motivation", 5);
   const [sleepCheckIn, setSleepCheckIn]    = useLocalStorage("nora_sleep_checkin", { date: null, quality: null });
   const [userProfile,    setUserProfile]    = useState({});
+  const [showOnboarding,  setShowOnboarding]  = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const notifTimers       = useRef({});
   const syncTimer         = useRef(null);
 
@@ -1403,6 +1415,88 @@ export default function App() {
   useEffect(() => { if (addingAt !== null) addInputRef.current?.focus(); }, [addingAt]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
+  // ── Collaboration: load shared objects + realtime ─────────────
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+
+    async function loadShared() {
+      const objs = await getMySharedObjects();
+      if (cancelled) return;
+
+      // Attach collaborators to each object
+      const withCollabs = await Promise.all(
+        objs.map(async (o) => {
+          const collabs = await getCollaborators(o.id);
+          return { ...o, collaborators: collabs };
+        })
+      );
+      setSharedObjects(withCollabs);
+
+      // Subscribe to realtime updates for each object
+      withCollabs.forEach((o) => {
+        if (sharedRealtimeSubs.current[o.id]) return;
+        const unsub = subscribeToSharedObject(o.id, (event) => {
+          if (event.type === "object_updated") {
+            setSharedObjects((prev) =>
+              prev.map((s) => s.id === o.id ? { ...s, data: event.data.data } : s)
+            );
+            // Merge into local tasks if it's a task
+            if (o.type === "task") {
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.sharedObjectId === o.id ? { ...t, ...event.data.data, sharedObjectId: o.id } : t
+                )
+              );
+            }
+          }
+        });
+        sharedRealtimeSubs.current[o.id] = unsub;
+      });
+
+      // Merge shared tasks into local tasks (add if not present)
+      const sharedTasks = withCollabs.filter((o) => o.type === "task");
+      setTasks((prev) => {
+        let updated = [...prev];
+        sharedTasks.forEach((so) => {
+          const exists = updated.some((t) => t.sharedObjectId === so.id);
+          if (!exists) {
+            updated.push({ ...so.data, sharedObjectId: so.id, collaborators: so.collaborators });
+          }
+        });
+        return updated;
+      });
+    }
+
+    loadShared();
+
+    // Subscribe to new invites
+    const unsubInvites = subscribeToCollaboratorInvites((newObj) => {
+      setSharedObjects((prev) =>
+        prev.some((s) => s.id === newObj.id) ? prev : [...prev, { ...newObj, collaborators: [] }]
+      );
+    });
+
+    return () => {
+      cancelled = true;
+      unsubInvites();
+      Object.values(sharedRealtimeSubs.current).forEach((fn) => fn());
+      sharedRealtimeSubs.current = {};
+    };
+  }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync local task changes back to shared_objects ─────────────
+  const syncSharedTask = useRef(null);
+  useEffect(() => {
+    clearTimeout(syncSharedTask.current);
+    syncSharedTask.current = setTimeout(() => {
+      tasks.forEach((t) => {
+        if (!t.sharedObjectId) return;
+        updateSharedObject(t.sharedObjectId, t, "updated");
+      });
+    }, 2000);
+  }, [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!chatOpen || aiChatSugFetchedRef.current) return;
     aiChatSugFetchedRef.current = true;
@@ -2412,6 +2506,24 @@ Language: "pending focus" / "still active" / "deferred" — never "missed" / "fa
 
 To rebalance multiple deferred tasks: distribute highest-urgency first across lightest days. Sessions ≤ 90 min. 1 sentence summary of what moved where.
 
+━━━ SHARED OBJECTS & COLLABORATION ━━━━━━━━━━━━━━━━━━━━━
+
+${sharedObjects.length > 0
+  ? `The user has ${sharedObjects.length} shared item(s):\n` +
+    sharedObjects.map((o) => {
+      const d = o.data;
+      const title = d.title ?? d.name ?? "Untitled";
+      const collabNames = (o.collaborators ?? []).filter(c => c.user_id !== session?.user?.id).map(c => c.name ?? c.username ?? "someone");
+      return `  • [${o.type}] "${title}" — shared with: ${collabNames.length ? collabNames.join(", ") : "others"}`;
+    }).join("\n")
+  : "No shared items yet."}
+
+When the user asks "When is [name] free?" or "How is the project progressing?" or "Move our meeting":
+- Check which tasks are shared with that collaborator.
+- Answer based on the shared task list above.
+- For scheduling changes to shared tasks, note that all collaborators will see the update.
+- Never reveal private (non-shared) tasks of other users.
+
 ━━━ OUTPUT FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Task ops → 1 sentence.
@@ -2646,6 +2758,12 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       notifBannerVisible, dismissNotifBanner,
       notifHealth, sendTestNotification,
       testServerPush, forceResubscribe: forceResubscribePush,
+      // Collaboration
+      sharingTask, setSharingTask, sharedObjects,
+      // Profile
+      userProfile, setUserProfile,
+      showOnboarding, setShowOnboarding,
+      showProfileModal, setShowProfileModal,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
@@ -2730,14 +2848,20 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {activeSettings === "account" && (
             <div className="sacc-body">
               <div className="acc-profile-card">
-                <div className="acc-avatar">
-                  {(accountName?.trim()[0] ?? session?.user?.email?.[0] ?? "U").toUpperCase()}
-                </div>
+                <button className="acc-avatar-btn" onClick={() => setShowProfileModal(true)} title="Edit profile">
+                  <AvatarDisplay avatar={profileToAvatar(userProfile)} size={38} />
+                </button>
                 <div className="acc-profile-info">
                   <NameEditor name={accountName} onSave={setAccountName} />
                   <span className="acc-email">{session?.user?.email}</span>
+                  {userProfile?.username && (
+                    <span className="acc-username">@{userProfile.username}</span>
+                  )}
                 </div>
               </div>
+              <button className="acc-edit-profile-btn" onClick={() => setShowProfileModal(true)}>
+                Edit profile
+              </button>
               <button className="sett-signout-btn" onClick={() => supabase.auth.signOut()}>
                 Sign out
               </button>
@@ -3857,6 +3981,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           boards={boards}
           setBoards={setBoards}
           onClose={() => setView("day")}
+          session={session}
           onAskNora={(prompt) => { setChatInput(prompt); setChatOpen(true); }}
           onConvertTask={(block) => {
             setEditingTask({
@@ -4158,6 +4283,16 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             </div>
             <div className="modal-footer">
               <button className="btn-danger" onClick={() => deleteTask(draft.id)}><Trash2 size={14} /> Delete</button>
+              <button className="btn-share" title="Share this task"
+                onClick={() => { setSharingTask({ ...draft }); }}>
+                <Share2 size={14} />
+                {draft.sharedObjectId
+                  ? <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <Users size={11} />
+                      {(sharedObjects.find(o => o.id === draft.sharedObjectId)?.collaborators?.length ?? 0)}
+                    </span>
+                  : "Share"}
+              </button>
               <button className="btn-primary" onClick={saveTask}>Save</button>
             </div>
           </div>
@@ -4219,6 +4354,24 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         </div>
       )}
 
+      {/* Share modal */}
+      {sharingTask && (
+        <ShareModal
+          objectType={sharingTask.type === "deadline" ? "deadline" : "task"}
+          objectData={sharingTask}
+          sharedObjectId={sharingTask.sharedObjectId ?? null}
+          session={session}
+          onClose={() => setSharingTask(null)}
+          onSharedObjectId={(id) => {
+            setTasks((prev) => prev.map((t) =>
+              t.id === sharingTask.id ? { ...t, sharedObjectId: id } : t
+            ));
+            setSharingTask((prev) => prev ? { ...prev, sharedObjectId: id } : null);
+            setDraft((d) => d ? { ...d, sharedObjectId: id } : d);
+          }}
+        />
+      )}
+
       {/* PWA update / install banners */}
       <PWABanners dark={dark} />
 
@@ -4228,6 +4381,31 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           onAllow={requestNotifPermission}
           onLater={() => dismissNotifBanner(false)}
           onNever={() => dismissNotifBanner(true)}
+        />
+      )}
+
+      {/* Username onboarding — shown on first login if no username set */}
+      {showOnboarding && (
+        <UsernameOnboarding
+          displayName={userProfile?.name ?? accountName ?? ""}
+          onComplete={(result) => {
+            setShowOnboarding(false);
+            setUserProfile((p) => ({ ...p, ...result }));
+            if (result.name) setAccountName(result.name);
+          }}
+          onSkip={() => setShowOnboarding(false)}
+        />
+      )}
+
+      {/* Profile modal */}
+      {showProfileModal && (
+        <ProfileModal
+          session={session}
+          onClose={() => setShowProfileModal(false)}
+          onSaved={(updated) => {
+            setUserProfile((p) => ({ ...p, ...updated }));
+            if (updated.name) setAccountName(updated.name);
+          }}
         />
       )}
     </div>

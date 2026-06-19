@@ -1,0 +1,113 @@
+.uob-overlay {
+  position: fixed; inset: 0;
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1400;
+  animation: uobFadeIn .3s ease;
+}
+@keyframes uobFadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+.uob-modal {
+  width: 420px; max-width: 96vw;
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 40px 36px 36px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: 0 32px 80px rgba(0,0,0,.18);
+  animation: uobSlideUp .3s cubic-bezier(.25,1,.35,1);
+}
+@keyframes uobSlideUp {
+  from { opacity: 0; transform: translateY(24px) }
+  to   { opacity: 1; transform: none }
+}
+
+.uob-brand { text-align: center; }
+.uob-logo-wrap {
+  display: flex; justify-content: center;
+  margin-bottom: 16px;
+}
+.uob-headline {
+  font-size: 22px; font-weight: 800; color: var(--text);
+  margin: 0 0 6px; letter-spacing: -.4px;
+}
+.uob-sub { font-size: 14px; color: var(--text-muted); margin: 0; }
+
+.uob-field { display: flex; flex-direction: column; gap: 6px; }
+.uob-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+
+.uob-input {
+  padding: 11px 14px; border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  font-size: 15px; color: var(--text); outline: none;
+  transition: border-color .14s;
+}
+.uob-input:focus { border-color: var(--accent); }
+.uob-input.err { border-color: #ef4444; }
+.uob-input::placeholder { color: var(--text-muted); }
+
+.uob-username-row {
+  display: flex; align-items: center;
+  border: 1.5px solid var(--border); border-radius: 12px;
+  background: var(--surface-2);
+  overflow: hidden; gap: 0;
+  transition: border-color .14s;
+}
+.uob-username-row:focus-within { border-color: var(--accent); }
+.uob-at {
+  padding: 0 12px; font-size: 16px; font-weight: 700;
+  color: var(--text-muted);
+}
+.uob-username-input {
+  flex: 1; border: none; background: transparent;
+  padding: 11px 0; font-size: 15px; color: var(--text); outline: none;
+}
+.uob-valid-icon { color: #22c55e; margin-right: 12px; }
+.uob-err  { font-size: 12px; color: #ef4444; margin: 0; }
+.uob-hint { font-size: 11px; color: var(--text-muted); margin: 0; }
+
+.uob-quick-emojis { display: flex; gap: 6px; flex-wrap: wrap; }
+.uob-emoji-btn {
+  font-size: 24px; width: 44px; height: 44px; border-radius: 12px;
+  border: 2px solid transparent; background: var(--surface-2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .1s, background .1s, border-color .1s;
+}
+.uob-emoji-btn:hover { transform: scale(1.1); background: var(--surface); }
+.uob-emoji-btn.sel { border-color: var(--accent); background: var(--accent-light); }
+.uob-more-btn { font-size: 18px; color: var(--text-muted); }
+
+.uob-btn-primary {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 20px; border-radius: 14px;
+  background: var(--accent); color: #fff;
+  border: none; font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: opacity .12s, transform .1s;
+}
+.uob-btn-primary:hover:not(:disabled) { opacity: .92; transform: scale(1.01); }
+.uob-btn-primary:disabled { opacity: .4; cursor: default; }
+
+.uob-btn-secondary {
+  padding: 11px 18px; border-radius: 14px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background .12s;
+}
+.uob-btn-secondary:hover { background: var(--surface); }
+
+.uob-avatar-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+.uob-btn-skip {
+  background: none; border: none; padding: 8px 0;
+  color: var(--text-muted); font-size: 13px; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+  display: block; margin: 4px auto 0;
+}
+.uob-btn-skip:hover { color: var(--text); }
+
+@media (max-width: 480px) {
+  .uob-modal { padding: 28px 20px 24px; border-radius: 20px 20px 0 0; align-self: flex-end; width: 100%; }
+  .uob-overlay { align-items: flex-end; }
+  .uob-headline { font-size: 20px; }
+}

@@ -1,0 +1,10 @@
+.nora-avatar {
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  color: #fff;
+  user-select: none;
+  border: 2px solid transparent;
+  transition: transform .12s, border-color .12s;
+}
+.nora-avatar:hover { transform: scale(1.06); }
+.nora-avatar-photo { object-fit: cover; }
