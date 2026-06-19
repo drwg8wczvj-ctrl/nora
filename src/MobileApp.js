@@ -85,6 +85,16 @@ export default function MobileApp({ ctx }) {
   const [planSubView,   setPlanSubView]   = useState("day");
   const [dayMode,       setDayMode]       = useState("list");
   const [planDate,      setPlanDate]      = useState(ctx.today);
+
+  // Auto-advance planDate at midnight — if user was on "today" move to the new day
+  const prevMobileTodayRef = useRef(ctx.today);
+  useEffect(() => {
+    if (ctx.today !== prevMobileTodayRef.current) {
+      if (planDate === prevMobileTodayRef.current) setPlanDate(ctx.today);
+      prevMobileTodayRef.current = ctx.today;
+    }
+  }, [ctx.today]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Filter state lives here (root level) so the sheet can be rendered above everything
   const [showFilters,   setShowFilters]   = useState(false);
   const [filterType,    setFilterType]    = useState(null);

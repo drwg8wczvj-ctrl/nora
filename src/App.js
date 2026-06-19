@@ -664,7 +664,7 @@ export default function App() {
   const chatEndRef   = useRef(null);
   const chatInputRef = useRef(null);
 
-  const [showLanding,    setShowLanding]    = useState(true);
+  const [showLanding,    setShowLanding]    = useState(() => !localStorage.getItem("nora_visited"));
   const [notes,          setNotes]          = useLocalStorage("nora_notes", []);
   // eslint-disable-next-line no-unused-vars
   const [newNote, setNewNote] = useState("");
@@ -725,6 +725,15 @@ export default function App() {
   const today       = fmtDate(tick);
   const currentHour = tick.getHours();
   const nowMins     = tick.getHours() * 60 + tick.getMinutes();
+
+  // Auto-advance selectedDate at midnight — if the user was viewing "today" advance it to the new day
+  const prevTodayRef = useRef(today);
+  useEffect(() => {
+    if (today !== prevTodayRef.current) {
+      if (selectedDate === prevTodayRef.current) setSelectedDate(today);
+      prevTodayRef.current = today;
+    }
+  }, [today]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-remove expired breaks (past days' breaks + today's breaks whose end time has passed)
   useEffect(() => {
@@ -2309,7 +2318,7 @@ Generate exactly 3 actions. Every action must be:
 
 End with one offer only: add the first action as a 10-minute calendar block. Nothing else.
 `}
-
+Th
 ━━━ RECOVERY AWARENESS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Current state: ${recoveryState.label}${recoveryState.advice ? ` — ${recoveryState.advice}` : ""}
@@ -2558,7 +2567,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           <li><Check size={14} /> Private notes scratchpad</li>
           <li><Check size={14} /> AI assistant to manage your day</li>
         </ul>
-        <button className="landing-cta" onClick={() => setShowLanding(false)}>
+        <button className="landing-cta" onClick={() => { localStorage.setItem("nora_visited", "1"); setShowLanding(false); }}>
           Start Planning
         </button>
       </div>
