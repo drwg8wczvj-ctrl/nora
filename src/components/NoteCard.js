@@ -2,6 +2,19 @@ import React from "react";
 import { Pin, Star, Trash2, CheckSquare, ShoppingCart, Lightbulb, Zap, FileText } from "lucide-react";
 import "./NoteCard.css";
 
+const fmtRelTime = (ts) => {
+  if (!ts) return "";
+  const diff = Date.now() - ts;
+  const min  = Math.floor(diff / 60000);
+  if (min < 1)  return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24)  return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  if (d < 7)    return `${d}d ago`;
+  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
 const TYPE_ICON = {
   checklist: CheckSquare,
   shopping:  ShoppingCart,
@@ -18,7 +31,7 @@ const TYPE_LABEL = {
 };
 
 export default function NoteCard({ note, onClick, onDelete, onPin, onStar, deleting }) {
-  const { type = "note", title, content, items = [], color = "default", pinned, starred } = note;
+  const { type = "note", title, content, items = [], color = "default", pinned, starred, updatedAt, createdAt } = note;
   const checkedCount = items.filter(i => i.checked).length;
   const totalCount   = items.length;
   const isListType   = type === "checklist" || type === "shopping";
@@ -120,6 +133,11 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
           )}
         </div>
       )}
+
+      {/* Timestamp */}
+      <div className="nc-footer">
+        <span className="nc-ts">{fmtRelTime(updatedAt ?? createdAt)}</span>
+      </div>
     </div>
   );
 }

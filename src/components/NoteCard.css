@@ -129,3 +129,13 @@
   height: 100%; background: currentColor; opacity: .35;
   border-radius: 99px; transition: width .3s;
 }
+
+/* ── Timestamp footer ─────── */
+.nc-footer {
+  display: flex; align-items: center; justify-content: flex-end;
+  margin-top: 8px;
+}
+.nc-ts {
+  font-size: 10px; opacity: .32; letter-spacing: .01em;
+  user-select: none;
+}

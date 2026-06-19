@@ -1540,6 +1540,21 @@ function MobileNotes({ ctx }) {
     if (a.starred !== b.starred) return a.starred ? -1 : 1;
     return (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0);
   });
+  const pinnedNotes = sorted.filter(n => n.pinned);
+  const otherNotes  = sorted.filter(n => !n.pinned);
+
+  const renderNoteCard = (note) => (
+    <div key={note.id} className="mob-notes-masonry-item">
+      <NoteCard
+        note={note}
+        deleting={deletingId === note.id}
+        onClick={() => setOpenId(note.id)}
+        onDelete={() => handleDelete(note.id)}
+        onPin={() => patchNote(note.id, { pinned: !note.pinned })}
+        onStar={() => patchNote(note.id, { starred: !note.starred })}
+      />
+    </div>
+  );
 
   return (
     <div className="mob-notes-v2">
@@ -1563,26 +1578,28 @@ function MobileNotes({ ctx }) {
       {sorted.length === 0 && (
         <div className="mob-empty-state" style={{ padding: "40px 0" }}>
           <FileText size={36} style={{ opacity: .12 }} />
-          <p>{noteSearch ? "No notes match." : "No notes yet."}</p>
+          <p>{noteSearch ? "No notes match." : "Tap + to create your first note."}</p>
         </div>
       )}
 
-      {/* Masonry grid */}
-      {sorted.length > 0 && (
-        <div className="mob-notes-masonry">
-          {sorted.map(note => (
-            <div key={note.id} className="mob-notes-masonry-item">
-              <NoteCard
-                note={note}
-                deleting={deletingId === note.id}
-                onClick={() => setOpenId(note.id)}
-                onDelete={() => handleDelete(note.id)}
-                onPin={() => patchNote(note.id, { pinned: !note.pinned })}
-                onStar={() => patchNote(note.id, { starred: !note.starred })}
-              />
-            </div>
-          ))}
-        </div>
+      {/* Pinned section */}
+      {pinnedNotes.length > 0 && (
+        <>
+          <div className="mob-notes-section-hdr">Pinned</div>
+          <div className="mob-notes-masonry">
+            {pinnedNotes.map(renderNoteCard)}
+          </div>
+        </>
+      )}
+
+      {/* Other notes */}
+      {otherNotes.length > 0 && (
+        <>
+          {pinnedNotes.length > 0 && <div className="mob-notes-section-hdr">Notes</div>}
+          <div className="mob-notes-masonry">
+            {otherNotes.map(renderNoteCard)}
+          </div>
+        </>
       )}
 
       {/* Quick-add FAB */}

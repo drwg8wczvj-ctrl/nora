@@ -36,7 +36,7 @@ import {
   ZoomIn, ZoomOut,
   Brain, Target, Lightbulb, BarChart2, AlertTriangle,
   Pencil, SkipForward, Sparkles, Moon, Sunrise,
-  Share2, Users, Search,
+  Share2, Users, Search, Filter, ArrowUpDown,
 } from "lucide-react";
 import { calculateTaskWeight } from "./utils/taskUtils";
 import NoteCard from "./components/NoteCard";
@@ -1859,7 +1859,9 @@ export default function App() {
   const [openNoteId,     setOpenNoteId]     = useState(null);
   const [deletingNoteId, setDeletingNoteId] = useState(null);
   const [noteSearch,     setNoteSearch]     = useState("");
-  const [noteQuickAdd,   setNoteQuickAdd]   = useState(false);
+  const [noteMenuOpen,   setNoteMenuOpen]   = useState(null); // "type"|"sort"|"filter"|null
+  const [noteSortBy,     setNoteSortBy]     = useState("recent"); // "recent"|"oldest"|"alpha"
+  const [noteFilter,     setNoteFilter]     = useState("all"); // "all" | note type key
 
   const createNote = (type = "note") => {
     const n = { id: uid(), type, title: "", content: "", items: [], color: "default", pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() };
@@ -3895,7 +3897,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 if (empty) deleteNote(openNote.id);
               }
               setOpenNoteId(null);
-              setNoteQuickAdd(false);
+              setNoteMenuOpen(null);
             };
 
             const handleDelete = (id) => {
@@ -3906,91 +3908,193 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
             const migratedNotes = notes.map(migrateNote);
             const filtered = migratedNotes.filter(n => {
-              if (!noteSearch) return true;
-              const q = noteSearch.toLowerCase();
-              return n.title?.toLowerCase().includes(q) ||
-                     n.content?.toLowerCase().includes(q) ||
-                     n.items?.some(i => i.text?.toLowerCase().includes(q));
+              const matchSearch = !noteSearch || (() => {
+                const q = noteSearch.toLowerCase();
+                return n.title?.toLowerCase().includes(q) ||
+                       n.content?.toLowerCase().includes(q) ||
+                       n.items?.some(i => i.text?.toLowerCase().includes(q));
+              })();
+              const matchFilter = noteFilter === "all" || n.type === noteFilter;
+              return matchSearch && matchFilter;
             });
             const sorted = [...filtered].sort((a, b) => {
-              if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+              if (noteSortBy === "alpha")  return (a.title || "").localeCompare(b.title || "");
+              if (noteSortBy === "oldest") return (a.createdAt ?? 0) - (b.createdAt ?? 0);
+              if (a.pinned !== b.pinned)   return a.pinned ? -1 : 1;
               if (a.starred !== b.starred) return a.starred ? -1 : 1;
               return (b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0);
             });
+            const pinnedNotes = sorted.filter(n => n.pinned);
+            const otherNotes  = sorted.filter(n => !n.pinned);
 
             return (
               <div className="notes-view">
-                {/* Search bar */}
-                <div className="notes-search-bar">
-                  <Search size={14} className="notes-search-icon" />
-                  <input
-                    className="notes-search-input"
-                    value={noteSearch}
-                    onChange={e => setNoteSearch(e.target.value)}
-                    placeholder="Search notes…"
-                  />
-                  {noteSearch && (
-                    <button className="notes-search-clear" onClick={() => setNoteSearch("")}>
-                      <X size={13} />
-                    </button>
-                  )}
+                {/* ── Toolbar ── */}
+                <div className="notes-toolbar">
+                  {/* Search */}
+                  <div className="notes-search-bar">
+                    <Search size={14} className="notes-search-icon" />
+                    <input
+                      className="notes-search-input"
+                      value={noteSearch}
+                      onChange={e => setNoteSearch(e.target.value)}
+                      placeholder="Search notes…"
+                    />
+                    {noteSearch && (
+                      <button className="notes-search-clear" onClick={() => setNoteSearch("")}>
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="notes-tb-actions">
+                    {/* Filter */}
+                    <div className="notes-tb-btn-wrap">
+                      <button
+                        className={`notes-tb-btn${noteFilter !== "all" ? " notes-tb-btn-active" : ""}`}
+                        onClick={() => setNoteMenuOpen(v => v === "filter" ? null : "filter")}
+                      >
+                        <Filter size={12} />
+                        {noteFilter === "all" ? "Filter" : (NOTE_TYPE_DEFS.find(t => t.key === noteFilter)?.label ?? noteFilter)}
+                        <ChevronDown size={11} />
+                      </button>
+                      {noteMenuOpen === "filter" && (
+                        <>
+                          <div className="notes-dd-backdrop" onClick={() => setNoteMenuOpen(null)} />
+                          <div className="notes-dropdown">
+                            {[{ key: "all", label: "All notes", icon: FileText }, ...NOTE_TYPE_DEFS].map(t => {
+                              const Icon = t.icon;
+                              return (
+                                <button
+                                  key={t.key}
+                                  className={`notes-dd-item${noteFilter === t.key ? " notes-dd-item-active" : ""}`}
+                                  onClick={() => { setNoteFilter(t.key); setNoteMenuOpen(null); }}
+                                >
+                                  <Icon size={13} />{t.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Sort */}
+                    <div className="notes-tb-btn-wrap">
+                      <button
+                        className={`notes-tb-btn${noteSortBy !== "recent" ? " notes-tb-btn-active" : ""}`}
+                        onClick={() => setNoteMenuOpen(v => v === "sort" ? null : "sort")}
+                      >
+                        <ArrowUpDown size={12} />
+                        {noteSortBy === "recent" ? "Recent" : noteSortBy === "oldest" ? "Oldest" : "A–Z"}
+                        <ChevronDown size={11} />
+                      </button>
+                      {noteMenuOpen === "sort" && (
+                        <>
+                          <div className="notes-dd-backdrop" onClick={() => setNoteMenuOpen(null)} />
+                          <div className="notes-dropdown">
+                            {[
+                              { key: "recent", label: "Most recent" },
+                              { key: "oldest", label: "Oldest first" },
+                              { key: "alpha",  label: "A–Z by title"  },
+                            ].map(opt => (
+                              <button
+                                key={opt.key}
+                                className={`notes-dd-item${noteSortBy === opt.key ? " notes-dd-item-active" : ""}`}
+                                onClick={() => { setNoteSortBy(opt.key); setNoteMenuOpen(null); }}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* New Note */}
+                    <div className="notes-tb-btn-wrap">
+                      <button
+                        className="notes-new-btn"
+                        onClick={() => setNoteMenuOpen(v => v === "type" ? null : "type")}
+                      >
+                        <Plus size={14} />New Note<ChevronDown size={11} />
+                      </button>
+                      {noteMenuOpen === "type" && (
+                        <>
+                          <div className="notes-dd-backdrop" onClick={() => setNoteMenuOpen(null)} />
+                          <div className="notes-dropdown notes-type-dropdown">
+                            {NOTE_TYPE_DEFS.map(t => {
+                              const Icon = t.icon;
+                              return (
+                                <button
+                                  key={t.key}
+                                  className="notes-dd-item notes-dd-type-item"
+                                  onClick={() => { createNote(t.key); setNoteMenuOpen(null); }}
+                                >
+                                  <Icon size={14} />
+                                  <div>
+                                    <div className="notes-dd-type-label">{t.label}</div>
+                                    <div className="notes-dd-type-desc">{t.desc}</div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Empty state */}
                 {sorted.length === 0 && (
                   <div className="notes-empty">
                     <FileText size={42} style={{ opacity: .07 }} />
-                    <p>{noteSearch ? "No notes match your search." : "No notes yet. Create your first one →"}</p>
+                    <p>{noteSearch ? "No notes match your search." : "Click \"New Note\" to create your first note."}</p>
                   </div>
                 )}
 
-                {/* Masonry grid */}
-                {sorted.length > 0 && (
-                  <div className="notes-masonry">
-                    {sorted.map(note => (
-                      <div key={note.id} className="notes-masonry-item">
-                        <NoteCard
-                          note={note}
-                          deleting={deletingNoteId === note.id}
-                          onClick={() => setOpenNoteId(note.id)}
-                          onDelete={() => handleDelete(note.id)}
-                          onPin={() => patchNote(note.id, { pinned: !note.pinned })}
-                          onStar={() => patchNote(note.id, { starred: !note.starred })}
-                        />
-                      </div>
-                    ))}
-                  </div>
+                {/* Pinned section */}
+                {pinnedNotes.length > 0 && (
+                  <>
+                    <div className="notes-section-hdr">Pinned</div>
+                    <div className="notes-masonry">
+                      {pinnedNotes.map(note => (
+                        <div key={note.id} className="notes-masonry-item">
+                          <NoteCard
+                            note={note}
+                            deleting={deletingNoteId === note.id}
+                            onClick={() => setOpenNoteId(note.id)}
+                            onDelete={() => handleDelete(note.id)}
+                            onPin={() => patchNote(note.id, { pinned: !note.pinned })}
+                            onStar={() => patchNote(note.id, { starred: !note.starred })}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
 
-                {/* Quick-add FAB */}
-                <div className="notes-fab-wrap">
-                  {noteQuickAdd && (
-                    <>
-                      <div className="notes-fab-backdrop" onClick={() => setNoteQuickAdd(false)} />
-                      <div className="notes-fab-menu">
-                        {NOTE_TYPE_DEFS.map(t => {
-                          const Icon = t.icon;
-                          return (
-                            <button key={t.key} className="notes-fab-item"
-                              onClick={() => { createNote(t.key); setNoteQuickAdd(false); }}>
-                              <Icon size={14} />
-                              <div>
-                                <div className="notes-fab-item-label">{t.label}</div>
-                                <div className="notes-fab-item-desc">{t.desc}</div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                  <button
-                    className={`notes-fab${noteQuickAdd ? " notes-fab-open" : ""}`}
-                    onClick={() => setNoteQuickAdd(v => !v)}
-                  >
-                    <Plus size={20} />
-                  </button>
-                </div>
+                {/* Other notes */}
+                {otherNotes.length > 0 && (
+                  <>
+                    {pinnedNotes.length > 0 && <div className="notes-section-hdr">Notes</div>}
+                    <div className="notes-masonry">
+                      {otherNotes.map(note => (
+                        <div key={note.id} className="notes-masonry-item">
+                          <NoteCard
+                            note={note}
+                            deleting={deletingNoteId === note.id}
+                            onClick={() => setOpenNoteId(note.id)}
+                            onDelete={() => handleDelete(note.id)}
+                            onPin={() => patchNote(note.id, { pinned: !note.pinned })}
+                            onStar={() => patchNote(note.id, { starred: !note.starred })}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
 
                 {/* Note editor */}
                 {migrated && (

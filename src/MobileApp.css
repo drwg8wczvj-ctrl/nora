@@ -930,6 +930,14 @@
 }
 .mob-notes-masonry-item { break-inside: avoid; margin-bottom: 10px; }
 
+/* Section headers */
+.mob-notes-section-hdr {
+  font-size: 10px; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; opacity: .32;
+  margin: 0 0 8px; padding-top: 2px;
+}
+.mob-notes-section-hdr + .mob-notes-masonry { margin-bottom: 18px; }
+
 /* NoteCard overrides for mobile — no hover actions, slightly tighter */
 .mob-notes-v2 .nc { border-radius: 14px; padding: 12px 12px 10px; }
 .mob-notes-v2 .nc:active { transform: scale(.97); }
