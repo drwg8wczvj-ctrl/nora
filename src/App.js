@@ -26,7 +26,8 @@ import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
 import {
   getMySharedObjects, updateSharedObject,
   subscribeToSharedObject, subscribeToCollaboratorInvites,
-  getCollaborators, getMyProfile, joinByCode,
+  getCollaborators, getMyProfile, joinByCode, getSharedObject,
+  deleteSharedObject, removeCollaborator,
 } from "./lib/sharingApi";
 import {
   Plus, Check, ChevronLeft, ChevronRight, CalendarDays,
@@ -666,6 +667,7 @@ export default function App() {
   const [showJoinCode,    setShowJoinCode]    = useState(false);
   const [sharedObjects,   setSharedObjects]   = useState([]);   // [{id, type, data, collaborators}]
   const sharedRealtimeSubs = useRef({});                        // objectId → unsubscribe fn
+  const deletedSharedIdsRef = useRef(new Set());                // blocks stale in-flight reloads
 
   // ── Persistent chat history (localStorage, 24-hour TTL) ────────
   const NORA_GREETING = "Hi! I'm Nora, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?";
@@ -1457,6 +1459,9 @@ export default function App() {
         } catch (error) {
           console.warn("[Sharing] Could not refresh collaborators", error?.message);
         }
+      } else if (event.type === "object_deleted") {
+        setSharedObjects((prev) => prev.filter((item) => item.id !== object.id));
+        setTasks((prev) => prev.filter((task) => task.sharedObjectId !== object.id));
       }
     });
   }
@@ -1466,16 +1471,16 @@ export default function App() {
     let cancelled = false;
 
     async function loadShared() {
-      const objs = await getMySharedObjects();
+      const objs = (await getMySharedObjects()).filter((object) => !deletedSharedIdsRef.current.has(object.id));
       if (cancelled) return;
 
       // Attach collaborators to each object
-      const withCollabs = await Promise.all(
+      const withCollabs = (await Promise.all(
         objs.map(async (o) => {
           const collabs = await getCollaborators(o.id);
           return { ...o, collaborators: collabs };
         })
-      );
+      )).filter((object) => !deletedSharedIdsRef.current.has(object.id));
       setSharedObjects(withCollabs);
 
       // Subscribe to realtime updates for each object
@@ -1849,7 +1854,47 @@ export default function App() {
     });
     setEditingTask(null);
   };
-  const deleteTask = (id) => { setTasks((p) => p.filter((t) => t.id !== id)); setEditingTask(null); };
+  const deleteTask = async (id) => {
+    const task = tasks.find((item) => item.id === id) ?? (draft?.id === id ? draft : null);
+    if (!task) return;
+
+    try {
+      if (task.sharedObjectId) {
+        deletedSharedIdsRef.current.add(task.sharedObjectId);
+        const cachedObject = sharedObjects.find((item) => item.id === task.sharedObjectId);
+        const sharedObject = cachedObject?.owner_id
+          ? cachedObject
+          : await getSharedObject(task.sharedObjectId);
+        const isOwner = sharedObject?.owner_id === session?.user?.id
+          || cachedObject?.collaborators?.some((person) => person.user_id === session?.user?.id && person.role === "owner");
+
+        if (sharedObject) {
+          if (isOwner) await deleteSharedObject(task.sharedObjectId);
+          else await removeCollaborator(task.sharedObjectId, session.user.id);
+        }
+
+        setSharedObjects((prev) => prev.filter((item) => item.id !== task.sharedObjectId));
+        sharedRealtimeSubs.current[task.sharedObjectId]?.();
+        delete sharedRealtimeSubs.current[task.sharedObjectId];
+      }
+
+      const remainingTasks = tasks.filter((item) => item.id !== id);
+      setTasks(remainingTasks);
+      setEditingTask(null);
+      setDraft(null);
+
+      // Do not leave a stale copy in cross-device storage if the app is closed
+      // before the normal one-second autosave runs.
+      await saveUserData({
+        tasks: remainingTasks, groups, notes, boards,
+        preferences: { accountName, dark, reminderMins, relaxation, energy, theme },
+      });
+    } catch (error) {
+      if (task.sharedObjectId) deletedSharedIdsRef.current.delete(task.sharedObjectId);
+      console.error("[Delete task]", error);
+      window.alert(`Could not delete this task: ${error?.message ?? "Please try again."}`);
+    }
+  };
   const toggleTask = (id) => setTasks((p) => p.map((t) => t.id === id ? { ...t, completed: !t.completed } : t));
   const saveReschedule = (updated) => { setTasks((p) => p.map((t) => t.id === updated.id ? updated : t)); setRescheduleTask(null); };
 
@@ -2974,9 +3019,6 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             </button>
           </div>
           <div className="header-right">
-            <button className="header-join-btn" onClick={() => setShowJoinCode(true)}>
-              <KeyRound size={14} /> Join task
-            </button>
             <span className="header-date">{view === "day" ? prettyDate(selectedDate) : view === "month" ? monthLabel : view === "notes" ? "Notes" : "All Tasks"}</span>
           </div>
         </header>
@@ -3132,6 +3174,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                       <button className="smart-empty-add" onClick={() => { setAddingAt("unscheduled"); setAddingTitle(""); }}>
                         <Plus size={14} /> Add task
                       </button>
+                      <button className="smart-empty-add" onClick={() => setShowJoinCode(true)}>
+                        <KeyRound size={14} /> Join task
+                      </button>
                     </div>
                   </div>
                 );
@@ -3237,6 +3282,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                             <Plus size={14} /> Add task
                           </button>
                       }
+                      <button className="sc-add-btn sc-join-btn" onClick={() => setShowJoinCode(true)}>
+                        <KeyRound size={14} /> Join task
+                      </button>
                     </div>
                   </>
                 );

@@ -274,7 +274,8 @@ export async function updateSharedObject(sharedObjectId, newData, action = "upda
 }
 
 export async function deleteSharedObject(sharedObjectId) {
-  await supabase.from("shared_objects").delete().eq("id", sharedObjectId);
+  const { error } = await supabase.from("shared_objects").delete().eq("id", sharedObjectId);
+  if (error) throw error;
 }
 
 export async function getSharedObject(sharedObjectId) {
@@ -283,7 +284,8 @@ export async function getSharedObject(sharedObjectId) {
     .select("*")
     .eq("id", sharedObjectId)
     .single();
-  if (error) return null;
+  if (error?.code === "PGRST116") return null;
+  if (error) throw error;
   return data;
 }
 
@@ -363,11 +365,12 @@ export async function addCollaboratorByUserId(sharedObjectId, userId, role = "ed
 
 export async function removeCollaborator(sharedObjectId, userId) {
   const user = await currentUser();
-  await supabase
+  const { error } = await supabase
     .from("object_collaborators")
     .delete()
     .eq("object_id", sharedObjectId)
     .eq("user_id", userId);
+  if (error) throw error;
 
   await supabase.from("object_activity_log").insert({
     object_id: sharedObjectId,
@@ -527,6 +530,11 @@ export function subscribeToSharedObject(sharedObjectId, onUpdate) {
       "postgres_changes",
       { event: "UPDATE", schema: "public", table: "shared_objects", filter: `id=eq.${sharedObjectId}` },
       (payload) => onUpdate({ type: "object_updated", data: payload.new })
+    )
+    .on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "shared_objects", filter: `id=eq.${sharedObjectId}` },
+      (payload) => onUpdate({ type: "object_deleted", data: payload.old })
     )
     .on(
       "postgres_changes",

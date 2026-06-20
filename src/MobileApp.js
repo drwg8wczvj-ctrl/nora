@@ -127,7 +127,7 @@ export default function MobileApp({ ctx }) {
         setMobileView("plan");
         setPlanSubView("day");
         setPlanDate(ctx.today);
-      }} onBoardsClick={() => setMobileView("boards")} onJoinCode={() => ctx.setShowJoinCode?.(true)} />
+      }} onBoardsClick={() => setMobileView("boards")} />
 
       <main className="mob-main">
         {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} planDate={planDate} setPlanDate={setPlanDate} />}
@@ -353,7 +353,7 @@ export default function MobileApp({ ctx }) {
 }
 
 // ── Header ───────────────────────────────────────────────────
-function MobileHeader({ ctx, onLogoClick, onBoardsClick, onJoinCode }) {
+function MobileHeader({ ctx, onLogoClick, onBoardsClick }) {
   const { today, dark } = ctx;
   const d = new Date(today + "T00:00:00");
   const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
@@ -367,9 +367,6 @@ function MobileHeader({ ctx, onLogoClick, onBoardsClick, onJoinCode }) {
           alt="Nora" />
       </button>
       <span className="mob-header-date">{dateText}</span>
-      <button className="mob-header-join-btn" onClick={onJoinCode} aria-label="Join shared task">
-        <KeyRound size={18} />
-      </button>
       {onBoardsClick && (
         <button className="mob-header-boards-btn" onClick={onBoardsClick} aria-label="Whiteboards">
           <Layers size={18} />
@@ -758,18 +755,23 @@ function MobileHome({ ctx, planDate, planTasks }) {
       )}
 
       {/* Quick add */}
-      <button className="mob-quick-add" onClick={() => {
-        ctx.setEditingTask({
-          id: uid(), type: "task",
-          title: "", date: effectiveDate,
-          startHour: null, startMinute: null,
-          duration: null, repeat: null, repeatEnd: null,
-          completed: false, notes: "", complexity: null,
-          groupId: null, reminderOffset: null,
-        });
-      }}>
-        <Plus size={18} /> Add task
-      </button>
+      <div className="mob-task-create-row">
+        <button className="mob-quick-add" onClick={() => {
+          ctx.setEditingTask({
+            id: uid(), type: "task",
+            title: "", date: effectiveDate,
+            startHour: null, startMinute: null,
+            duration: null, repeat: null, repeatEnd: null,
+            completed: false, notes: "", complexity: null,
+            groupId: null, reminderOffset: null,
+          });
+        }}>
+          <Plus size={18} /> Add task
+        </button>
+        <button className="mob-join-task" onClick={() => ctx.setShowJoinCode?.(true)}>
+          <KeyRound size={18} /> Join task
+        </button>
+      </div>
 
     </div>
   );
@@ -1494,16 +1496,21 @@ function MobileTasks({ ctx }) {
         </>
       )}
 
-      <button className="mob-quick-add" onClick={() => {
-        ctx.setEditingTask({
-          id: uid(), type: "task", title: "", date: today,
-          startHour: null, startMinute: null, duration: null,
-          repeat: null, repeatEnd: null, completed: false,
-          notes: "", complexity: null, groupId: null, reminderOffset: null,
-        });
-      }}>
-        <Plus size={18} /> Add task
-      </button>
+      <div className="mob-task-create-row">
+        <button className="mob-quick-add" onClick={() => {
+          ctx.setEditingTask({
+            id: uid(), type: "task", title: "", date: today,
+            startHour: null, startMinute: null, duration: null,
+            repeat: null, repeatEnd: null, completed: false,
+            notes: "", complexity: null, groupId: null, reminderOffset: null,
+          });
+        }}>
+          <Plus size={18} /> Add task
+        </button>
+        <button className="mob-join-task" onClick={() => ctx.setShowJoinCode?.(true)}>
+          <KeyRound size={18} /> Join task
+        </button>
+      </div>
     </div>
   );
 }

@@ -101,7 +101,7 @@ CREATE POLICY "Collaborators can be updated"
 
 CREATE POLICY "Collaborators can be removed"
   ON public.object_collaborators FOR DELETE TO authenticated
-  USING (public.is_shared_object_owner(object_id));
+  USING (public.is_shared_object_owner(object_id) OR user_id = auth.uid());
 
 -- Replace the other collaboration policies with non-recursive membership checks.
 DROP POLICY IF EXISTS "Comments visible to members" ON public.object_comments;

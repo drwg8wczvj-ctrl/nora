@@ -306,17 +306,6 @@
 .header-date {
   font-size: 13px; color: var(--text-muted); font-weight: 500;
 }
-.header-join-btn {
-  display: flex; align-items: center; gap: 6px;
-  min-height: 34px; padding: 0 11px;
-  border: 1px solid var(--border); border-radius: 9px;
-  background: var(--surface-2); color: var(--text-muted);
-  font-size: 12px; font-weight: 650; cursor: pointer;
-  transition: background var(--tr), border-color var(--tr), color var(--tr);
-}
-.header-join-btn:hover {
-  background: var(--accent-light); border-color: rgba(124,58,237,.35); color: var(--accent);
-}
 
 /* ── Container ─────────────────────────────────────────── */
 .container {
@@ -3086,9 +3075,10 @@
 }
 
 .sc-add-row {
-  display: flex; justify-content: center;
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
   padding: 8px 0 4px;
 }
+.sc-join-btn { border-style: solid; }
 .sc-add-btn {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 8px 18px; border-radius: 10px;
