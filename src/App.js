@@ -489,6 +489,21 @@ function useLocalStorage(key, initial) {
   return [val, setVal];
 }
 
+const DELETED_TASK_IDS_KEY = "nora_deleted_task_ids_v1";
+const DELETED_SHARED_IDS_KEY = "nora_deleted_shared_ids_v1";
+const PENDING_SHARED_DELETIONS_KEY = "nora_pending_shared_deletions_v1";
+
+function loadStoredArray(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
+
+function storeArray(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
 // ── App ────────────────────────────────────────────────
 export default function App() {
   const [session,            setSession]            = useState(null);
@@ -529,7 +544,11 @@ export default function App() {
       if (!data) return;
       if (Array.isArray(data.tasks) && data.tasks.length) {
         const cutoff = fmtDate(addDays(todayStr(), -30));
-        setTasks(data.tasks.filter((t) => t.repeat || t.date >= cutoff));
+        setTasks(data.tasks.filter((t) =>
+          !deletedTaskIdsRef.current.has(t.id)
+          && !deletedSharedIdsRef.current.has(t.sharedObjectId)
+          && (t.repeat || t.date >= cutoff)
+        ));
       }
       if (Array.isArray(data.groups) && data.groups.length) setGroups(data.groups);
       if (Array.isArray(data.notes)  && data.notes.length)  setNotes(data.notes);
@@ -667,7 +686,18 @@ export default function App() {
   const [showJoinCode,    setShowJoinCode]    = useState(false);
   const [sharedObjects,   setSharedObjects]   = useState([]);   // [{id, type, data, collaborators}]
   const sharedRealtimeSubs = useRef({});                        // objectId → unsubscribe fn
-  const deletedSharedIdsRef = useRef(new Set());                // blocks stale in-flight reloads
+  const deletedTaskIdsRef = useRef(new Set(loadStoredArray(DELETED_TASK_IDS_KEY)));
+  const deletedSharedIdsRef = useRef(new Set(loadStoredArray(DELETED_SHARED_IDS_KEY)));
+  const pendingSharedDeletionsRef = useRef(loadStoredArray(PENDING_SHARED_DELETIONS_KEY));
+  const deletionFlushInProgressRef = useRef(false);
+
+  // Remove anything already tombstoned before cloud hydration can restore it.
+  useEffect(() => {
+    setTasks((prev) => prev.filter((task) =>
+      !deletedTaskIdsRef.current.has(task.id)
+      && !deletedSharedIdsRef.current.has(task.sharedObjectId)
+    ));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persistent chat history (localStorage, 24-hour TTL) ────────
   const NORA_GREETING = "Hi! I'm Nora, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?";
@@ -1460,6 +1490,8 @@ export default function App() {
           console.warn("[Sharing] Could not refresh collaborators", error?.message);
         }
       } else if (event.type === "object_deleted") {
+        deletedSharedIdsRef.current.add(object.id);
+        storeArray(DELETED_SHARED_IDS_KEY, [...deletedSharedIdsRef.current]);
         setSharedObjects((prev) => prev.filter((item) => item.id !== object.id));
         setTasks((prev) => prev.filter((task) => task.sharedObjectId !== object.id));
       }
@@ -1504,6 +1536,7 @@ export default function App() {
 
     // Subscribe to new invites
     const unsubInvites = subscribeToCollaboratorInvites(async (newObj) => {
+      if (deletedSharedIdsRef.current.has(newObj.id)) return;
       let collaborators = [];
       try { collaborators = await getCollaborators(newObj.id); } catch {}
       cacheSharedObject(newObj, collaborators);
@@ -1541,6 +1574,7 @@ export default function App() {
   }, [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cacheSharedObject(object, collaborators = []) {
+    if (deletedSharedIdsRef.current.has(object.id)) return;
     setSharedObjects((prev) => {
       const next = { ...object, collaborators };
       return prev.some((item) => item.id === object.id)
@@ -1552,6 +1586,15 @@ export default function App() {
   async function handleJoinCode(code) {
     const object = await joinByCode(code);
     if (!object) throw new Error("This invite code could not be joined.");
+    // An explicit re-join reverses any old local tombstone for this object.
+    deletedSharedIdsRef.current.delete(object.id);
+    if (object.data?.id) deletedTaskIdsRef.current.delete(object.data.id);
+    storeArray(DELETED_SHARED_IDS_KEY, [...deletedSharedIdsRef.current]);
+    storeArray(DELETED_TASK_IDS_KEY, [...deletedTaskIdsRef.current]);
+    pendingSharedDeletionsRef.current = pendingSharedDeletionsRef.current.filter(
+      (item) => item.sharedObjectId !== object.id
+    );
+    persistDeletionQueue();
     const collaborators = await getCollaborators(object.id);
     cacheSharedObject(object, collaborators);
     if (object.type === "task" || object.type === "deadline") {
@@ -1561,6 +1604,46 @@ export default function App() {
     }
     return object;
   }
+
+  function persistDeletionQueue() {
+    storeArray(PENDING_SHARED_DELETIONS_KEY, pendingSharedDeletionsRef.current);
+  }
+
+  async function flushPendingSharedDeletions() {
+    if (!session?.user?.id || deletionFlushInProgressRef.current) return;
+    deletionFlushInProgressRef.current = true;
+    try {
+      const pending = [...pendingSharedDeletionsRef.current];
+      for (const deletion of pending) {
+        try {
+          const object = await getSharedObject(deletion.sharedObjectId);
+          if (object?.owner_id === session.user.id) {
+            await deleteSharedObject(deletion.sharedObjectId);
+          } else if (object) {
+            await removeCollaborator(deletion.sharedObjectId, session.user.id);
+          }
+          pendingSharedDeletionsRef.current = pendingSharedDeletionsRef.current.filter(
+            (item) => item.sharedObjectId !== deletion.sharedObjectId
+          );
+          persistDeletionQueue();
+        } catch (error) {
+          // Offline/PWA fetch failures remain queued and retry on the next
+          // online event or app launch. The task stays hidden via tombstones.
+          console.warn("[Delete task] Cloud cleanup queued:", error?.message ?? error);
+        }
+      }
+    } finally {
+      deletionFlushInProgressRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    if (!session) return;
+    flushPendingSharedDeletions();
+    const retry = () => flushPendingSharedDeletions();
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!chatOpen || !desktopSuggestionsVisible || aiChatSugFetchedRef.current) return;
@@ -1854,46 +1937,39 @@ export default function App() {
     });
     setEditingTask(null);
   };
-  const deleteTask = async (id) => {
+  const deleteTask = (id) => {
     const task = tasks.find((item) => item.id === id) ?? (draft?.id === id ? draft : null);
     if (!task) return;
 
-    try {
-      if (task.sharedObjectId) {
-        deletedSharedIdsRef.current.add(task.sharedObjectId);
-        const cachedObject = sharedObjects.find((item) => item.id === task.sharedObjectId);
-        const sharedObject = cachedObject?.owner_id
-          ? cachedObject
-          : await getSharedObject(task.sharedObjectId);
-        const isOwner = sharedObject?.owner_id === session?.user?.id
-          || cachedObject?.collaborators?.some((person) => person.user_id === session?.user?.id && person.role === "owner");
+    // Deletion is local-first and cannot be blocked by a flaky mobile/PWA
+    // connection. Persistent tombstones prevent both cloud stores from
+    // resurrecting the item while remote cleanup retries in the background.
+    deletedTaskIdsRef.current.add(id);
+    storeArray(DELETED_TASK_IDS_KEY, [...deletedTaskIdsRef.current]);
 
-        if (sharedObject) {
-          if (isOwner) await deleteSharedObject(task.sharedObjectId);
-          else await removeCollaborator(task.sharedObjectId, session.user.id);
-        }
-
-        setSharedObjects((prev) => prev.filter((item) => item.id !== task.sharedObjectId));
-        sharedRealtimeSubs.current[task.sharedObjectId]?.();
-        delete sharedRealtimeSubs.current[task.sharedObjectId];
+    if (task.sharedObjectId) {
+      deletedSharedIdsRef.current.add(task.sharedObjectId);
+      storeArray(DELETED_SHARED_IDS_KEY, [...deletedSharedIdsRef.current]);
+      if (!pendingSharedDeletionsRef.current.some((item) => item.sharedObjectId === task.sharedObjectId)) {
+        pendingSharedDeletionsRef.current.push({ taskId: id, sharedObjectId: task.sharedObjectId });
+        persistDeletionQueue();
       }
-
-      const remainingTasks = tasks.filter((item) => item.id !== id);
-      setTasks(remainingTasks);
-      setEditingTask(null);
-      setDraft(null);
-
-      // Do not leave a stale copy in cross-device storage if the app is closed
-      // before the normal one-second autosave runs.
-      await saveUserData({
-        tasks: remainingTasks, groups, notes, boards,
-        preferences: { accountName, dark, reminderMins, relaxation, energy, theme },
-      });
-    } catch (error) {
-      if (task.sharedObjectId) deletedSharedIdsRef.current.delete(task.sharedObjectId);
-      console.error("[Delete task]", error);
-      window.alert(`Could not delete this task: ${error?.message ?? "Please try again."}`);
+      setSharedObjects((prev) => prev.filter((item) => item.id !== task.sharedObjectId));
+      sharedRealtimeSubs.current[task.sharedObjectId]?.();
+      delete sharedRealtimeSubs.current[task.sharedObjectId];
     }
+
+    const remainingTasks = tasks.filter((item) => item.id !== id);
+    setTasks(remainingTasks);
+    setEditingTask(null);
+    setDraft(null);
+
+    // Best-effort immediate cloud save; the normal autosave retries this too.
+    saveUserData({
+      tasks: remainingTasks, groups, notes, boards,
+      preferences: { accountName, dark, reminderMins, relaxation, energy, theme },
+    }).catch((error) => console.warn("[Delete task] App-data sync queued:", error?.message ?? error));
+    flushPendingSharedDeletions();
   };
   const toggleTask = (id) => setTasks((p) => p.map((t) => t.id === id ? { ...t, completed: !t.completed } : t));
   const saveReschedule = (updated) => { setTasks((p) => p.map((t) => t.id === updated.id ? updated : t)); setRescheduleTask(null); };
