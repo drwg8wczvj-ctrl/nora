@@ -95,21 +95,36 @@
 }
 .ne-title-input::placeholder { opacity: .32; }
 .ne-header-actions {
-  display: flex; align-items: center; gap: 2px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
 }
 .ne-icon-btn {
   width: 32px; height: 32px; border-radius: 9px;
   border: none; background: transparent; cursor: pointer;
-  color: var(--text);
+  color: var(--ne-text, var(--text));
   display: flex; align-items: center; justify-content: center;
-  opacity: .55; transition: opacity .12s, background .12s;
+  opacity: .45; transition: opacity .12s, background .12s, color .12s;
 }
-.ne-icon-btn:hover  { opacity: 1; background: rgba(0,0,0,.07); }
+.ne-icon-btn:hover { opacity: .9; background: rgba(0,0,0,.07); }
 .dark .ne-icon-btn:hover { background: rgba(255,255,255,.09); }
-.ne-icon-on         { opacity: 1; }
-.ne-star-btn.ne-icon-on { color: #f59e0b; opacity: 1; }
+
+/* Active pin — purple */
+.ne-pin-btn.ne-icon-on {
+  opacity: 1;
+  color: var(--accent, #8b5cf6);
+  background: rgba(139,92,246,.14);
+}
+.ne-pin-btn.ne-icon-on:hover { background: rgba(139,92,246,.22); }
+
+/* Active star — amber */
+.ne-star-btn.ne-icon-on {
+  opacity: 1;
+  color: #f59e0b;
+  background: rgba(245,158,11,.14);
+}
+.ne-star-btn.ne-icon-on:hover { background: rgba(245,158,11,.22); }
+
 .ne-del-btn:hover   { color: #dc2626; opacity: 1; background: rgba(220,38,38,.08) !important; }
-.ne-close-btn       { opacity: .6; }
+.ne-close-btn       { opacity: .5; }
 
 /* ── AI banner ─────── */
 .ne-ai-banner {

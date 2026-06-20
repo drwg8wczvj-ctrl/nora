@@ -51,7 +51,7 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
       {/* Hover actions — desktop only (CSS hides on touch) */}
       <div className="nc-hover-actions">
         <button
-          className={`nc-hbtn${pinned ? " nc-hbtn-on" : ""}`}
+          className={`nc-hbtn nc-hbtn-pin${pinned ? " nc-hbtn-on" : ""}`}
           onClick={stopPropAndRun(onPin)}
           title={pinned ? "Unpin" : "Pin"}
         >

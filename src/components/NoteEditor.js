@@ -225,7 +225,7 @@ export default function NoteEditor({ note, onPatch, onDelete, onClose, isMobile 
           />
           <div className="ne-header-actions">
             <button
-              className={`ne-icon-btn${note.pinned ? " ne-icon-on" : ""}`}
+              className={`ne-icon-btn ne-pin-btn${note.pinned ? " ne-icon-on" : ""}`}
               onClick={() => onPatch({ pinned: !note.pinned })}
               title={note.pinned ? "Unpin" : "Pin"}
             >
