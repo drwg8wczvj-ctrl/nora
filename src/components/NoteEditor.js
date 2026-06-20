@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   X, Trash2, Pin, Star, Check, Plus,
   FileText, CheckSquare, ShoppingCart, Lightbulb, Zap,
@@ -113,6 +114,12 @@ export default function NoteEditor({ note, onPatch, onDelete, onClose, isMobile 
 
   // Auto-focus
   useEffect(() => {
+    const hasExistingContent = Boolean(
+      title.trim() || content.trim() || items.some(item => item.text?.trim())
+    );
+    // Opening an existing note on a phone should not immediately cover it with
+    // the keyboard. A tap in the title/body still begins editing normally.
+    if (isMobile && hasExistingContent) return;
     const delay = isMobile ? 60 : 10;
     const t = setTimeout(() => {
       if (!title && titleRef.current) titleRef.current.focus();
@@ -195,8 +202,11 @@ export default function NoteEditor({ note, onPatch, onDelete, onClose, isMobile 
 
   // ── Render ────────────────────────────────────────────────────────────────
   const sheetStyle = isMobile && kbOffset > 0 ? { bottom: kbOffset } : undefined;
+  // Keep the editor as a top-level child of the themed app. This escapes the
+  // Notes scroll container while preserving dark/glass theme variables.
+  const portalRoot = document.querySelector(isMobile ? ".mob-app" : ".app") ?? document.body;
 
-  return (
+  return createPortal((
     <div
       className="ne-overlay"
       onClick={onClose}
@@ -349,5 +359,5 @@ export default function NoteEditor({ note, onPatch, onDelete, onClose, isMobile 
         </div>
       </div>
     </div>
-  );
+  ), portalRoot);
 }

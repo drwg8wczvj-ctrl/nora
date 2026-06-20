@@ -266,3 +266,122 @@
 .ne-type-btn.active { opacity: 1; background: rgba(0,0,0,.08); }
 .dark .ne-type-btn.active,
 .dark .ne-type-btn:hover { background: rgba(255,255,255,.07); }
+
+/* ── Mobile editor ergonomics ─────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .ne-overlay {
+    padding: 0;
+    align-items: stretch;
+    background: rgba(0,0,0,.42) !important;
+  }
+
+  .ne-panel-sheet {
+    top: max(10px, env(safe-area-inset-top, 0px));
+    bottom: 0;
+    max-height: none;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -10px 48px rgba(0,0,0,.32);
+  }
+
+  .ne-handle {
+    width: 44px;
+    height: 5px;
+    margin: 10px auto 2px;
+  }
+
+  .ne-header {
+    gap: 4px;
+    min-height: 62px;
+    padding: 8px 12px 8px 18px;
+    border-bottom: 1px solid rgba(128,128,128,.12);
+  }
+
+  .ne-title-input {
+    font-size: 20px !important;
+    line-height: 1.25;
+  }
+
+  .ne-header-actions { gap: 1px; }
+  .ne-icon-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    opacity: .62;
+  }
+  .ne-icon-btn svg { width: 20px; height: 20px; }
+  .ne-close-btn { opacity: .72; }
+
+  .ne-body {
+    padding: 12px 20px 20px;
+  }
+
+  .ne-content {
+    min-height: 100%;
+    font-size: 17px !important;
+    line-height: 1.65;
+  }
+
+  .ne-items-list { gap: 2px; }
+  .ne-item {
+    min-height: 54px;
+    gap: 12px;
+    padding: 5px 0;
+  }
+  .ne-item-chk {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    border-width: 2px;
+  }
+  .ne-item-chk svg { width: 15px; height: 15px; }
+  .ne-item-input {
+    font-size: 17px !important;
+    line-height: 1.4;
+  }
+  .ne-item-remove {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    opacity: .34;
+  }
+  .ne-item-remove svg { width: 17px; height: 17px; }
+  .ne-add-item-btn {
+    min-height: 48px;
+    font-size: 16px;
+    padding: 8px 0;
+  }
+  .ne-add-item-btn svg { width: 18px; height: 18px; }
+
+  .ne-ai-banner { margin: 6px 18px; min-height: 44px; }
+  .ne-ai-convert, .ne-ai-dismiss { min-height: 36px; }
+
+  .ne-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--ne-bg, var(--surface));
+  }
+  .ne-color-row {
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .ne-color-swatch {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+  }
+  .ne-type-row { gap: 6px; }
+  .ne-type-btn {
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px 6px;
+    border-radius: 11px;
+    font-size: 13px;
+    background: rgba(128,128,128,.06);
+  }
+  .ne-type-btn svg { width: 16px; height: 16px; }
+}

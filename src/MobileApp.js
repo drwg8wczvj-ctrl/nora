@@ -6,7 +6,7 @@ import {
   TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
   SkipForward, Sparkles, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
-  Share2, Users, Search,
+  Share2, Users, Search, KeyRound,
 } from "lucide-react";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
@@ -17,6 +17,7 @@ import FocusSession from "./FocusSession";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
+import JoinCodeModal from "./components/JoinCodeModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
 import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
 import ProfileModal from "./components/ProfileModal";
@@ -298,9 +299,21 @@ export default function MobileApp({ ctx }) {
               t.id === sharingTask.id ? { ...t, sharedObjectId: id } : t
             ));
             setSharingTask?.((prev) => prev ? { ...prev, sharedObjectId: id } : null);
+            ctx.setSharedObjects?.((prev) => {
+              const object = { id, type: sharingTask.type === "deadline" ? "deadline" : "task", data: sharingTask, collaborators: [] };
+              return prev.some(item => item.id === id) ? prev.map(item => item.id === id ? { ...item, ...object } : item) : [...prev, object];
+            });
+          }}
+          onCollaboratorsChange={(id, collaborators) => {
+            ctx.setSharedObjects?.((prev) => {
+              const object = { id, type: sharingTask.type === "deadline" ? "deadline" : "task", data: sharingTask, collaborators };
+              return prev.some(item => item.id === id) ? prev.map(item => item.id === id ? { ...item, ...object } : item) : [...prev, object];
+            });
           }}
         />
       )}
+
+      {ctx.showJoinCode && <JoinCodeModal onClose={() => ctx.setShowJoinCode?.(false)} onJoin={ctx.handleJoinCode} />}
 
       {/* Username nudge banner */}
       {ctx.showUsernameBanner && !ctx.showOnboarding && (
@@ -2033,6 +2046,9 @@ function MobileSettings({ ctx }) {
         <button className="mob-edit-profile-btn" onClick={() => setShowProfileModal?.(true)}>
           Edit profile &amp; avatar
         </button>
+        <button className="mob-edit-profile-btn" onClick={() => ctx.setShowJoinCode?.(true)}>
+          <KeyRound size={14} /> Join with invite code
+        </button>
       </div>
 
       {/* Appearance */}
@@ -2142,15 +2158,21 @@ function MobileChat({ ctx }) {
   const endRef      = useRef(null);
   const inputRef    = useRef(null);
   const [chatAtBottom, setChatAtBottom] = useState(true);
+  const [suggestionsVisible, setSuggestionsVisible] = useState(() => {
+    try { return localStorage.getItem("nora_mobile_chat_suggestions") !== "hidden"; }
+    catch { return true; }
+  });
+
+  const toggleSuggestions = () => {
+    setSuggestionsVisible((visible) => {
+      const next = !visible;
+      try { localStorage.setItem("nora_mobile_chat_suggestions", next ? "visible" : "hidden"); } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
-    if (chatOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [chatOpen]);
-
-  useEffect(() => {
-    if (!chatOpen || aiChatSugFetchedRef.current) return;
+    if (!chatOpen || !suggestionsVisible || aiChatSugFetchedRef.current) return;
     aiChatSugFetchedRef.current = true;
     setAiChatSugLoading(true);
     fetch("/api/tips", {
@@ -2172,7 +2194,7 @@ function MobileChat({ ctx }) {
       .then((d) => { if (d.tips?.length) setAiChatSuggestions(d.tips.slice(0, 3)); })
       .catch(() => {})
       .finally(() => setAiChatSugLoading(false));
-  }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatOpen, suggestionsVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -2231,7 +2253,7 @@ function MobileChat({ ctx }) {
         )}
       </div>
 
-      <div className="mob-chat-suggestions">
+      {suggestionsVisible && <div className="mob-chat-suggestions">
         {!chatInput ? (
           <div className="mob-chat-ai-bubbles">
             {aiChatSugLoading ? (
@@ -2257,8 +2279,15 @@ function MobileChat({ ctx }) {
             </div>
           )
         )}
-      </div>
+      </div>}
       <div className="mob-chat-input-bar">
+        <button
+          className={`mob-suggestions-toggle${suggestionsVisible ? " on" : ""}`}
+          onClick={toggleSuggestions}
+          aria-label={suggestionsVisible ? "Hide suggested prompts" : "Show suggested prompts"}
+          title={suggestionsVisible ? "Hide suggestions" : "Show suggestions"}>
+          <Sparkles size={16} />
+        </button>
         <button
           className={`mob-micro-btn${microStartMode ? " on" : ""}`}
           onClick={() => setMicroStartMode((m) => !m)}>

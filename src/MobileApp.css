@@ -1238,12 +1238,18 @@
 }
 
 /* Micro Start icon button — inline */
-.mob-micro-btn {
+.mob-micro-btn,
+.mob-suggestions-toggle {
   width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
   border: 1px solid var(--border); background: var(--surface);
   color: var(--text-muted); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all .18s;
+}
+.mob-suggestions-toggle.on {
+  background: var(--accent-light);
+  border-color: rgba(124,58,237,.4);
+  color: var(--accent);
 }
 .mob-micro-btn.on {
   background: rgba(34,197,94,0.12);
@@ -1336,7 +1342,7 @@
 
 /* Input wrapper */
 .mob-chat-input-wrap {
-  position: relative; flex: 1;
+  position: relative; flex: 1; min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border); border-radius: 14px;
   transition: border-color .15s;
@@ -1346,7 +1352,7 @@
 .mob-chat-ghost {
   position: absolute; inset: 0;
   padding: 12px 14px;
-  font-size: 14px; font-family: inherit; line-height: 1.4;
+  font-size: 16px; font-family: inherit; line-height: 1.4;
   white-space: pre-wrap; word-break: break-word;
   pointer-events: none; overflow: hidden;
   border-radius: 14px; box-sizing: border-box;
@@ -1360,11 +1366,11 @@
   display: block; width: 100%; padding: 12px 14px;
   border: none; border-radius: 14px;
   background: transparent; color: var(--text);
-  font-size: 14px; resize: none; outline: none;
+  font-size: 16px !important; line-height: 1.4; resize: none; outline: none;
   font-family: inherit; max-height: 120px; min-height: 46px;
   position: relative; z-index: 1; box-sizing: border-box;
 }
-.mob-chat-input::placeholder { font-size: 13px; color: var(--text-muted); }
+.mob-chat-input::placeholder { font-size: 16px; color: var(--text-muted); }
 .mob-chat-send {
   width: 46px; height: 46px; border-radius: 13px;
   border: none; cursor: pointer;
@@ -1808,6 +1814,7 @@
   color: var(--text-muted); font-size: 14px; font-weight: 500;
   cursor: pointer; margin-top: 4px;
   transition: background .12s;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
 }
 .mob-edit-profile-btn:hover { background: var(--surface); color: var(--text); }
 

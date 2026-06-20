@@ -2749,6 +2749,7 @@
   color: var(--text-muted); font-size: 13px; font-weight: 500;
   cursor: pointer; transition: background .12s;
   margin-top: 2px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 .acc-edit-profile-btn:hover { background: var(--surface); color: var(--text); }
 .acc-profile-info {
@@ -3596,4 +3597,14 @@ button:not(:disabled):active {
 /* ── Check-up readiness ring ── */
 .mcu-ring-svg circle:last-child {
   transition: stroke-dasharray 0.7s var(--ease-spring);
+}
+/* iOS Safari zooms the whole page when a focused form control is below 16px.
+   Keep mobile controls at the native threshold instead of disabling user zoom. */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
 }

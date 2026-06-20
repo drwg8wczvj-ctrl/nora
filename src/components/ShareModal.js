@@ -48,10 +48,11 @@ function activityLabel(action, details) {
 const ROLE_ICON = { owner: Crown, editor: Edit3, viewer: Eye };
 const ROLE_LABELS = { editor: "Can edit", viewer: "View only" };
 
-export default function ShareModal({ objectType, objectData, sharedObjectId, session, onClose, onSharedObjectId }) {
+export default function ShareModal({ objectType, objectData, sharedObjectId, session, onClose, onSharedObjectId, onCollaboratorsChange }) {
   // sharedObjectId — null if not yet shared; string if already shared
   const [tab, setTab] = useState("invite"); // 'invite' | 'activity' | 'comments'
   const [collaborators, setCollaborators] = useState([]);
+  const [collaboratorsLoading, setCollaboratorsLoading] = useState(Boolean(sharedObjectId));
   const [inviteCode, setInviteCode] = useState(null);
   const [inviteRole, setInviteRole] = useState("editor");
   const [search, setSearch] = useState("");
@@ -96,8 +97,14 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
 
   async function loadCollaborators(sharedId = currentSharedId) {
     if (!sharedId) return;
-    const c = await getCollaborators(sharedId);
-    setCollaborators(c);
+    setCollaboratorsLoading(true);
+    try {
+      const c = await getCollaborators(sharedId);
+      setCollaborators(c);
+      onCollaboratorsChange?.(sharedId, c);
+    } finally {
+      setCollaboratorsLoading(false);
+    }
   }
 
   async function loadActivity() {
@@ -371,6 +378,9 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
               )}
 
               {/* Collaborator list */}
+              {currentSharedId && collaboratorsLoading && (
+                <p className="sm-loading-people" role="status">Loading people with access…</p>
+              )}
               {collaborators.length > 0 && (
                 <div className="sm-collaborators">
                   <span className="sm-section-label">People with access ({collaborators.length})</span>

@@ -18,6 +18,7 @@ import { useNotifications } from "./hooks/useNotifications";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
+import JoinCodeModal from "./components/JoinCodeModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
 import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
 import ProfileModal from "./components/ProfileModal";
@@ -25,7 +26,7 @@ import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
 import {
   getMySharedObjects, updateSharedObject,
   subscribeToSharedObject, subscribeToCollaboratorInvites,
-  getCollaborators, getMyProfile,
+  getCollaborators, getMyProfile, joinByCode,
 } from "./lib/sharingApi";
 import {
   Plus, Check, ChevronLeft, ChevronRight, CalendarDays,
@@ -36,7 +37,7 @@ import {
   ZoomIn, ZoomOut,
   Brain, Target, Lightbulb, BarChart2, AlertTriangle,
   Pencil, SkipForward, Sparkles, Moon, Sunrise,
-  Share2, Users, Search, Filter, ArrowUpDown,
+  Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
 } from "lucide-react";
 import { calculateTaskWeight } from "./utils/taskUtils";
 import NoteCard from "./components/NoteCard";
@@ -657,6 +658,7 @@ export default function App() {
   const [inAppAlert,      setInAppAlert]      = useState(null);
   // Collaboration
   const [sharingTask,     setSharingTask]     = useState(null); // task being shared
+  const [showJoinCode,    setShowJoinCode]    = useState(false);
   const [sharedObjects,   setSharedObjects]   = useState([]);   // [{id, type, data, collaborators}]
   const sharedRealtimeSubs = useRef({});                        // objectId → unsubscribe fn
 
@@ -1429,6 +1431,31 @@ export default function App() {
   }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
   // ── Collaboration: load shared objects + realtime ─────────────
+  function ensureSharedSubscription(object) {
+    if (sharedRealtimeSubs.current[object.id]) return;
+    sharedRealtimeSubs.current[object.id] = subscribeToSharedObject(object.id, async (event) => {
+      if (event.type === "object_updated") {
+        setSharedObjects((prev) => prev.map((item) =>
+          item.id === object.id ? { ...item, data: event.data.data } : item
+        ));
+        if (object.type === "task" || object.type === "deadline") {
+          setTasks((prev) => prev.map((task) =>
+            task.sharedObjectId === object.id ? { ...task, ...event.data.data, sharedObjectId: object.id } : task
+          ));
+        }
+      } else if (event.type === "collaborator_added") {
+        try {
+          const collaborators = await getCollaborators(object.id);
+          setSharedObjects((prev) => prev.map((item) =>
+            item.id === object.id ? { ...item, collaborators } : item
+          ));
+        } catch (error) {
+          console.warn("[Sharing] Could not refresh collaborators", error?.message);
+        }
+      }
+    });
+  }
+
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
@@ -1447,28 +1474,10 @@ export default function App() {
       setSharedObjects(withCollabs);
 
       // Subscribe to realtime updates for each object
-      withCollabs.forEach((o) => {
-        if (sharedRealtimeSubs.current[o.id]) return;
-        const unsub = subscribeToSharedObject(o.id, (event) => {
-          if (event.type === "object_updated") {
-            setSharedObjects((prev) =>
-              prev.map((s) => s.id === o.id ? { ...s, data: event.data.data } : s)
-            );
-            // Merge into local tasks if it's a task
-            if (o.type === "task") {
-              setTasks((prev) =>
-                prev.map((t) =>
-                  t.sharedObjectId === o.id ? { ...t, ...event.data.data, sharedObjectId: o.id } : t
-                )
-              );
-            }
-          }
-        });
-        sharedRealtimeSubs.current[o.id] = unsub;
-      });
+      withCollabs.forEach(ensureSharedSubscription);
 
-      // Merge shared tasks into local tasks (add if not present)
-      const sharedTasks = withCollabs.filter((o) => o.type === "task");
+      // Merge shared tasks and deadlines into the planner (add if not present)
+      const sharedTasks = withCollabs.filter((o) => o.type === "task" || o.type === "deadline");
       setTasks((prev) => {
         let updated = [...prev];
         sharedTasks.forEach((so) => {
@@ -1484,10 +1493,15 @@ export default function App() {
     loadShared();
 
     // Subscribe to new invites
-    const unsubInvites = subscribeToCollaboratorInvites((newObj) => {
-      setSharedObjects((prev) =>
-        prev.some((s) => s.id === newObj.id) ? prev : [...prev, { ...newObj, collaborators: [] }]
-      );
+    const unsubInvites = subscribeToCollaboratorInvites(async (newObj) => {
+      let collaborators = [];
+      try { collaborators = await getCollaborators(newObj.id); } catch {}
+      cacheSharedObject(newObj, collaborators);
+      if (newObj.type === "task" || newObj.type === "deadline") {
+        setTasks((prev) => prev.some((task) => task.sharedObjectId === newObj.id)
+          ? prev
+          : [...prev, { ...newObj.data, type: newObj.type, sharedObjectId: newObj.id, collaborators }]);
+      }
     });
 
     return () => {
@@ -1497,6 +1511,12 @@ export default function App() {
       sharedRealtimeSubs.current = {};
     };
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Objects created or joined after the initial login load also need realtime.
+  useEffect(() => {
+    if (!session) return;
+    sharedObjects.forEach(ensureSharedSubscription);
+  }, [session, sharedObjects]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync local task changes back to shared_objects ─────────────
   const syncSharedTask = useRef(null);
@@ -1509,6 +1529,28 @@ export default function App() {
       });
     }, 2000);
   }, [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function cacheSharedObject(object, collaborators = []) {
+    setSharedObjects((prev) => {
+      const next = { ...object, collaborators };
+      return prev.some((item) => item.id === object.id)
+        ? prev.map((item) => item.id === object.id ? { ...item, ...next } : item)
+        : [...prev, next];
+    });
+  }
+
+  async function handleJoinCode(code) {
+    const object = await joinByCode(code);
+    if (!object) throw new Error("This invite code could not be joined.");
+    const collaborators = await getCollaborators(object.id);
+    cacheSharedObject(object, collaborators);
+    if (object.type === "task" || object.type === "deadline") {
+      setTasks((prev) => prev.some((task) => task.sharedObjectId === object.id)
+        ? prev
+        : [...prev, { ...object.data, type: object.type, sharedObjectId: object.id, collaborators }]);
+    }
+    return object;
+  }
 
   useEffect(() => {
     if (!chatOpen || aiChatSugFetchedRef.current) return;
@@ -2779,7 +2821,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       notifHealth, sendTestNotification,
       testServerPush, forceResubscribe: forceResubscribePush,
       // Collaboration
-      sharingTask, setSharingTask, sharedObjects,
+      sharingTask, setSharingTask, sharedObjects, setSharedObjects,
+      showJoinCode, setShowJoinCode, handleJoinCode,
       // Profile
       userProfile, setUserProfile,
       showOnboarding, setShowOnboarding,
@@ -2882,6 +2925,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               </div>
               <button className="acc-edit-profile-btn" onClick={() => setShowProfileModal(true)}>
                 Edit profile
+              </button>
+              <button className="acc-edit-profile-btn" onClick={() => setShowJoinCode(true)}>
+                <KeyRound size={13} /> Join with invite code
               </button>
               <button className="sett-signout-btn" onClick={() => supabase.auth.signOut()}>
                 Sign out
@@ -4534,9 +4580,19 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             ));
             setSharingTask((prev) => prev ? { ...prev, sharedObjectId: id } : null);
             setDraft((d) => d ? { ...d, sharedObjectId: id } : d);
+            cacheSharedObject({ id, type: sharingTask.type === "deadline" ? "deadline" : "task", data: sharingTask }, []);
+          }}
+          onCollaboratorsChange={(id, collaborators) => {
+            cacheSharedObject({
+              id,
+              type: sharingTask.type === "deadline" ? "deadline" : "task",
+              data: sharingTask,
+            }, collaborators);
           }}
         />
       )}
+
+      {showJoinCode && <JoinCodeModal onClose={() => setShowJoinCode(false)} onJoin={handleJoinCode} />}
 
       {/* PWA update / install banners */}
       <PWABanners dark={dark} />
