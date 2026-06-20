@@ -33,11 +33,7 @@ function loadCachedProfile(userId) {
   } catch { return null; }
 }
 
-// ── user_preferences JSONB store — cross-device profile fallback ─
-// user_preferences exists in the base migration (no extra SQL needed).
-// We store { ..., _profile: {...} } inside the preferences JSONB so the
-// full avatar/username/bio survives even when user_profile lacks columns.
-
+// ── user_preferences JSONB store — cross-device profile backup ───
 async function saveProfileToPrefs(userId, updates) {
   try {
     const { data: row } = await supabase
@@ -65,73 +61,72 @@ async function loadProfileFromPrefs(userId) {
   } catch { return null; }
 }
 
+// ── getMyProfile ──────────────────────────────────────────────
+// Three cross-device sources (highest → lowest priority):
+//   A. user_profile DB columns (requires extended migration)
+//   B. auth.user_metadata.nora_profile — syncs via Supabase Auth (no migration needed)
+//   C. user_preferences JSONB (belt-and-suspenders, no migration needed)
+//   D. localStorage (same-device only, last resort)
+
 export async function getMyProfile() {
-  const user = await currentUser();
+  const user = await currentUser(); // supabase.auth.getUser() — always fresh from server
   if (!user) return null;
 
-  // Fire cross-device prefs load immediately in parallel with DB queries
-  const prefsPromise = loadProfileFromPrefs(user.id);
+  const userId = user.id;
 
-  // ① Try full query — all profile columns (requires migration)
+  // Source B: auth.user_metadata is already fresh (getUser() validates against server)
+  const metaRaw = user.user_metadata?.nora_profile;
+  const metaProfile = metaRaw ? { user_id: userId, ...metaRaw } : null;
+
+  // Source C: fire user_preferences load in parallel with DB query
+  const prefsPromise = loadProfileFromPrefs(userId);
+
+  // Source A: try full DB query (all profile columns — requires extended migration)
   const { data, error } = await supabase
     .from("user_profile")
     .select(PROFILE_FIELDS)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (!error && data) {
-    // Always merge: user_preferences fills any null/missing extended fields
-    // (covers: migration ran but save failed, or profile saved before cross-device fix)
     const prefs = await prefsPromise;
-    const merged = prefs
-      ? {
-          ...prefs,
-          // DB wins for every field that is actually set (not null/undefined)
-          ...Object.fromEntries(Object.entries(data).filter(([, v]) => v != null)),
-        }
-      : data;
-    cacheProfile(user.id, merged);
-
-    // Back-fill user_preferences if the profile isn't there yet — self-healing:
-    // first open on any device after this code deploys will populate the cross-device store,
-    // so other devices can sync without the user having to manually re-save.
-    if (!prefs || !prefs.username) {
-      const { username, avatar_type, avatar_color, avatar_emoji, bio } = merged;
-      if (username || avatar_type) {
-        saveProfileToPrefs(user.id, { username, avatar_type, avatar_color, avatar_emoji, bio });
-      }
-    }
-
+    // Merge: metaProfile and prefs fill gaps where DB columns are null
+    const merged = {
+      ...(metaProfile ?? {}),
+      ...(prefs ?? {}),
+      // DB wins for every non-null field
+      ...Object.fromEntries(Object.entries(data).filter(([, v]) => v != null)),
+    };
+    cacheProfile(userId, merged);
     return merged;
   }
 
-  // ② Fallback: basic columns only (migration not yet run)
+  // Source A fallback: basic columns only (extended migration not run)
   const { data: basic } = await supabase
     .from("user_profile")
     .select("user_id, name, birthday, created_at")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (basic) {
-    const [prefs, cached] = await Promise.all([
-      prefsPromise,
-      Promise.resolve(loadCachedProfile(user.id)),
-    ]);
-    // Priority: basic DB fields override prefs/cache, but prefs fills extended fields
-    const merged = { ...(cached ?? {}), ...(prefs ?? {}), ...basic };
-    cacheProfile(user.id, merged);
+    const prefs = await prefsPromise;
+    const cached = loadCachedProfile(userId);
+    // metaProfile and prefs supply avatar/username/bio; basic DB fields override name/dates
+    const merged = { ...(cached ?? {}), ...(metaProfile ?? {}), ...(prefs ?? {}), ...basic };
+    cacheProfile(userId, merged);
     return merged;
   }
 
-  // ③ Cross-device prefs only (no user_profile row yet on this account)
+  // No DB row yet — use cross-device sources
   const prefs = await prefsPromise;
-  if (prefs) {
-    cacheProfile(user.id, prefs);
-    return prefs;
+  const result = { ...(metaProfile ?? {}), ...(prefs ?? {}) };
+  if (result.user_id) {
+    cacheProfile(userId, result);
+    return result;
   }
 
-  // ④ Same-device cache as last resort
-  return loadCachedProfile(user.id);
+  // Last resort: same-device localStorage
+  return loadCachedProfile(userId);
 }
 
 export async function saveFullProfile(updates) {
@@ -162,14 +157,22 @@ export async function saveFullProfile(updates) {
     }
   }
 
-  // ① Always write to localStorage (same-device, immediate)
+  // ① localStorage — same-device, immediate
   const prevCache = loadCachedProfile(user.id);
   cacheProfile(user.id, { ...(prevCache ?? {}), user_id: user.id, ...updates });
 
-  // ② Write to user_preferences (cross-device, no migration required)
-  await saveProfileToPrefs(user.id, updates);
+  // ② auth.user_metadata — reliable cross-device sync via Supabase Auth (no migration needed)
+  // getUser() already returned the current metadata; merge updates into nora_profile
+  const existingMeta = user.user_metadata?.nora_profile ?? {};
+  const nora_profile = Object.fromEntries(
+    Object.entries({ ...existingMeta, ...updates }).filter(([, v]) => v !== undefined)
+  );
+  supabase.auth.updateUser({ data: { nora_profile } }).catch(() => {});
 
-  // ③ Write to user_profile extended columns (best case — requires migration)
+  // ③ user_preferences JSONB — belt-and-suspenders cross-device backup
+  saveProfileToPrefs(user.id, updates).catch(() => {});
+
+  // ④ user_profile extended columns — best case, requires extended migration
   const { error } = await supabase
     .from("user_profile")
     .upsert({ user_id: user.id, ...updates }, { onConflict: "user_id" });
