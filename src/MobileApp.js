@@ -1498,7 +1498,6 @@ function MobileNotes({ ctx }) {
   const [openId,      setOpenId]      = useState(null);
   const [deletingId,  setDeletingId]  = useState(null);
   const [noteSearch,  setNoteSearch]  = useState("");
-  const [quickAddOpen,setQuickAddOpen]= useState(false);
 
   const openNote = openId ? notes.find(n => n.id === openId) : null;
   const migrated = openNote ? migrateNote(openNote) : null;
@@ -1511,7 +1510,6 @@ function MobileNotes({ ctx }) {
       }
     }
     setOpenId(null);
-    setQuickAddOpen(false);
   };
 
   const handleDelete = (id) => {
@@ -1524,7 +1522,6 @@ function MobileNotes({ ctx }) {
     const n = { id: uid(), type, title: "", content: "", items: [], color: "default", pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() };
     setNotes(p => [...p, n]);
     setOpenId(n.id);
-    setQuickAddOpen(false);
   };
 
   const migratedNotes = notes.map(migrateNote);
@@ -1556,80 +1553,85 @@ function MobileNotes({ ctx }) {
     </div>
   );
 
+  const [firstType, ...typeShortcuts] = NOTE_TYPE_DEFS;
+
   return (
-    <div className="mob-notes-v2">
-      {/* Search */}
-      <div className="mob-notes-search-bar">
-        <Search size={13} className="mob-notes-search-icon" />
-        <input
-          className="mob-notes-search-input"
-          value={noteSearch}
-          onChange={e => setNoteSearch(e.target.value)}
-          placeholder="Search notes…"
-        />
-        {noteSearch && (
-          <button className="mob-notes-search-clear" onClick={() => setNoteSearch("")}>
-            <X size={12} />
+    <>
+      <div className="mob-notes-v2">
+
+        {/* ── New-note creation bar ── */}
+        <div className="mob-notes-newbar">
+          <button
+            className="mob-notes-newbar-main"
+            onClick={() => handleCreate("note")}
+          >
+            <firstType.icon size={16} className="mob-notes-newbar-icon" />
+            <span className="mob-notes-newbar-hint">New note…</span>
           </button>
-        )}
-      </div>
-
-      {/* Empty state */}
-      {sorted.length === 0 && (
-        <div className="mob-empty-state" style={{ padding: "40px 0" }}>
-          <FileText size={36} style={{ opacity: .12 }} />
-          <p>{noteSearch ? "No notes match." : "Tap + to create your first note."}</p>
+          <div className="mob-notes-newbar-divider" />
+          <div className="mob-notes-newbar-types">
+            {typeShortcuts.map(t => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.key}
+                  className="mob-notes-newbar-type-btn"
+                  onClick={() => handleCreate(t.key)}
+                  title={t.label}
+                >
+                  <Icon size={15} />
+                </button>
+              );
+            })}
+          </div>
         </div>
-      )}
 
-      {/* Pinned section */}
-      {pinnedNotes.length > 0 && (
-        <>
-          <div className="mob-notes-section-hdr">Pinned</div>
-          <div className="mob-notes-masonry">
-            {pinnedNotes.map(renderNoteCard)}
+        {/* Search */}
+        <div className="mob-notes-search-bar">
+          <Search size={13} className="mob-notes-search-icon" />
+          <input
+            className="mob-notes-search-input"
+            value={noteSearch}
+            onChange={e => setNoteSearch(e.target.value)}
+            placeholder="Search notes…"
+          />
+          {noteSearch && (
+            <button className="mob-notes-search-clear" onClick={() => setNoteSearch("")}>
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* Empty state */}
+        {sorted.length === 0 && (
+          <div className="mob-empty-state" style={{ padding: "40px 0" }}>
+            <FileText size={36} style={{ opacity: .12 }} />
+            <p>{noteSearch ? "No notes match." : "Tap \"New note\" above to get started."}</p>
           </div>
-        </>
-      )}
+        )}
 
-      {/* Other notes */}
-      {otherNotes.length > 0 && (
-        <>
-          {pinnedNotes.length > 0 && <div className="mob-notes-section-hdr">Notes</div>}
-          <div className="mob-notes-masonry">
-            {otherNotes.map(renderNoteCard)}
-          </div>
-        </>
-      )}
-
-      {/* Quick-add FAB */}
-      <div className="mob-notes-fab-wrap">
-        {quickAddOpen && (
+        {/* Pinned section */}
+        {pinnedNotes.length > 0 && (
           <>
-            <div className="mob-notes-fab-backdrop" onClick={() => setQuickAddOpen(false)} />
-            <div className="mob-notes-fab-menu">
-              {NOTE_TYPE_DEFS.map(t => {
-                const Icon = t.icon;
-                return (
-                  <button key={t.key} className="mob-notes-fab-item"
-                    onClick={() => handleCreate(t.key)}>
-                    <Icon size={15} />
-                    <span>{t.label}</span>
-                  </button>
-                );
-              })}
+            <div className="mob-notes-section-hdr">Pinned</div>
+            <div className="mob-notes-masonry">
+              {pinnedNotes.map(renderNoteCard)}
             </div>
           </>
         )}
-        <button
-          className={`mob-note-fab${quickAddOpen ? " mob-note-fab-open" : ""}`}
-          onClick={() => setQuickAddOpen(v => !v)}
-        >
-          <Plus size={22} />
-        </button>
+
+        {/* Other notes */}
+        {otherNotes.length > 0 && (
+          <>
+            {pinnedNotes.length > 0 && <div className="mob-notes-section-hdr">Notes</div>}
+            <div className="mob-notes-masonry">
+              {otherNotes.map(renderNoteCard)}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Note editor — bottom sheet */}
+      {/* Note editor — bottom sheet, outside scroll container */}
       {migrated && (
         <NoteEditor
           note={migrated}
@@ -1639,7 +1641,7 @@ function MobileNotes({ ctx }) {
           onClose={closeNote}
         />
       )}
-    </div>
+    </>
   );
 }
 
