@@ -58,6 +58,7 @@ test("clicking a search result shares the task with that user", async () => {
   await waitFor(() => {
     expect(sharingApi.createSharedObject).toHaveBeenCalledWith("task", props.objectData);
     expect(sharingApi.addCollaboratorByUserId).toHaveBeenCalledWith("shared-1", "user-2", "editor");
+    expect(sharingApi.getCollaborators).toHaveBeenCalledWith("shared-1");
     expect(props.onSharedObjectId).toHaveBeenCalledWith("shared-1");
   });
 });

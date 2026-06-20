@@ -91,8 +91,9 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
     loadInviteCode();
   }, [currentSharedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadCollaborators() {
-    const c = await getCollaborators(currentSharedId);
+  async function loadCollaborators(sharedId = currentSharedId) {
+    if (!sharedId) return;
+    const c = await getCollaborators(sharedId);
     setCollaborators(c);
   }
 
@@ -157,7 +158,9 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
       const sid = await ensureShared();
       await addCollaboratorByUserId(sid, userProfile.user_id, inviteRole);
       setSearch(""); setSearchResults([]);
-      await loadCollaborators();
+      // State updates from ensureShared are asynchronous, so use the id it returned
+      // instead of the current render's (possibly still null) currentSharedId.
+      await loadCollaborators(sid);
     } catch (error) {
       setShareError(error?.message ?? "Could not share with this person. Please try again.");
     } finally {
@@ -338,6 +341,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
                       ))}
                     </div>
                   )}
+                  {shareError && <p className="sm-share-error" role="alert">{shareError}</p>}
 
                   {/* Invite code */}
                   <div className="sm-invite-code-section">
@@ -355,7 +359,6 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
                     </div>
                     <p className="sm-code-hint">Anyone with this code can join as {ROLE_LABELS[inviteRole].toLowerCase()}.</p>
                   </div>
-                  {shareError && <p className="sm-share-error" role="alert">{shareError}</p>}
                 </>
               )}
 

@@ -118,6 +118,26 @@ CREATE POLICY "Activity visible to members"
 
 DROP POLICY IF EXISTS "Invite codes visible to object members" ON public.object_invites;
 DROP POLICY IF EXISTS "Authenticated can read invites" ON public.object_invites;
+DROP POLICY IF EXISTS "Owner manages invites" ON public.object_invites;
+DROP POLICY IF EXISTS "Invite codes can be created" ON public.object_invites;
+DROP POLICY IF EXISTS "Invite codes can be updated" ON public.object_invites;
+DROP POLICY IF EXISTS "Invite codes can be deleted" ON public.object_invites;
 CREATE POLICY "Authenticated can read invites"
   ON public.object_invites FOR SELECT TO authenticated
   USING (true);
+
+CREATE POLICY "Invite codes can be created"
+  ON public.object_invites FOR INSERT TO authenticated
+  WITH CHECK (
+    created_by = auth.uid()
+    AND public.is_shared_object_owner(object_id)
+  );
+
+CREATE POLICY "Invite codes can be updated"
+  ON public.object_invites FOR UPDATE TO authenticated
+  USING (public.is_shared_object_owner(object_id))
+  WITH CHECK (public.is_shared_object_owner(object_id));
+
+CREATE POLICY "Invite codes can be deleted"
+  ON public.object_invites FOR DELETE TO authenticated
+  USING (public.is_shared_object_owner(object_id));
