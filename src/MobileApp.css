@@ -946,8 +946,9 @@
 /* FAB */
 .mob-notes-fab-wrap {
   position: fixed;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  right: 18px;
+  /* sit just above the bottom nav bar */
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  right: 20px;
   z-index: 50;
   display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
 }
@@ -955,18 +956,18 @@
   position: fixed; inset: 0; z-index: -1;
 }
 .mob-note-fab {
-  width: 52px; height: 52px; border-radius: 50%;
+  width: 56px; height: 56px; border-radius: 50%;
   background: var(--accent); color: #fff;
   border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 16px rgba(0,0,0,.24);
+  box-shadow: 0 4px 20px rgba(139,92,246,.45), 0 2px 8px rgba(0,0,0,.2);
   transition: transform .15s;
 }
 .mob-note-fab:active { transform: scale(.92); }
 .mob-note-fab-open   { transform: rotate(45deg); }
 .mob-note-fab-open:active { transform: rotate(45deg) scale(.92); }
 
-/* FAB menu */
+/* FAB menu — capped so it never overlaps the app header */
 .mob-notes-fab-menu {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -974,16 +975,19 @@
   padding: 6px;
   box-shadow: 0 10px 32px rgba(0,0,0,.18);
   display: flex; flex-direction: column; gap: 2px;
-  min-width: 168px;
+  min-width: 172px;
+  /* prevent overflowing into the header area */
+  max-height: calc(100dvh - 220px);
+  overflow-y: auto;
   animation: mob-fab-menu-in .18s cubic-bezier(.25,1,.35,1) both;
 }
 @keyframes mob-fab-menu-in { from { opacity: 0; transform: scale(.9) translateY(8px); } }
 .mob-notes-fab-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 11px 12px; border-radius: 9px;
+  padding: 12px 14px; border-radius: 9px;
   border: none; background: transparent; cursor: pointer;
   color: var(--text); font-size: 13.5px; font-weight: 600; font-family: inherit;
-  min-height: 44px;
+  min-height: 44px; -webkit-tap-highlight-color: transparent;
 }
 .mob-notes-fab-item:active { background: rgba(0,0,0,.06); }
 

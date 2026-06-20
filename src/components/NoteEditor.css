@@ -2,10 +2,11 @@
 
 .ne-overlay {
   position: fixed; inset: 0; z-index: 300;
-  background: rgba(0,0,0,.42);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: transparent;
   display: flex; align-items: center; justify-content: center;
+  /* keep modal below the sticky nav bar (≈66px desktop, 80px mobile) */
+  padding: 72px 16px 16px;
+  box-sizing: border-box;
   animation: ne-overlay-in .18s ease both;
   touch-action: none;
 }
@@ -30,18 +31,25 @@
 /* ── Mobile bottom sheet ─────── */
 .ne-panel-sheet {
   position: fixed; bottom: 0; left: 0; right: 0;
-  max-height: 92vh;
-  max-height: 92dvh;
+  /* Leave at least ~88px at top so the mobile header stays visible */
+  max-height: calc(100vh - 88px);
+  max-height: calc(100dvh - 88px);
   border-radius: 22px 22px 0 0;
   border: 1px solid var(--ne-border, var(--border)); border-bottom: none;
   background: var(--ne-bg, var(--surface));
   color: var(--ne-text, var(--text));
   display: flex; flex-direction: column;
-  box-shadow: 0 -8px 40px rgba(0,0,0,.18);
+  box-shadow: 0 -8px 40px rgba(0,0,0,.24);
   animation: ne-sheet-in .26s cubic-bezier(.25,1,.35,1) both;
   touch-action: pan-y;
+  z-index: 301;
 }
 @keyframes ne-sheet-in { from { transform: translateY(60%); opacity: .4; } }
+
+/* Add a subtle backdrop when a mobile sheet is open */
+.ne-overlay:has(.ne-panel-sheet) {
+  background: rgba(0,0,0,.32);
+}
 
 /* ── Color tokens ─────── */
 .ne-panel-modal[data-color="cream"],
