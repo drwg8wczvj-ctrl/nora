@@ -15,7 +15,7 @@ async function currentUser() {
 
 const PROFILE_FIELDS = "user_id, name, username, avatar_type, avatar_color, avatar_emoji, avatar_url, bio, location, timezone, created_at, username_changed_at";
 
-// ── Profile localStorage cache (survives DB schema gaps) ─────
+// ── Profile localStorage cache (same-device persistence) ─────
 const PROFILE_CACHE_KEY = "nora_profile_v1";
 
 function cacheProfile(userId, data) {
@@ -33,11 +33,43 @@ function loadCachedProfile(userId) {
   } catch { return null; }
 }
 
+// ── user_preferences JSONB store — cross-device profile fallback ─
+// user_preferences exists in the base migration (no extra SQL needed).
+// We store { ..., _profile: {...} } inside the preferences JSONB so the
+// full avatar/username/bio survives even when user_profile lacks columns.
+
+async function saveProfileToPrefs(userId, updates) {
+  try {
+    const { data: row } = await supabase
+      .from("user_preferences")
+      .select("preferences")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const existing = row?.preferences ?? {};
+    const merged   = { ...existing, _profile: { ...(existing._profile ?? {}), ...updates } };
+    await supabase
+      .from("user_preferences")
+      .upsert({ user_id: userId, preferences: merged }, { onConflict: "user_id" });
+  } catch {}
+}
+
+async function loadProfileFromPrefs(userId) {
+  try {
+    const { data } = await supabase
+      .from("user_preferences")
+      .select("preferences")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const p = data?.preferences?._profile;
+    return p ? { user_id: userId, ...p } : null;
+  } catch { return null; }
+}
+
 export async function getMyProfile() {
   const user = await currentUser();
   if (!user) return null;
 
-  // Try full query (all profile columns)
+  // ① Try full query — all profile columns (requires migration)
   const { data, error } = await supabase
     .from("user_profile")
     .select(PROFILE_FIELDS)
@@ -49,7 +81,7 @@ export async function getMyProfile() {
     return data;
   }
 
-  // Fallback: basic columns only (migration not yet run)
+  // ② Fallback: basic columns (migration not yet run)
   const { data: basic } = await supabase
     .from("user_profile")
     .select("user_id, name, birthday, created_at")
@@ -57,14 +89,24 @@ export async function getMyProfile() {
     .maybeSingle();
 
   if (basic) {
-    // Merge with locally-cached avatar/username/bio so they survive the fallback
-    const cached = loadCachedProfile(user.id);
-    const merged = cached ? { ...cached, ...basic } : basic;
+    // Merge with cross-device prefs store first, then same-device cache
+    const [prefsProfile, cached] = await Promise.all([
+      loadProfileFromPrefs(user.id),
+      Promise.resolve(loadCachedProfile(user.id)),
+    ]);
+    const merged = { ...(cached ?? {}), ...(prefsProfile ?? {}), ...basic };
     cacheProfile(user.id, merged);
     return merged;
   }
 
-  // Last resort: return what we cached locally
+  // ③ Cross-device prefs (no user_profile row at all yet)
+  const prefsProfile = await loadProfileFromPrefs(user.id);
+  if (prefsProfile) {
+    cacheProfile(user.id, prefsProfile);
+    return prefsProfile;
+  }
+
+  // ④ Same-device cache as last resort
   return loadCachedProfile(user.id);
 }
 
@@ -96,20 +138,24 @@ export async function saveFullProfile(updates) {
     }
   }
 
-  // Always write to localStorage first — persists even if DB columns are missing
+  // ① Always write to localStorage (same-device, immediate)
   const prevCache = loadCachedProfile(user.id);
   cacheProfile(user.id, { ...(prevCache ?? {}), user_id: user.id, ...updates });
 
+  // ② Write to user_preferences (cross-device, no migration required)
+  await saveProfileToPrefs(user.id, updates);
+
+  // ③ Write to user_profile extended columns (best case — requires migration)
   const { error } = await supabase
     .from("user_profile")
     .upsert({ user_id: user.id, ...updates }, { onConflict: "user_id" });
 
   if (error) {
     if (error.message?.includes("schema cache") || error.message?.includes("column")) {
-      // Extended columns don't exist — localStorage save above is sufficient for now
+      // Extended columns don't exist — steps ① and ② already covered persistence
       return;
     }
-    // Other DB error — revert the local cache and surface the error
+    // Other DB error — revert localStorage cache and surface the error
     if (prevCache !== null) {
       cacheProfile(user.id, prevCache);
     } else {
