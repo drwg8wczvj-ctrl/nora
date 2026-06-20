@@ -127,7 +127,7 @@ export default function MobileApp({ ctx }) {
         setMobileView("plan");
         setPlanSubView("day");
         setPlanDate(ctx.today);
-      }} onBoardsClick={() => setMobileView("boards")} />
+      }} onBoardsClick={() => setMobileView("boards")} onJoinCode={() => ctx.setShowJoinCode?.(true)} />
 
       <main className="mob-main">
         {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} planDate={planDate} setPlanDate={setPlanDate} />}
@@ -353,7 +353,7 @@ export default function MobileApp({ ctx }) {
 }
 
 // ── Header ───────────────────────────────────────────────────
-function MobileHeader({ ctx, onLogoClick, onBoardsClick }) {
+function MobileHeader({ ctx, onLogoClick, onBoardsClick, onJoinCode }) {
   const { today, dark } = ctx;
   const d = new Date(today + "T00:00:00");
   const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
@@ -367,6 +367,9 @@ function MobileHeader({ ctx, onLogoClick, onBoardsClick }) {
           alt="Nora" />
       </button>
       <span className="mob-header-date">{dateText}</span>
+      <button className="mob-header-join-btn" onClick={onJoinCode} aria-label="Join shared task">
+        <KeyRound size={18} />
+      </button>
       {onBoardsClick && (
         <button className="mob-header-boards-btn" onClick={onBoardsClick} aria-label="Whiteboards">
           <Layers size={18} />

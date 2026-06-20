@@ -306,6 +306,17 @@
 .header-date {
   font-size: 13px; color: var(--text-muted); font-weight: 500;
 }
+.header-join-btn {
+  display: flex; align-items: center; gap: 6px;
+  min-height: 34px; padding: 0 11px;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 12px; font-weight: 650; cursor: pointer;
+  transition: background var(--tr), border-color var(--tr), color var(--tr);
+}
+.header-join-btn:hover {
+  background: var(--accent-light); border-color: rgba(124,58,237,.35); color: var(--accent);
+}
 
 /* ── Container ─────────────────────────────────────────── */
 .container {
@@ -1049,6 +1060,20 @@
 }
 
 /* Micro Start button — expands to show label on hover / when active */
+.chat-suggestions-toggle {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .18s, border-color .18s, color .18s;
+}
+.chat-suggestions-toggle:hover,
+.chat-suggestions-toggle.on {
+  background: var(--accent-light);
+  border-color: rgba(124,58,237,.4);
+  color: var(--accent);
+}
+
 .chat-micro-btn {
   height: 36px; border-radius: 10px; flex-shrink: 0;
   border: 1px solid var(--border); background: var(--surface-2);

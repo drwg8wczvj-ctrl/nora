@@ -50,6 +50,14 @@
   -webkit-tap-highlight-color: transparent;
 }
 .mob-header-boards-btn:active { background: var(--surface2); color: var(--accent); }
+.mob-header-join-btn {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 10px; background: transparent;
+  color: var(--text-muted); cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mob-header-join-btn:active { background: var(--accent-light); color: var(--accent); }
 
 /* ── Main scroll area ─────────────────────────────────────── */
 .mob-main {

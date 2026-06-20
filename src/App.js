@@ -40,6 +40,7 @@ import {
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
 } from "lucide-react";
 import { calculateTaskWeight } from "./utils/taskUtils";
+import { extractJoinInviteCode } from "./utils/sharingIntent";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
 import "./App.css";
@@ -650,6 +651,10 @@ export default function App() {
   const [chatLoading,    setChatLoading]    = useState(false);
   const [microStartMode,  setMicroStartMode]  = useState(false);
   const [chatSuggestions, setChatSuggestions] = useState(DEFAULT_CHAT_CHIPS);
+  const [desktopSuggestionsVisible, setDesktopSuggestionsVisible] = useState(() => {
+    try { return localStorage.getItem("nora_desktop_chat_suggestions") !== "hidden"; }
+    catch { return true; }
+  });
   const [chatGhost,       setChatGhost]       = useState("");
   const [aiChatSuggestions, setAiChatSuggestions] = useState(null);
   const [aiChatSugLoading,  setAiChatSugLoading]  = useState(false);
@@ -1553,7 +1558,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!chatOpen || aiChatSugFetchedRef.current) return;
+    if (!chatOpen || !desktopSuggestionsVisible || aiChatSugFetchedRef.current) return;
     aiChatSugFetchedRef.current = true;
     setAiChatSugLoading(true);
     fetch("/api/tips", {
@@ -1575,7 +1580,7 @@ export default function App() {
       .then((d) => { if (d.tips?.length) setAiChatSuggestions(d.tips.slice(0, 3)); })
       .catch(() => {})
       .finally(() => setAiChatSugLoading(false));
-  }, [chatOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatOpen, desktopSuggestionsVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 25-minute debounced metric commits ─────────────────────────
   // Wellness sliders only "count" after being stable for 25 min.
@@ -2603,6 +2608,26 @@ Everything else → as short as possible. If nothing notable to add, don't add i
     setMessages(uiHistory); setChatInput(""); setChatLoading(true);
     saveChatMessage("user", text).catch(console.warn);
 
+    // Joining by invite code is deterministic and should not depend on the AI
+    // choosing a tool correctly. Generated codes are seven unambiguous chars.
+    const inviteCode = extractJoinInviteCode(text);
+    if (inviteCode) {
+      try {
+        const object = await handleJoinCode(inviteCode);
+        const title = object?.data?.title ?? object?.data?.name ?? "the shared task";
+        const reply = `Connected you to “${title}” and added it to your planner.`;
+        setMessages((current) => [...current, { role: "assistant", content: reply }]);
+        saveChatMessage("assistant", reply).catch(console.warn);
+      } catch (error) {
+        const reply = `I couldn't join that task: ${error?.message ?? "invalid invite code"}.`;
+        setMessages((current) => [...current, { role: "assistant", content: reply }]);
+        saveChatMessage("assistant", reply).catch(console.warn);
+      } finally {
+        setChatLoading(false);
+      }
+      return;
+    }
+
     const toApiMsgs = (msgs) => {
       const flat = msgs.filter((m) => m.role === "user" || m.role === "assistant");
       const first = flat.findIndex((m) => m.role === "user");
@@ -2949,6 +2974,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             </button>
           </div>
           <div className="header-right">
+            <button className="header-join-btn" onClick={() => setShowJoinCode(true)}>
+              <KeyRound size={14} /> Join task
+            </button>
             <span className="header-date">{view === "day" ? prettyDate(selectedDate) : view === "month" ? monthLabel : view === "notes" ? "Notes" : "All Tasks"}</span>
           </div>
         </header>
@@ -4229,7 +4257,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             </button>
           )}
         </div>
-        <div className="chat-suggestions">
+        {desktopSuggestionsVisible && <div className="chat-suggestions">
           {!chatInput ? (
             <div className="chat-ai-bubbles">
               {aiChatSugLoading ? (
@@ -4255,8 +4283,19 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               </div>
             )
           )}
-        </div>
+        </div>}
         <div className="chat-input-row">
+          <button
+            className={`chat-suggestions-toggle${desktopSuggestionsVisible ? " on" : ""}`}
+            onClick={() => setDesktopSuggestionsVisible((visible) => {
+              const next = !visible;
+              try { localStorage.setItem("nora_desktop_chat_suggestions", next ? "visible" : "hidden"); } catch {}
+              return next;
+            })}
+            aria-label={desktopSuggestionsVisible ? "Hide suggested prompts" : "Show suggested prompts"}
+            title={desktopSuggestionsVisible ? "Hide suggestions" : "Show suggestions"}>
+            <Sparkles size={15} />
+          </button>
           <button
             className={`chat-micro-btn${microStartMode ? " on" : ""}`}
             onClick={() => setMicroStartMode((m) => !m)}>
