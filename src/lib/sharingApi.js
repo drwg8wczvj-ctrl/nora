@@ -301,25 +301,48 @@ export async function getMySharedObjects(type = null) {
 // ── Collaborators ─────────────────────────────────────────────
 
 export async function getCollaborators(sharedObjectId) {
+  // object_collaborators.user_id references auth.users, not user_profile. Asking
+  // PostgREST to embed user_profile through that FK therefore fails even though
+  // both tables contain the same user id. Fetch the access rows and profiles
+  // separately and join them client-side.
   const { data, error } = await supabase
     .from("object_collaborators")
-    .select(`
-      id, role, joined_at,
-      user_id,
-      user_profile:user_profile!object_collaborators_user_id_fkey(name, username, avatar_type, avatar_color, avatar_emoji, avatar_url)
-    `)
+    .select("id, role, joined_at, user_id")
     .eq("object_id", sharedObjectId)
     .order("joined_at", { ascending: true });
-  if (error) return [];
-  return (data ?? []).map(c => ({
+  if (error) throw error;
+
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  const userIds = [...new Set(rows.map(c => c.user_id))];
+  let { data: profiles, error: profileError } = await supabase
+    .from("user_profile")
+    .select("user_id, name, username, avatar_type, avatar_color, avatar_emoji, avatar_url")
+    .in("user_id", userIds);
+
+  // Older installations may not have every avatar column yet.
+  if (profileError) {
+    const fallback = await supabase
+      .from("user_profile")
+      .select("user_id, name, username")
+      .in("user_id", userIds);
+    profiles = fallback.data ?? [];
+  }
+
+  const profilesByUserId = new Map((profiles ?? []).map(p => [p.user_id, p]));
+  return rows.map(c => {
+    const profile = profilesByUserId.get(c.user_id);
+    return ({
     ...c,
-    name:         c.user_profile?.name ?? c.user_id.slice(0, 8),
-    username:     c.user_profile?.username ?? null,
-    avatar_type:  c.user_profile?.avatar_type ?? "color",
-    avatar_color: c.user_profile?.avatar_color ?? "#8b5cf6",
-    avatar_emoji: c.user_profile?.avatar_emoji ?? null,
-    avatar_url:   c.user_profile?.avatar_url ?? null,
-  }));
+    name:         profile?.name ?? c.user_id.slice(0, 8),
+    username:     profile?.username ?? null,
+    avatar_type:  profile?.avatar_type ?? "color",
+    avatar_color: profile?.avatar_color ?? "#8b5cf6",
+    avatar_emoji: profile?.avatar_emoji ?? null,
+    avatar_url:   profile?.avatar_url ?? null,
+  });
+  });
 }
 
 export async function addCollaboratorByUserId(sharedObjectId, userId, role = "editor") {

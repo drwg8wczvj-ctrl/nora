@@ -47,6 +47,9 @@ test("clicking a search result shares the task with that user", async () => {
   const teammate = { user_id: "user-2", name: "Dimon", username: "dimon4ik98" };
   sharingApi.searchUserByUsername.mockResolvedValue([teammate]);
   sharingApi.addCollaboratorByUserId.mockResolvedValue(undefined);
+  sharingApi.getCollaborators.mockResolvedValue([
+    { id: "collab-2", ...teammate, role: "editor", avatar_type: "color" },
+  ]);
 
   render(<ShareModal {...props} />);
   fireEvent.change(screen.getByPlaceholderText("Search by @username…"), {
@@ -61,6 +64,8 @@ test("clicking a search result shares the task with that user", async () => {
     expect(sharingApi.getCollaborators).toHaveBeenCalledWith("shared-1");
     expect(props.onSharedObjectId).toHaveBeenCalledWith("shared-1");
   });
+  expect(screen.getByRole("status")).toHaveTextContent("Shared with @dimon4ik98.");
+  expect(screen.getByText("People with access (1)")).toBeInTheDocument();
 });
 
 test("Generate creates, displays, and copies the newly returned code", async () => {

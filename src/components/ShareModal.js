@@ -68,6 +68,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
   const [copying, setCopying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shareError, setShareError] = useState("");
+  const [shareSuccess, setShareSuccess] = useState("");
   const [currentSharedId, setCurrentSharedId] = useState(sharedObjectId);
   const searchTimer = useRef(null);
   const commentInputRef = useRef(null);
@@ -85,7 +86,9 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
 
   useEffect(() => {
     if (!currentSharedId) return;
-    loadCollaborators();
+    loadCollaborators().catch(error => {
+      setShareError(error?.message ?? "Could not load people with access.");
+    });
     loadActivity();
     loadComments();
     loadInviteCode();
@@ -135,6 +138,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
   async function handleSearch(q) {
     setSearch(q);
     setShareError("");
+    setShareSuccess("");
     clearTimeout(searchTimer.current);
     if (q.length < 2) { setSearchResults([]); return; }
     searchTimer.current = setTimeout(async () => {
@@ -154,6 +158,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
     setAddingUserId(userProfile.user_id);
     setLoading(true);
     setShareError("");
+    setShareSuccess("");
     try {
       const sid = await ensureShared();
       await addCollaboratorByUserId(sid, userProfile.user_id, inviteRole);
@@ -161,6 +166,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
       // State updates from ensureShared are asynchronous, so use the id it returned
       // instead of the current render's (possibly still null) currentSharedId.
       await loadCollaborators(sid);
+      setShareSuccess(`Shared with @${userProfile.username}.`);
     } catch (error) {
       setShareError(error?.message ?? "Could not share with this person. Please try again.");
     } finally {
@@ -172,6 +178,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
   async function handleGenerateCode() {
     setLoading(true);
     setShareError("");
+    setShareSuccess("");
     try {
       const sid = await ensureShared();
       const code = await createInviteCode(sid, inviteRole);
@@ -342,6 +349,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
                     </div>
                   )}
                   {shareError && <p className="sm-share-error" role="alert">{shareError}</p>}
+                  {shareSuccess && <p className="sm-share-success" role="status">{shareSuccess}</p>}
 
                   {/* Invite code */}
                   <div className="sm-invite-code-section">
