@@ -69,6 +69,9 @@ export async function getMyProfile() {
   const user = await currentUser();
   if (!user) return null;
 
+  // Fire cross-device prefs load immediately in parallel with DB queries
+  const prefsPromise = loadProfileFromPrefs(user.id);
+
   // ① Try full query — all profile columns (requires migration)
   const { data, error } = await supabase
     .from("user_profile")
@@ -77,11 +80,32 @@ export async function getMyProfile() {
     .maybeSingle();
 
   if (!error && data) {
-    cacheProfile(user.id, data);
-    return data;
+    // Always merge: user_preferences fills any null/missing extended fields
+    // (covers: migration ran but save failed, or profile saved before cross-device fix)
+    const prefs = await prefsPromise;
+    const merged = prefs
+      ? {
+          ...prefs,
+          // DB wins for every field that is actually set (not null/undefined)
+          ...Object.fromEntries(Object.entries(data).filter(([, v]) => v != null)),
+        }
+      : data;
+    cacheProfile(user.id, merged);
+
+    // Back-fill user_preferences if the profile isn't there yet — self-healing:
+    // first open on any device after this code deploys will populate the cross-device store,
+    // so other devices can sync without the user having to manually re-save.
+    if (!prefs || !prefs.username) {
+      const { username, avatar_type, avatar_color, avatar_emoji, bio } = merged;
+      if (username || avatar_type) {
+        saveProfileToPrefs(user.id, { username, avatar_type, avatar_color, avatar_emoji, bio });
+      }
+    }
+
+    return merged;
   }
 
-  // ② Fallback: basic columns (migration not yet run)
+  // ② Fallback: basic columns only (migration not yet run)
   const { data: basic } = await supabase
     .from("user_profile")
     .select("user_id, name, birthday, created_at")
@@ -89,21 +113,21 @@ export async function getMyProfile() {
     .maybeSingle();
 
   if (basic) {
-    // Merge with cross-device prefs store first, then same-device cache
-    const [prefsProfile, cached] = await Promise.all([
-      loadProfileFromPrefs(user.id),
+    const [prefs, cached] = await Promise.all([
+      prefsPromise,
       Promise.resolve(loadCachedProfile(user.id)),
     ]);
-    const merged = { ...(cached ?? {}), ...(prefsProfile ?? {}), ...basic };
+    // Priority: basic DB fields override prefs/cache, but prefs fills extended fields
+    const merged = { ...(cached ?? {}), ...(prefs ?? {}), ...basic };
     cacheProfile(user.id, merged);
     return merged;
   }
 
-  // ③ Cross-device prefs (no user_profile row at all yet)
-  const prefsProfile = await loadProfileFromPrefs(user.id);
-  if (prefsProfile) {
-    cacheProfile(user.id, prefsProfile);
-    return prefsProfile;
+  // ③ Cross-device prefs only (no user_profile row yet on this account)
+  const prefs = await prefsPromise;
+  if (prefs) {
+    cacheProfile(user.id, prefs);
+    return prefs;
   }
 
   // ④ Same-device cache as last resort
