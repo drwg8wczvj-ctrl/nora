@@ -67,6 +67,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
   const [usernameErr, setUsernameErr] = useState("");
   const [copying, setCopying] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [shareError, setShareError] = useState("");
   const [currentSharedId, setCurrentSharedId] = useState(sharedObjectId);
   const searchTimer = useRef(null);
   const commentInputRef = useRef(null);
@@ -112,15 +113,11 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
 
   async function ensureShared() {
     if (currentSharedId) return currentSharedId;
-    setLoading(true);
-    try {
-      const id = await createSharedObject(objectType, objectData);
-      setCurrentSharedId(id);
-      onSharedObjectId?.(id);
-      return id;
-    } finally {
-      setLoading(false);
-    }
+    setShareError("");
+    const id = await createSharedObject(objectType, objectData);
+    setCurrentSharedId(id);
+    onSharedObjectId?.(id);
+    return id;
   }
 
   async function handleSaveUsername() {
@@ -136,37 +133,58 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
 
   async function handleSearch(q) {
     setSearch(q);
+    setShareError("");
     clearTimeout(searchTimer.current);
     if (q.length < 2) { setSearchResults([]); return; }
     searchTimer.current = setTimeout(async () => {
       setSearchLoading(true);
-      const res = await searchUserByUsername(q);
-      setSearchResults(res);
-      setSearchLoading(false);
+      try {
+        const res = await searchUserByUsername(q);
+        setSearchResults(res);
+      } catch (error) {
+        setShareError(error?.message ?? "Could not search for people.");
+      } finally {
+        setSearchLoading(false);
+      }
     }, 300);
   }
 
   async function handleAddUser(userProfile) {
-    const sid = await ensureShared();
     setAddingUserId(userProfile.user_id);
+    setLoading(true);
+    setShareError("");
     try {
+      const sid = await ensureShared();
       await addCollaboratorByUserId(sid, userProfile.user_id, inviteRole);
       setSearch(""); setSearchResults([]);
       await loadCollaborators();
+    } catch (error) {
+      setShareError(error?.message ?? "Could not share with this person. Please try again.");
     } finally {
       setAddingUserId(null);
+      setLoading(false);
     }
   }
 
   async function handleGenerateCode() {
-    const sid = await ensureShared();
-    const code = await createInviteCode(sid, inviteRole);
-    setInviteCode(code);
+    setLoading(true);
+    setShareError("");
+    try {
+      const sid = await ensureShared();
+      const code = await createInviteCode(sid, inviteRole);
+      setInviteCode(code);
+      return code;
+    } catch (error) {
+      setShareError(error?.message ?? "Could not generate an invite code. Please try again.");
+      return null;
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleCopyCode() {
-    if (!inviteCode) await handleGenerateCode();
-    const code = inviteCode ?? "";
+    const code = inviteCode || await handleGenerateCode();
+    if (!code) return;
     try {
       await navigator.clipboard.writeText(code);
       setCopying(true);
@@ -307,7 +325,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
                       {searchResults.map(u => (
                         <button key={u.user_id} className="sm-search-result"
                           onClick={() => handleAddUser(u)}
-                          disabled={addingUserId === u.user_id}>
+                          disabled={addingUserId !== null || loading}>
                           <Avatar name={u.name} type={u.avatar_type} color={u.avatar_color} emoji={u.avatar_emoji} url={u.avatar_url} size={28} />
                           <div className="sm-search-info">
                             <span className="sm-search-name">{u.name}</span>
@@ -337,6 +355,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
                     </div>
                     <p className="sm-code-hint">Anyone with this code can join as {ROLE_LABELS[inviteRole].toLowerCase()}.</p>
                   </div>
+                  {shareError && <p className="sm-share-error" role="alert">{shareError}</p>}
                 </>
               )}
 

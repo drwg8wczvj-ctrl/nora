@@ -233,12 +233,17 @@ export async function createSharedObject(type, localData) {
   if (createErr) throw createErr;
 
   // Add owner as collaborator
-  await supabase.from("object_collaborators").insert({
+  const { error: ownerErr } = await supabase.from("object_collaborators").insert({
     object_id: obj.id,
     user_id:   user.id,
     role:      "owner",
     invited_by: user.id,
   });
+  if (ownerErr) {
+    // Do not leave behind an object that the UI considers shared but nobody can access.
+    await supabase.from("shared_objects").delete().eq("id", obj.id);
+    throw ownerErr;
+  }
 
   // Log activity
   await supabase.from("object_activity_log").insert({
@@ -319,6 +324,7 @@ export async function getCollaborators(sharedObjectId) {
 
 export async function addCollaboratorByUserId(sharedObjectId, userId, role = "editor") {
   const user = await currentUser();
+  if (!user) throw new Error("Not authenticated");
   const { error } = await supabase
     .from("object_collaborators")
     .insert({ object_id: sharedObjectId, user_id: userId, role, invited_by: user.id });
@@ -360,6 +366,7 @@ export async function updateCollaboratorRole(sharedObjectId, userId, role) {
 
 export async function createInviteCode(sharedObjectId, role = "editor") {
   const user = await currentUser();
+  if (!user) throw new Error("Not authenticated");
   const code = randomCode();
   const { data, error } = await supabase
     .from("object_invites")

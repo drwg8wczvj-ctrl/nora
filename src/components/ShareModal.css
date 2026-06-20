@@ -183,6 +183,16 @@
 }
 .sm-copy-btn:hover { background: var(--accent-light); color: var(--accent); }
 .sm-code-hint { font-size: 11px; color: var(--text-muted); }
+.sm-share-error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(239,68,68,.3);
+  border-radius: 8px;
+  background: rgba(239,68,68,.08);
+  color: #ef4444;
+  font-size: 12px;
+  line-height: 1.35;
+}
 
 /* Collaborator list */
 .sm-collaborators { display: flex; flex-direction: column; gap: 4px; }
