@@ -89,8 +89,11 @@ export default function ProfileModal({ session, onClose, onSaved }) {
         updates.username_changed_at  = new Date().toISOString();
       }
       await saveFullProfile(updates);
-      setProfile(p => ({ ...p, ...updates }));
-      onSaved?.(updates);
+      // Re-fetch from the actual source of truth (DB or localStorage cache)
+      const fresh = await getMyProfile();
+      const confirmed = fresh ?? { ...updates };
+      setProfile(p => ({ ...p, ...confirmed }));
+      onSaved?.(confirmed);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {

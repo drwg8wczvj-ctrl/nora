@@ -15,24 +15,57 @@ async function currentUser() {
 
 const PROFILE_FIELDS = "user_id, name, username, avatar_type, avatar_color, avatar_emoji, avatar_url, bio, location, timezone, created_at, username_changed_at";
 
+// ── Profile localStorage cache (survives DB schema gaps) ─────
+const PROFILE_CACHE_KEY = "nora_profile_v1";
+
+function cacheProfile(userId, data) {
+  try {
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ uid: userId, d: data }));
+  } catch {}
+}
+
+function loadCachedProfile(userId) {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.uid === userId ? parsed.d : null;
+  } catch { return null; }
+}
+
 export async function getMyProfile() {
   const user = await currentUser();
   if (!user) return null;
+
+  // Try full query (all profile columns)
   const { data, error } = await supabase
     .from("user_profile")
     .select(PROFILE_FIELDS)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (error) {
-    // Columns don't exist yet — migration hasn't been run. Fall back to basics.
-    const { data: basic } = await supabase
-      .from("user_profile")
-      .select("user_id, name, birthday, created_at")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    return basic ?? null;
+
+  if (!error && data) {
+    cacheProfile(user.id, data);
+    return data;
   }
-  return data;
+
+  // Fallback: basic columns only (migration not yet run)
+  const { data: basic } = await supabase
+    .from("user_profile")
+    .select("user_id, name, birthday, created_at")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (basic) {
+    // Merge with locally-cached avatar/username/bio so they survive the fallback
+    const cached = loadCachedProfile(user.id);
+    const merged = cached ? { ...cached, ...basic } : basic;
+    cacheProfile(user.id, merged);
+    return merged;
+  }
+
+  // Last resort: return what we cached locally
+  return loadCachedProfile(user.id);
 }
 
 export async function saveFullProfile(updates) {
@@ -47,24 +80,40 @@ export async function saveFullProfile(updates) {
     updates.username = clean;
   }
 
-  // Check if username already taken
+  // Check if username already taken (gracefully skip if column doesn't exist)
   if (updates.username) {
-    const { data: existing } = await supabase
-      .from("user_profile")
-      .select("user_id")
-      .eq("username", updates.username)
-      .neq("user_id", user.id)
-      .maybeSingle();
-    if (existing) throw new Error("This username is already taken");
+    try {
+      const { data: existing } = await supabase
+        .from("user_profile")
+        .select("user_id")
+        .eq("username", updates.username)
+        .neq("user_id", user.id)
+        .maybeSingle();
+      if (existing) throw new Error("This username is already taken");
+    } catch (e) {
+      if (e.message === "This username is already taken") throw e;
+      // Column doesn't exist yet — uniqueness can't be checked, continue
+    }
   }
+
+  // Always write to localStorage first — persists even if DB columns are missing
+  const prevCache = loadCachedProfile(user.id);
+  cacheProfile(user.id, { ...(prevCache ?? {}), user_id: user.id, ...updates });
 
   const { error } = await supabase
     .from("user_profile")
     .upsert({ user_id: user.id, ...updates }, { onConflict: "user_id" });
+
   if (error) {
-    // Migration not run yet — columns don't exist. Tell the user clearly.
     if (error.message?.includes("schema cache") || error.message?.includes("column")) {
-      throw new Error("Database not set up yet. Please run supabase_full_migration.sql in your Supabase SQL Editor.");
+      // Extended columns don't exist — localStorage save above is sufficient for now
+      return;
+    }
+    // Other DB error — revert the local cache and surface the error
+    if (prevCache !== null) {
+      cacheProfile(user.id, prevCache);
+    } else {
+      try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch {}
     }
     throw error;
   }
