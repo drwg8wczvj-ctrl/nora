@@ -104,8 +104,10 @@ async function checkAndFireAlarms() {
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
+  // Only cache the app shell — do not list files that might not exist (404s
+  // would cause addAll to reject and the entire SW install would fail).
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/', '/offline.html'].filter(Boolean)))
+    caches.open(CACHE_NAME).then((cache) => cache.add('/').catch(() => {}))
   );
   // Do NOT skipWaiting here — let the update banner drive the reload
 });
@@ -119,8 +121,9 @@ self.addEventListener('activate', (event) => {
         Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
       )
       .then(() => self.clients.claim())
-      // Fire any overdue alarms now (catches anything missed while SW was inactive)
-      .then(() => checkAndFireAlarms())
+      // Fire any overdue alarms now (catches anything missed while SW was inactive).
+      // Wrapped in catch so an IndexedDB error here never blocks SW activation.
+      .then(() => checkAndFireAlarms().catch(() => {}))
   );
 });
 
@@ -200,7 +203,7 @@ self.addEventListener('message', (event) => {
 // when the PWA is fully closed.
 self.addEventListener('periodicsync', (event) => {
   if (event.tag === 'check-alarms') {
-    event.waitUntil(checkAndFireAlarms());
+    event.waitUntil(checkAndFireAlarms().catch(() => {}));
   }
 });
 
@@ -294,7 +297,7 @@ self.addEventListener('fetch', (event) => {
 
   // Check alarms on every navigation (catches missed alarms when user opens app)
   if (request.mode === 'navigate') {
-    checkAndFireAlarms().catch(() => {});
+    checkAndFireAlarms().catch(() => {}); // non-blocking, errors swallowed
     event.respondWith(networkFirst(request));
     return;
   }

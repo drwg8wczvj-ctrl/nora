@@ -49,10 +49,32 @@ export function useNotifications() {
 
   const swRegRef = useRef(null);
   const reactTimers = useRef({}); // backup React setTimeout for when app is open
+  // Always-fresh ref used by scheduleAlarm's setTimeout callbacks so they
+  // see the current permission + settings.enabled even though scheduleAlarm
+  // itself has empty deps (to avoid re-registering timers on every render).
+  const showNotifRef = useRef(null);
 
   // ── Service worker setup ───────────────────────────────────────────────────
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
+
+    // Helper to send CONFIGURE to whichever SW is currently controlling the page
+    const sendConfigure = (worker) => {
+      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+      const anonKey     = process.env.REACT_APP_SUPABASE_ANON_KEY;
+      if (supabaseUrl && anonKey && worker) {
+        worker.postMessage({ type: "CONFIGURE", supabaseUrl, anonKey });
+      }
+    };
+
+    // Re-send config whenever the SW controller changes (e.g. after an update)
+    const onControllerChange = () => {
+      if (navigator.serviceWorker.controller) {
+        sendConfigure(navigator.serviceWorker.controller);
+      }
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
     navigator.serviceWorker.ready
       .then(async (reg) => {
         swRegRef.current = reg;
@@ -148,6 +170,10 @@ export function useNotifications() {
         }));
       })
       .catch(() => {});
+
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    };
   }, []);
 
   // Listen for SW messages (notification clicks, alarm count replies)
@@ -271,12 +297,15 @@ export function useNotifications() {
     // Layer 2: Supabase server alarm — sent via Web Push by pg_cron (cross-device, iOS)
     scheduleServerAlarm(alarm).catch(() => {});
 
-    // Layer 3: React setTimeout — fires exactly on time when app is open
+    // Layer 3: React setTimeout — fires exactly on time when app is open.
+    // Uses showNotifRef so the callback always sees the CURRENT permission and
+    // settings.enabled, not the stale values captured when scheduleAlarm was
+    // first created (which would have settings.enabled=false from defaults).
     const delay = scheduledFor - Date.now();
     if (delay > 0) {
       clearTimeout(reactTimers.current[id]);
       reactTimers.current[id] = setTimeout(() => {
-        showNotification(title, body, { tag, data }); // eslint-disable-line no-use-before-define
+        showNotifRef.current?.(title, body, { tag, data });
       }, delay);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -316,6 +345,10 @@ export function useNotifications() {
     },
     [permission, settings.enabled]
   );
+  // Keep the ref current so setTimeout callbacks in scheduleAlarm always use
+  // the latest version (with up-to-date permission + settings.enabled).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { showNotifRef.current = showNotification; }, [showNotification]);
 
   // ── Test notification ───────────────────────────────────────────────────────
   const sendTestNotification = useCallback(async () => {
