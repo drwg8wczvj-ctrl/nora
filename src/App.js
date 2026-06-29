@@ -690,6 +690,10 @@ export default function App() {
   const deletedSharedIdsRef = useRef(new Set(loadStoredArray(DELETED_SHARED_IDS_KEY)));
   const pendingSharedDeletionsRef = useRef(loadStoredArray(PENDING_SHARED_DELETIONS_KEY));
   const deletionFlushInProgressRef = useRef(false);
+  // Tracks the timestamp of the last remote realtime update per sharedObjectId.
+  // The sync effect skips objects updated remotely within the last 3 s so that
+  // receiving a remote write does not immediately echo it back to the DB.
+  const lastRemoteUpdateMsRef = useRef({});
 
   // Remove anything already tombstoned before cloud hydration can restore it.
   useEffect(() => {
@@ -1476,6 +1480,9 @@ export default function App() {
           item.id === object.id ? { ...item, data: event.data.data } : item
         ));
         if (object.type === "task" || object.type === "deadline") {
+          // Record that this object was just updated from a remote source so the
+          // syncSharedTask debounce does not echo the write back to the DB.
+          lastRemoteUpdateMsRef.current[object.id] = Date.now();
           setTasks((prev) => prev.map((task) =>
             task.sharedObjectId === object.id ? { ...task, ...event.data.data, sharedObjectId: object.id } : task
           ));
@@ -1566,8 +1573,14 @@ export default function App() {
   useEffect(() => {
     clearTimeout(syncSharedTask.current);
     syncSharedTask.current = setTimeout(() => {
+      const now = Date.now();
       tasks.forEach((t) => {
         if (!t.sharedObjectId) return;
+        // Skip objects whose last change came from a remote realtime event within
+        // the past 3 s — otherwise we'd echo the remote write back to the DB,
+        // which would trigger another realtime event, creating an infinite loop.
+        const lastRemote = lastRemoteUpdateMsRef.current[t.sharedObjectId] ?? 0;
+        if (now - lastRemote < 3000) return;
         updateSharedObject(t.sharedObjectId, t, "updated");
       });
     }, 2000);

@@ -3,18 +3,49 @@
 // Increment CACHE_NAME to bust old caches on deploy
 const CACHE_NAME = 'nora-cache-v3';
 
-// ── IndexedDB helpers for alarm queue ────────────────────────────────────────
+// ── IndexedDB helpers for alarm queue + SW config ────────────────────────────
 // Alarms are stored here so they survive app closure.
 // Shape: { id, scheduledFor (ms), title, body, tag, data, fired }
+//
+// Version 2 adds a 'config' store so the SW can persist the Supabase URL and
+// anon key needed to call replace_subscription when pushsubscriptionchange fires
+// (the SW may be restarted cold by the OS and won't have any in-memory state).
 
 function openAlarmDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('nora-alarms-v1', 1);
+    const req = indexedDB.open('nora-alarms-v1', 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore('alarms', { keyPath: 'id' });
+      const db = req.result;
+      if (!db.objectStoreNames.contains('alarms')) {
+        db.createObjectStore('alarms', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('config')) {
+        db.createObjectStore('config', { keyPath: 'key' });
+      }
     };
     req.onsuccess  = () => resolve(req.result);
     req.onerror    = () => reject(req.error);
+  });
+}
+
+async function saveConfig(key, value) {
+  const db    = await openAlarmDB();
+  const tx    = db.transaction('config', 'readwrite');
+  tx.objectStore('config').put({ key, value });
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror    = () => reject(tx.error);
+  });
+}
+
+async function loadConfig(key) {
+  const db    = await openAlarmDB();
+  const tx    = db.transaction('config', 'readonly');
+  const store = tx.objectStore('config');
+  return new Promise((resolve, reject) => {
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result?.value ?? null);
+    req.onerror   = () => reject(req.error);
   });
 }
 
@@ -102,6 +133,21 @@ self.addEventListener('message', (event) => {
     return;
   }
 
+  // Persist Supabase config so pushsubscriptionchange can call the server
+  // even when the SW is restarted cold by the OS (no in-memory state).
+  if (type === 'CONFIGURE') {
+    const { supabaseUrl, anonKey } = event.data || {};
+    if (supabaseUrl && anonKey) {
+      event.waitUntil(
+        Promise.all([
+          saveConfig('supabaseUrl', supabaseUrl),
+          saveConfig('anonKey', anonKey),
+        ])
+      );
+    }
+    return;
+  }
+
   // Alarm management — store / clear via IndexedDB
   if (type === 'STORE_ALARM') {
     event.waitUntil(storeAlarm(event.data.alarm));
@@ -156,6 +202,48 @@ self.addEventListener('periodicsync', (event) => {
   if (event.tag === 'check-alarms') {
     event.waitUntil(checkAndFireAlarms());
   }
+});
+
+// ── Push subscription change (iOS/APNs token rotation) ───────────────────────
+// iOS rotates APNs tokens regularly (after updates, extended inactivity, etc.).
+// Without this handler the old token stays in the DB, every subsequent send
+// gets a 410 and deletes it, and the user stops receiving notifications until
+// they reopen the app.  This handler re-subscribes automatically and patches
+// the server record without any user interaction.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      const oldSub = event.oldSubscription;
+      if (!oldSub) return; // no old endpoint → can't identify the DB row
+
+      try {
+        const newSub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: oldSub.options.applicationServerKey,
+        });
+
+        const supabaseUrl = await loadConfig('supabaseUrl');
+        const anonKey     = await loadConfig('anonKey');
+        if (!supabaseUrl || !anonKey) return; // config not yet saved; app will fix on next open
+
+        await fetch(`${supabaseUrl}/functions/v1/nora-push`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({
+            action: 'replace_subscription',
+            old_endpoint: oldSub.endpoint,
+            subscription: newSub.toJSON(),
+          }),
+        });
+      } catch (err) {
+        // Non-fatal — subscribeToPush() in the app will re-sync on next open.
+        console.warn('[SW] pushsubscriptionchange failed:', err);
+      }
+    })()
+  );
 });
 
 // ── Push (Web Push API — for future server-sent notifications) ────────────────

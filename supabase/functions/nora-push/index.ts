@@ -98,15 +98,21 @@ serve(async (req: Request) => {
         data?: Record<string, unknown>;
       };
     };
-    const { error } = await admin.from("push_alarms").upsert({
-      id: alarm.id,
-      user_id: userId,
-      scheduled_for: new Date(alarm.scheduledFor).toISOString(),
-      title: alarm.title,
-      body: alarm.body,
-      tag: alarm.tag ?? alarm.id,
-      data: alarm.data ?? {},
-    });
+    // fired_at must be explicitly reset to null so that rescheduled alarms are
+    // picked up again by the cron job (which filters WHERE fired_at IS NULL).
+    const { error } = await admin.from("push_alarms").upsert(
+      {
+        id: alarm.id,
+        user_id: userId,
+        scheduled_for: new Date(alarm.scheduledFor).toISOString(),
+        title: alarm.title,
+        body: alarm.body,
+        tag: alarm.tag ?? alarm.id,
+        data: alarm.data ?? {},
+        fired_at: null,
+      },
+      { onConflict: "id,user_id" }
+    );
     if (error) return json({ error: error.message }, 500);
     return json({ ok: true });
   }
@@ -116,6 +122,37 @@ serve(async (req: Request) => {
     if (!userId) return json({ error: "Unauthorized" }, 401);
     const { id } = body as { id: string };
     await admin.from("push_alarms").delete().eq("id", id).eq("user_id", userId);
+    return json({ ok: true });
+  }
+
+  // ── replace_subscription — called by SW pushsubscriptionchange handler ────────
+  // No user-session auth needed: the old endpoint acts as the credential.
+  // Only a browser that already holds a valid APNs token for that endpoint can
+  // trigger this; the server verifies ownership by looking up the old endpoint.
+  if (action === "replace_subscription") {
+    const { old_endpoint, subscription } = body as {
+      old_endpoint: string;
+      subscription: { endpoint: string; keys: Record<string, string> };
+    };
+    if (!old_endpoint || !subscription?.endpoint) {
+      return json({ error: "Missing old_endpoint or subscription" }, 400);
+    }
+    const { data: existing } = await admin
+      .from("push_subscriptions")
+      .select("user_id")
+      .eq("endpoint", old_endpoint)
+      .maybeSingle();
+    if (!existing) return json({ ok: false, error: "Unknown subscription" }, 404);
+    // Delete old then insert new atomically so no push window is missed.
+    await admin.from("push_subscriptions").delete().eq("endpoint", old_endpoint);
+    const { error } = await admin.from("push_subscriptions").insert({
+      user_id: existing.user_id,
+      endpoint: subscription.endpoint,
+      keys: subscription.keys,
+      user_agent: req.headers.get("user-agent") ?? "",
+      updated_at: new Date().toISOString(),
+    });
+    if (error) return json({ error: error.message }, 500);
     return json({ ok: true });
   }
 
@@ -148,7 +185,13 @@ serve(async (req: Request) => {
     const errors: string[] = [];
     for (const sub of subs) {
       try {
-        await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload);
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: sub.keys },
+          payload,
+          // TTL=86400: APNs must queue for up to 24 h if device is offline.
+          // urgency=high: deliver immediately — bypasses iOS low-power deferral.
+          { TTL: 86400, urgency: "high" }
+        );
         sent++;
       } catch (e: unknown) {
         const err = e as { statusCode?: number; message?: string; body?: string };
@@ -201,7 +244,8 @@ serve(async (req: Request) => {
         try {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: sub.keys },
-            payload
+            payload,
+            { TTL: 86400, urgency: "high" }
           );
           fired++;
         } catch (e: unknown) {

@@ -134,8 +134,8 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
   async function handleSaveUsername() {
     setUsernameErr("");
     try {
-      await setUsername(usernameInput);
-      setMyProfile(p => ({ ...p, username: usernameInput.toLowerCase().trim() }));
+      const saved = await setUsername(usernameInput);
+      setMyProfile(p => ({ ...p, username: saved }));
       setSettingUsername(false);
     } catch (e) {
       setUsernameErr(e.message);
@@ -261,7 +261,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
             </div>
             {usernameErr && <p className="sm-err">{usernameErr}</p>}
             <div className="sm-username-hint">
-              Lowercase letters, numbers, dots, dashes. Min 3 chars.
+              Lowercase letters, numbers, underscores. Min 3 chars.
             </div>
           </div>
           <div className="sm-footer">

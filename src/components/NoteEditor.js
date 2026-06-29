@@ -9,7 +9,6 @@ import "./NoteEditor.css";
 // ─── Shared constants ─────────────────────────────────────────────────────────
 
 export const NOTE_COLORS = [
-  { key: "default", label: "Default" },
   { key: "cream",   label: "Cream"   },
   { key: "rose",    label: "Rose"    },
   { key: "blue",    label: "Blue"    },

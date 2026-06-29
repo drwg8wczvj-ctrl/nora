@@ -57,6 +57,18 @@ export function useNotifications() {
       .then(async (reg) => {
         swRegRef.current = reg;
 
+        // Persist Supabase URL + anon key in SW IndexedDB so that the
+        // pushsubscriptionchange handler can call replace_subscription even
+        // when the SW restarts cold (no in-memory state, no open app tab).
+        const worker = navigator.serviceWorker.controller ?? reg.active;
+        if (worker) {
+          const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+          const anonKey     = process.env.REACT_APP_SUPABASE_ANON_KEY;
+          if (supabaseUrl && anonKey) {
+            worker.postMessage({ type: "CONFIGURE", supabaseUrl, anonKey });
+          }
+        }
+
         // Detect iOS
         const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 
