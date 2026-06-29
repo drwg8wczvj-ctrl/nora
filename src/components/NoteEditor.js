@@ -9,11 +9,15 @@ import "./NoteEditor.css";
 // ─── Shared constants ─────────────────────────────────────────────────────────
 
 export const NOTE_COLORS = [
-  { key: "cream",   label: "Cream"   },
-  { key: "rose",    label: "Rose"    },
-  { key: "blue",    label: "Blue"    },
-  { key: "mint",    label: "Mint"    },
-  { key: "purple",  label: "Purple"  },
+  { key: "cream",    label: "Cream"    },
+  { key: "yellow",   label: "Yellow"   },
+  { key: "orange",   label: "Orange"   },
+  { key: "rose",     label: "Rose"     },
+  { key: "teal",     label: "Teal"     },
+  { key: "blue",     label: "Blue"     },
+  { key: "mint",     label: "Mint"     },
+  { key: "lavender", label: "Lavender" },
+  { key: "purple",   label: "Purple"   },
 ];
 
 export const NOTE_TYPE_DEFS = [
@@ -41,7 +45,7 @@ export function migrateNote(n) {
     starred:   false,
     updatedAt: n.createdAt ?? Date.now(),
     ...n,
-    color: COLOR_MIGRATE[n.color] ?? (n.color || "default"),
+    color: COLOR_MIGRATE[n.color] ?? (n.color && n.color !== "default" ? n.color : "cream"),
   };
 }
 

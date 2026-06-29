@@ -27,13 +27,12 @@
 
 /* ── Header ──────────────────────────────────────────────── */
 /*
-   Fixed so it truly stays at the top even when iOS Safari resizes the
-   viewport as the toolbar appears/disappears.
-   z-index 30 sits below the bottom-nav (40), FAB (45), and chat (60+).
+   Sits as a normal flex child of .mob-app (which is height:100dvh / overflow:hidden).
+   Only .mob-main scrolls, so the header never moves — no need for position:fixed
+   and no compensating padding-top on .mob-main.
 */
 .mob-header {
-  position: fixed;
-  top: 0; left: 0; right: 0;
+  flex-shrink: 0;
   z-index: 30;
   display: flex; align-items: center; justify-content: space-between;
   /* top padding accounts for status bar in standalone/fullscreen PWA mode */
@@ -80,8 +79,6 @@
   overscroll-behavior-y: contain;
   overscroll-behavior-x: none;
   touch-action: pan-y;
-  /* push content below fixed header */
-  padding-top: calc(env(safe-area-inset-top, 0px) + 72px);
   /* clear fixed bottom nav + FAB + safe area */
   padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px));
 }

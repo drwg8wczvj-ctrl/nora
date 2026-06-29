@@ -2048,7 +2048,7 @@ export default function App() {
   const [noteFilter,     setNoteFilter]     = useState("all"); // "all" | note type key
 
   const createNote = (type = "note") => {
-    const n = { id: uid(), type, title: "", content: "", items: [], color: "default", pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() };
+    const n = { id: uid(), type, title: "", content: "", items: [], color: "cream", pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() };
     setNotes((p) => [...p, n]);
     setOpenNoteId(n.id);
   };
