@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { supabase } from "./lib/supabase";
 import {
   loadUserData, saveUserData,
@@ -18,6 +18,7 @@ import { useNotifications } from "./hooks/useNotifications";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
+import { syncWidgetData } from "./lib/noraWidgetBridge";
 import JoinCodeModal from "./components/JoinCodeModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
 import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
@@ -544,11 +545,23 @@ export default function App() {
       if (!data) return;
       if (Array.isArray(data.tasks) && data.tasks.length) {
         const cutoff = fmtDate(addDays(todayStr(), -30));
-        setTasks(data.tasks.filter((t) =>
-          !deletedTaskIdsRef.current.has(t.id)
-          && !deletedSharedIdsRef.current.has(t.sharedObjectId)
-          && (t.repeat || t.date >= cutoff)
-        ));
+        setTasks((prev) => {
+          const remoteFiltered = data.tasks.filter((t) =>
+            !deletedTaskIdsRef.current.has(t.id)
+            && !deletedSharedIdsRef.current.has(t.sharedObjectId)
+            && (t.repeat || t.date >= cutoff)
+          );
+          // Keep local tasks that haven't synced to Supabase yet (e.g. added
+          // just before the app was suspended and the 1-s debounce didn't fire).
+          const remoteIds = new Set(remoteFiltered.map((t) => t.id));
+          const localOnly = prev.filter((t) =>
+            !remoteIds.has(t.id)
+            && !deletedTaskIdsRef.current.has(t.id)
+            && !deletedSharedIdsRef.current.has(t.sharedObjectId)
+            && (t.repeat || t.date >= cutoff)
+          );
+          return [...remoteFiltered, ...localOnly];
+        });
       }
       if (Array.isArray(data.groups) && data.groups.length) setGroups(data.groups);
       if (Array.isArray(data.notes)  && data.notes.length)  setNotes(data.notes);
@@ -752,6 +765,8 @@ export default function App() {
   const [showUsernameBanner, setShowUsernameBanner] = useState(false);
   const notifTimers       = useRef({});
   const syncTimer         = useRef(null);
+  // Always-current snapshot of data to save — used by the emergency flush below.
+  const latestSyncDataRef = useRef(null);
 
   // ── Notification system ────────────────────────────────
   const {
@@ -823,17 +838,76 @@ export default function App() {
   const todaySleepQuality = sleepCheckIn.date === today ? sleepCheckIn.quality : null;
   const setSleepQuality   = (q) => setSleepCheckIn({ date: today, quality: q });
 
+  // Keep a live snapshot so the background-flush handler below can always read
+  // the most recent values without depending on stale closures.
+  useEffect(() => {
+    latestSyncDataRef.current = {
+      tasks, groups, notes, boards,
+      preferences: { accountName, dark, reminderMins, relaxation, energy, theme },
+    };
+  }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme]); // eslint-disable-line
+
   // Sync all app data to Supabase 1 s after the last change
   useEffect(() => {
     if (!session) return;
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(() => {
-      saveUserData({
-        tasks, groups, notes, boards,
-        preferences: { accountName, dark, reminderMins, relaxation, energy, theme },
-      }).catch(console.error);
+      if (latestSyncDataRef.current) {
+        saveUserData(latestSyncDataRef.current).catch(console.error);
+      }
     }, 1000);
   }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme]); // eslint-disable-line
+
+  // Flush immediately when the PWA goes to background (iOS swipe-away, tab switch).
+  // Without this, the 1-second debounce above is killed before it fires and the
+  // user's new tasks are never persisted to Supabase.  On reload, loadUserData()
+  // would then overwrite localStorage with the stale Supabase snapshot.
+  useEffect(() => {
+    if (!session) return;
+    const flushNow = () => {
+      clearTimeout(syncTimer.current);
+      if (latestSyncDataRef.current) {
+        saveUserData(latestSyncDataRef.current).catch(() => {});
+      }
+    };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flushNow(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flushNow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flushNow);
+    };
+  }, [session]); // eslint-disable-line
+
+  // Push a widget-friendly snapshot to the iOS WidgetKit extension whenever
+  // tasks or wellbeing dials change.  No-op on web/PWA.
+  useEffect(() => {
+    const dayTasks = tasks.filter((t) => t.date === today || isRepeatMatch(t, today));
+    const completedToday = dayTasks.filter((t) => t.completed).length;
+    const readiness = computeReadiness(morningCheckup) ?? { label: "—", pct: 0 };
+    const dateLabel = new Intl.DateTimeFormat("en-US", {
+      weekday: "long", month: "short", day: "numeric",
+    }).format(new Date());
+
+    syncWidgetData({
+      date: dateLabel,
+      lastUpdated: new Date().toISOString(),
+      totalToday: dayTasks.length,
+      completedToday,
+      todayTasks: dayTasks.slice(0, 10).map((t) => ({
+        id: t.id,
+        title: t.title,
+        completed: !!t.completed,
+        startHour:   t.startHour   ?? null,
+        startMinute: t.startMinute ?? null,
+      })),
+      energy,
+      focus,
+      relaxation,
+      readinessLabel: readiness.label,
+      readinessPct:   readiness.pct ?? 0,
+    });
+  }, [tasks, today, energy, focus, relaxation, morningCheckup]); // eslint-disable-line
 
   // ── Repeat-aware task lookup ─────────────────────────
   const getTasksForDate = (date) => {
