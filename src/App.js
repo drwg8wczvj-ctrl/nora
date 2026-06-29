@@ -884,7 +884,7 @@ export default function App() {
   useEffect(() => {
     const dayTasks = tasks.filter((t) => t.date === today || isRepeatMatch(t, today));
     const completedToday = dayTasks.filter((t) => t.completed).length;
-    const readiness = computeReadiness(morningCheckup) ?? { label: "—", pct: 0 };
+    const readiness = computeReadiness(morningCheckup ?? undefined) ?? { label: "—", pct: 0 };
     const dateLabel = new Intl.DateTimeFormat("en-US", {
       weekday: "long", month: "short", day: "numeric",
     }).format(new Date());
