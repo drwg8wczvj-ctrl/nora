@@ -23,7 +23,7 @@ npx cap sync           # copies build + plugins into ios/
 ## Step 2 — Open the project in Xcode
 
 ```bash
-npx cap open ios
+![alt text](image.png)
 ```
 
 This opens `ios/App/App.xcworkspace`.
@@ -43,7 +43,7 @@ This opens `ios/App/App.xcworkspace`.
 ## Step 4 — Create the Widget Extension target
 
 1. **File → New → Target…**
-2. Choose **Widget Extension** → Next
+2. Choose **Widget Extension** → Next![alt text](image-1.png)
 3. Set:
    - **Product Name**: `NoraWidget`
    - **Bundle Identifier**: `tech.dongar.nora.widget`
