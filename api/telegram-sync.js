@@ -1,8 +1,10 @@
-// Reads recent messages from the user's Telegram chats and extracts suggestions.
-// POST /api/telegram-sync  body: { userId }
+// Reads recent Telegram messages and extracts suggestions.
+// Optimised for Vercel Hobby (10s timeout):
+//   - parallel getMessages across dialogs
+//   - keyword pre-filter before AI extraction
+//   - parallel extraction with a small cap
 //
-// Reads the last 24h of messages (or 48h on first sync).
-// Skips channels, system messages, and very short texts.
+// POST /api/telegram-sync  body: { userId }
 
 const { TelegramClient } = require("telegram");
 const { StringSession }  = require("telegram/sessions");
@@ -13,7 +15,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const MIN_LEN = 20;
+// Only send to AI if the message looks like it might have calendar content
+const CALENDAR_RE = /\b(\d{1,2}:\d{2}|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d+\s*(am|pm)|dinner|lunch|breakfast|meeting|appointment|flight|hotel|reservation|birthday|deadline|dentist|doctor|party|wedding|call|interview|visit|arrive|depart|schedule|event|ticket)\b/i;
+
+const MIN_LEN         = 12;
+const MAX_DIALOGS     = 12;
+const MSGS_PER_DIALOG = 5;
+const MAX_EXTRACT     = 6;
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -48,51 +56,55 @@ module.exports = async function handler(req, res) {
 
     const since = account.last_sync_at
       ? new Date(account.last_sync_at)
-      : new Date(Date.now() - 48 * 60 * 60 * 1000);
+      : new Date(Date.now() - 72 * 60 * 60 * 1000); // 72h on first sync
 
-    // Fetch recent dialogs — limit to personal chats and small groups
-    const dialogs = await client.getDialogs({ limit: 30 });
-    const messages = [];
+    // Fetch dialogs then messages in parallel across dialogs
+    const dialogs = await client.getDialogs({ limit: MAX_DIALOGS + 10 });
+    const relevant = dialogs
+      .filter(d => !(d.isChannel && !d.isMegagroup)) // skip broadcast channels
+      .slice(0, MAX_DIALOGS);
 
-    for (const dialog of dialogs) {
-      // Skip broadcast channels (can have huge volumes; not personal context)
-      if (dialog.isChannel && !dialog.isMegagroup) continue;
+    const msgArrays = await Promise.all(
+      relevant.map(dialog =>
+        client.getMessages(dialog.entity, { limit: MSGS_PER_DIALOG })
+          .then(msgs => msgs.map(msg => ({
+            text:      msg.message ?? "",
+            from:      dialog.title || dialog.name || "Telegram",
+            messageId: String(msg.id),
+            chatId:    String(dialog.id),
+            date:      msg.date,
+          })))
+          .catch(() => [])
+      )
+    );
 
-      const msgs = await client.getMessages(dialog.entity, { limit: 10 });
-      for (const msg of msgs) {
-        if (!msg.message) continue;
-        if (msg.message.length < MIN_LEN) continue;
-        if (new Date(msg.date * 1000) <= since) continue;
-
-        messages.push({
-          text:      msg.message,
-          from:      dialog.title || dialog.name || "Telegram",
-          messageId: String(msg.id),
-          chatId:    String(dialog.id),
-        });
-      }
-    }
-
-    // Save refreshed session + update last_sync_at
+    // Persist refreshed session immediately after disconnect
     const newSession = client.session.save();
     await client.disconnect();
 
-    await supabase
-      .from("nora_connected_accounts")
-      .update({
-        telegram_session: newSession,
-        last_sync_at:     new Date().toISOString(),
-      })
-      .eq("id", account.id);
+    await supabase.from("nora_connected_accounts").update({
+      telegram_session: newSession,
+      last_sync_at:     new Date().toISOString(),
+    }).eq("id", account.id);
 
-    // Extract suggestions from new messages (cap at 40 to avoid timeout)
-    const appUrl   = process.env.APP_URL || `https://${process.env.VERCEL_URL}`;
-    const batch    = messages.slice(0, 40);
-    let totalCount = 0;
+    // Filter: recent + long enough + looks like calendar content
+    const candidates = msgArrays.flat().filter(m =>
+      m.text.length >= MIN_LEN &&
+      new Date(m.date * 1000) > since &&
+      CALENDAR_RE.test(m.text)
+    );
 
-    for (const msg of batch) {
-      try {
-        const r = await fetch(`${appUrl}/api/intelligence-extract`, {
+    if (candidates.length === 0) {
+      return res.status(200).json({ ok: true, scanned: 0, suggestions: 0 });
+    }
+
+    // Extract in parallel (cap to MAX_EXTRACT to stay within timeout)
+    const appUrl = process.env.APP_URL || `https://${process.env.VERCEL_URL}`;
+    const batch  = candidates.slice(0, MAX_EXTRACT);
+
+    const results = await Promise.all(
+      batch.map(msg =>
+        fetch(`${appUrl}/api/intelligence-extract`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({
@@ -103,13 +115,13 @@ module.exports = async function handler(req, res) {
             senderName:      msg.from,
             sourceAccountId: account.id,
           }),
-        });
-        if (r.ok) {
-          const d = await r.json().catch(() => ({}));
-          totalCount += d.count ?? 0;
-        }
-      } catch {}
-    }
+        })
+        .then(r => r.ok ? r.json() : { count: 0 })
+        .catch(() => ({ count: 0 }))
+      )
+    );
+
+    const totalCount = results.reduce((s, r) => s + (r.count ?? 0), 0);
 
     return res.status(200).json({ ok: true, scanned: batch.length, suggestions: totalCount });
   } catch (err) {
