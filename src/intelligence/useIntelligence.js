@@ -157,10 +157,26 @@ export function useIntelligence({ session, onAddTask }) {
     }
   }, [session?.user?.id, loadSuggestions]);
 
-  // Connect Gmail — redirects to OAuth
-  const connectGmail = useCallback(() => {
+  // Connect Gmail — fetches the OAuth URL first so a misconfigured endpoint
+  // never navigates the user away from the app.
+  const connectGmail = useCallback(async () => {
     if (!session?.user?.id) return;
-    window.location.href = `/api/gmail-auth-start?user_id=${session.user.id}`;
+    try {
+      const res = await fetch(`/api/gmail-auth-start?user_id=${session.user.id}`);
+      if (res.redirected) {
+        // Endpoint returned a redirect (success path) — follow it
+        window.location.href = res.url;
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (data.redirectUrl) {
+        window.location.href = data.redirectUrl;
+      } else {
+        alert(data.error ?? "Gmail integration isn't configured yet. Add GOOGLE_CLIENT_ID to Vercel env vars.");
+      }
+    } catch {
+      alert("Could not start Gmail connection. Check your internet connection and try again.");
+    }
   }, [session?.user?.id]);
 
   // Link Telegram via code

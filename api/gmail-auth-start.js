@@ -13,15 +13,16 @@ const SCOPES = [
 
 module.exports = function handler(req, res) {
   const { user_id } = req.query;
-  const appUrl = process.env.APP_URL || "https://nora-ten-brown.vercel.app";
 
-  if (!user_id) return res.redirect(302, `${appUrl}?intel_status=gmail_error`);
+  if (!user_id) {
+    return res.status(400).json({ error: "user_id required" });
+  }
 
-  const clientId     = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri  = process.env.GOOGLE_REDIRECT_URI;
+  const clientId    = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
 
   if (!clientId || !redirectUri) {
-    return res.redirect(302, `${appUrl}?intel_status=gmail_not_configured`);
+    return res.status(503).json({ error: "Gmail integration not configured. Add GOOGLE_CLIENT_ID and GOOGLE_REDIRECT_URI to Vercel environment variables." });
   }
 
   const params = new URLSearchParams({
@@ -34,5 +35,6 @@ module.exports = function handler(req, res) {
     state:         user_id,
   });
 
-  return res.redirect(302, `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  const redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  return res.status(200).json({ redirectUrl });
 };
