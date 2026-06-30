@@ -48,18 +48,20 @@ module.exports = async function handler(req, res) {
   // /start command — issue a link code
   if (text.startsWith("/start")) {
     const code = generateLinkCode(chatId);
-    await supabase.from("nora_connected_accounts").upsert(
-      {
-        user_id: "00000000-0000-0000-0000-000000000000", // placeholder until linked
-        provider: "telegram",
-        telegram_chat_id: String(chatId),
-        link_code: code,
-        is_active: false,
-        display_name: from,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,provider,account_email" }
-    ).catch(() => {});
+    try {
+      await supabase.from("nora_connected_accounts").upsert(
+        {
+          user_id: "00000000-0000-0000-0000-000000000000",
+          provider: "telegram",
+          telegram_chat_id: String(chatId),
+          link_code: code,
+          is_active: false,
+          display_name: from,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,provider,account_email" }
+      );
+    } catch (_) {}
 
     await sendMessage(
       chatId,
