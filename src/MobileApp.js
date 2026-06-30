@@ -17,7 +17,6 @@ import FocusSession from "./FocusSession";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
-import DrumTimePicker from "./components/DrumTimePicker";
 import JoinCodeModal from "./components/JoinCodeModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
 import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
@@ -2451,7 +2450,6 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
 // ── Task edit modal ───────────────────────────────────────────
 function MobileEditModal({ ctx }) {
   const { draft, setDraft, saveTask, deleteTask, groups, setSharingTask } = ctx; // eslint-disable-line
-  const [showTimePicker, setShowTimePicker] = useState(false);
 
   return (
     <div className="mob-modal-overlay" onClick={() => ctx.setEditingTask(null)}>
@@ -2498,29 +2496,20 @@ function MobileEditModal({ ctx }) {
           {/* Time */}
           <div className="mob-modal-field">
             <label className="mob-modal-label">Time</label>
-            <button
-              className="mob-modal-select mob-time-display-btn"
-              onClick={() => setShowTimePicker(true)}
-            >
-              {draft.startHour != null
-                ? fmtTime(draft.startHour, draft.startMinute ?? 0)
-                : <span className="mob-time-notime">No time</span>}
-            </button>
-            {showTimePicker && (
-              <DrumTimePicker
-                hour={draft.startHour}
-                minute={draft.startMinute ?? 0}
-                onConfirm={(h, m) => {
-                  setDraft(d => ({ ...d, startHour: h, startMinute: m }));
-                  setShowTimePicker(false);
-                }}
-                onReset={() => {
+            <input
+              type="time"
+              className="mob-modal-select"
+              value={draft.startHour != null ? `${pad(draft.startHour)}:${pad(draft.startMinute ?? 0)}` : ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) {
                   setDraft(d => ({ ...d, startHour: null, startMinute: null }));
-                  setShowTimePicker(false);
-                }}
-                onDismiss={() => setShowTimePicker(false)}
-              />
-            )}
+                } else {
+                  const [h, m] = val.split(":").map(Number);
+                  setDraft(d => ({ ...d, startHour: h, startMinute: m }));
+                }
+              }}
+            />
           </div>
 
           {/* Duration */}
