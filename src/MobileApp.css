@@ -1517,6 +1517,15 @@
 .mob-time-select { flex: 1.5; }
 .mob-min-select  { flex: 1; }
 
+.mob-time-display-btn {
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.mob-time-display-btn:active { opacity: 0.7; }
+.mob-time-notime { color: var(--text-muted); font-weight: 400; }
+
 .mob-pill-row { display: flex; gap: 7px; flex-wrap: wrap; }
 .mob-pill {
   display: inline-flex; align-items: center; gap: 5px;

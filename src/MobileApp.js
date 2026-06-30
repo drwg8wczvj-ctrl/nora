@@ -17,6 +17,7 @@ import FocusSession from "./FocusSession";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
+import DrumTimePicker from "./components/DrumTimePicker";
 import JoinCodeModal from "./components/JoinCodeModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
 import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
@@ -2450,8 +2451,7 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
 // ── Task edit modal ───────────────────────────────────────────
 function MobileEditModal({ ctx }) {
   const { draft, setDraft, saveTask, deleteTask, groups, setSharingTask } = ctx; // eslint-disable-line
-
-  const HOURS_RANGE = Array.from({ length: 24 }, (_, i) => i);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   return (
     <div className="mob-modal-overlay" onClick={() => ctx.setEditingTask(null)}>
@@ -2498,26 +2498,29 @@ function MobileEditModal({ ctx }) {
           {/* Time */}
           <div className="mob-modal-field">
             <label className="mob-modal-label">Time</label>
-            <div className="mob-time-row">
-              <select className="mob-modal-select mob-time-select"
-                value={draft.startHour ?? ""}
-                onChange={(e) => setDraft((d) => ({
-                  ...d,
-                  startHour: e.target.value === "" ? null : Number(e.target.value),
-                  startMinute: e.target.value === "" ? null : (d.startMinute ?? 0),
-                }))}>
-                <option value="">No time</option>
-                {HOURS_RANGE.map((h) => <option key={h} value={h}>{fmtTime(h, 0)}</option>)}
-              </select>
-              <select className="mob-modal-select mob-min-select"
-                disabled={draft.startHour == null}
-                value={draft.startMinute ?? 0}
-                onChange={(e) => setDraft((d) => ({ ...d, startMinute: Number(e.target.value) }))}>
-                {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                  <option key={m} value={m}>:{pad(m)}</option>
-                ))}
-              </select>
-            </div>
+            <button
+              className="mob-modal-select mob-time-display-btn"
+              onClick={() => setShowTimePicker(true)}
+            >
+              {draft.startHour != null
+                ? fmtTime(draft.startHour, draft.startMinute ?? 0)
+                : <span className="mob-time-notime">No time</span>}
+            </button>
+            {showTimePicker && (
+              <DrumTimePicker
+                hour={draft.startHour}
+                minute={draft.startMinute ?? 0}
+                onConfirm={(h, m) => {
+                  setDraft(d => ({ ...d, startHour: h, startMinute: m }));
+                  setShowTimePicker(false);
+                }}
+                onReset={() => {
+                  setDraft(d => ({ ...d, startHour: null, startMinute: null }));
+                  setShowTimePicker(false);
+                }}
+                onDismiss={() => setShowTimePicker(false)}
+              />
+            )}
           </div>
 
           {/* Duration */}
