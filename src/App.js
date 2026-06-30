@@ -3095,8 +3095,11 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       onIntelClick: () => intel.setCenterOpen(true),
       intelCount: intel.pendingCount,
     };
+    // display:contents makes this div invisible to layout but gives the overlays
+    // a .dark/.glass ancestor so intelligence.css glass rules match on mobile.
+    const themeClass = [dark ? "dark" : "", theme === "liquid_glass" ? "glass" : ""].filter(Boolean).join(" ");
     return (
-      <>
+      <div className={themeClass || undefined} style={{ display: "contents" }}>
         <MobileApp ctx={mobileCtx} />
         {intel.proactiveVisible && !intel.centerOpen && (
           <ProactiveOverlay
@@ -3131,7 +3134,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             markOnboarded={intel.markOnboarded}
           />
         )}
-      </>
+      </div>
     );
   }
 
