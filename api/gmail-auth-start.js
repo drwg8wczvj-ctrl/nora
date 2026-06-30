@@ -11,16 +11,31 @@ const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.profile",
 ].join(" ");
 
+// res.redirect() causes FUNCTION_INVOCATION_FAILED in Vercel synchronous handlers.
+// Use a plain HTML page with JS + meta-refresh instead — no 302, no crash.
+function htmlRedirect(url) {
+  const safe = url.replace(/"/g, "&quot;");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">` +
+    `<meta http-equiv="refresh" content="0;url=${safe}">` +
+    `<script>window.location.replace(${JSON.stringify(url)})</script>` +
+    `</head><body></body></html>`;
+}
+
 module.exports = function handler(req, res) {
   const { user_id } = req.query;
   const appUrl = process.env.APP_URL || "https://nora.dongar.tech";
 
-  // Detect direct browser navigation (Accept: text/html) vs fetch from the app (Accept: */*)
-  // Browser navigations get server-side redirects so they're never stranded on a raw JSON URL.
+  // Detect direct browser navigation (Accept: text/html) vs fetch from the app.
+  // Browser navigations get an HTML redirect page so the user is never stranded
+  // on a raw JSON API URL.
   const isBrowser = (req.headers["accept"] || "").includes("text/html");
 
   if (!user_id) {
-    if (isBrowser) return res.redirect(302, `${appUrl}?intel_status=gmail_error`);
+    if (isBrowser) {
+      return res.status(200)
+        .setHeader("Content-Type", "text/html")
+        .end(htmlRedirect(`${appUrl}?intel_status=gmail_error`));
+    }
     return res.status(400).json({ error: "user_id required" });
   }
 
@@ -28,7 +43,11 @@ module.exports = function handler(req, res) {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
 
   if (!clientId || !redirectUri) {
-    if (isBrowser) return res.redirect(302, `${appUrl}?intel_status=gmail_not_configured`);
+    if (isBrowser) {
+      return res.status(200)
+        .setHeader("Content-Type", "text/html")
+        .end(htmlRedirect(`${appUrl}?intel_status=gmail_not_configured`));
+    }
     return res.status(503).json({ error: "Gmail integration not configured. Add GOOGLE_CLIENT_ID and GOOGLE_REDIRECT_URI to Vercel environment variables." });
   }
 
@@ -43,6 +62,11 @@ module.exports = function handler(req, res) {
   });
 
   const redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  if (isBrowser) return res.redirect(302, redirectUrl);
+
+  if (isBrowser) {
+    return res.status(200)
+      .setHeader("Content-Type", "text/html")
+      .end(htmlRedirect(redirectUrl));
+  }
   return res.status(200).json({ redirectUrl });
 };
