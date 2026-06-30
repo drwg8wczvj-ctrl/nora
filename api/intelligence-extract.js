@@ -11,6 +11,8 @@ const today = () => new Date().toISOString().split("T")[0];
 
 const SYSTEM_PROMPT = `You are NORA's intelligence extraction engine. Analyze the provided text and extract all actionable items a user would want to add to their personal planner.
 
+The text may be in ANY language (English, German, Russian, Ukrainian, French, Spanish, etc.). Understand it fully, then return the JSON fields ALWAYS in English regardless of the input language.
+
 Look for:
 - Restaurant / dinner reservations
 - Flight or train bookings and travel plans
@@ -26,8 +28,8 @@ Look for:
 For each item return a JSON object with exactly these fields:
 {
   "type": "event" | "task" | "travel" | "reservation" | "deadline" | "delivery" | "reminder",
-  "title": "Clear concise title under 60 chars",
-  "ai_summary": "I found a [description] — first-person, warm, specific. Max 110 chars.",
+  "title": "Clear concise title in English, under 60 chars",
+  "ai_summary": "I found a [description] — first-person, warm, specific, in English. Max 110 chars.",
   "date": "YYYY-MM-DD or null",
   "time": "HH:MM 24h or null",
   "end_time": "HH:MM 24h or null",

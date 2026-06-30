@@ -15,8 +15,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Only send to AI if the message looks like it might have calendar content
-const CALENDAR_RE = /\b(\d{1,2}:\d{2}|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d+\s*(am|pm)|dinner|lunch|breakfast|meeting|appointment|flight|hotel|reservation|birthday|deadline|dentist|doctor|party|wedding|call|interview|visit|arrive|depart|schedule|event|ticket)\b/i;
+// Only send to AI if the message looks like it might have calendar content.
+// Covers English, German, and Russian — extend as needed.
+// Note: \b word-boundary doesn't work with Cyrillic (treated as \W in JS),
+// so Russian/Ukrainian words are matched as plain substrings.
+const CALENDAR_RE = new RegExp(
+  // ── Time patterns (language-agnostic) ──
+  '\\d{1,2}:\\d{2}' +
+  '|\\d{1,2}\\s*(?:am|pm)' +
+
+  // ── English ──
+  '|\\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday' +
+  '|dinner|lunch|breakfast|meeting|appointment|flight|hotel|reservation|birthday|deadline' +
+  '|dentist|doctor|party|wedding|call|interview|visit|arrive|depart|schedule|event|ticket)\\b' +
+
+  // ── German ──
+  '|\\b(?:heute|morgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag' +
+  '|termin|treffen|abendessen|mittagessen|fr(?:ü|ue)hst(?:ü|ue)ck|arzt|zahnarzt' +
+  '|geburtstag|frist|flug|urlaub|reise|veranstaltung|konferenz|besprechung|besuch)\\b' +
+
+  // ── Russian / Ukrainian (Cyrillic — no \b, substring match) ──
+  '|сегодня|завтра|послезавтра|встреча|совещание|митинг' +
+  '|ужин|обед|завтрак|перекус' +
+  '|врач|стоматолог|доктор|больниц' +
+  '|понедельник|вторник|среда|среду|четверг|пятниц|суббот|воскресень' +
+  '|день рождения|дедлайн|срок сдачи|вечеринка|праздник' +
+  '|рейс|самолёт|самолет|аэропорт|отель|бронирован|билет' +
+  '|сьогодні|завтра|зустріч|понеділок|вівторок|середа|четвер|п\'ятниця|субота|неділя',
+  'i'
+);
 
 const MIN_LEN         = 8;
 const MAX_DIALOGS     = 20;
