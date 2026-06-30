@@ -4,7 +4,6 @@ import { X, CheckCircle, Sparkles } from "lucide-react";
 const STEPS = ["welcome", "gmail", "telegram", "done"];
 const TOTAL  = STEPS.length - 1; // exclude done from progress dots
 
-const TELEGRAM_BOT   = "https://t.me/NoraAssistantTelegramm_bot";
 
 export default function IntelligenceOnboarding({
   onClose,
