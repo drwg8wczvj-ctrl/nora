@@ -3085,6 +3085,9 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       showOnboarding, setShowOnboarding,
       showProfileModal, setShowProfileModal,
       showUsernameBanner, setShowUsernameBanner,
+      // Intelligence
+      onIntelClick: () => intel.setCenterOpen(true),
+      intelCount: intel.pendingCount,
     };
     return <MobileApp ctx={mobileCtx} />;
   }
