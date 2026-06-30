@@ -2070,6 +2070,12 @@ export default function App() {
       delete sharedRealtimeSubs.current[task.sharedObjectId];
     }
 
+    // Cancel any scheduled reminder — the scheduling effect only iterates
+    // tasks that still exist, so without this the alarm is never cleared.
+    cancelAlarm(`task-reminder-${id}`);
+    clearTimeout(notifTimers.current[id]);
+    delete notifTimers.current[id];
+
     const remainingTasks = tasks.filter((item) => item.id !== id);
     setTasks(remainingTasks);
     setEditingTask(null);
