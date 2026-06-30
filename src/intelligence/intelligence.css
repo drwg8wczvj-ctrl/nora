@@ -45,6 +45,18 @@
 }
 @keyframes intel-fade-in { from { opacity: 0 } to { opacity: 1 } }
 
+/* ── Proactive overlay mask (no blur — sheet slides up from bottom) ─────────── */
+/* backdrop-filter is intentionally absent: the sheet animates in from below,    */
+/* so blurring before it's visible produces a jarring "why is everything blurry" */
+/* moment. A plain dim is enough context that a sheet is about to appear.         */
+.proactive-overlay-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0,0,0,0.35);
+  animation: intel-fade-in 0.35s ease both;
+}
+
 /* ── Suggestion Center panel ─────────────────────────────────────────────────── */
 /* Mobile: full-screen bottom sheet */
 .intel-center-panel {

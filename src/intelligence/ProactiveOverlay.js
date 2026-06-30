@@ -27,7 +27,7 @@ export default function ProactiveOverlay({ suggestions, onReview, onDismiss }) {
 
   return (
     <>
-      <div className="intel-overlay-mask" onClick={onDismiss} />
+      <div className="proactive-overlay-mask" onClick={onDismiss} />
       <div className="proactive-sheet" role="dialog" aria-modal="true" aria-label="NORA suggestions">
 
         <div className="proactive-sparkle">
