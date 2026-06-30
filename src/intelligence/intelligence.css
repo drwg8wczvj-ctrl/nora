@@ -1,6 +1,6 @@
 /* ─── NORA Intelligence Layer ──────────────────────────────────────────────── */
 
-/* ── Intelligence header button ───────────────────────────────────────────── */
+/* ── Intelligence header button ─────────────────────────────────────────────── */
 .intel-btn {
   position: relative;
   display: flex;
@@ -26,32 +26,34 @@
   border-radius: 50%;
   background: var(--accent);
   border: 2px solid var(--bg);
-  animation: intel-pulse 2.4s ease-in-out infinite;
+  animation: intel-pulse-dot 2.4s ease-in-out infinite;
 }
-@keyframes intel-pulse {
+@keyframes intel-pulse-dot {
   0%,100% { transform: scale(1);    opacity: 1; }
-  50%     { transform: scale(1.35); opacity: 0.7; }
+  50%      { transform: scale(1.35); opacity: 0.7; }
 }
 
-/* ── Shared overlay mask ───────────────────────────────────────────────────── */
+/* ── Shared overlay mask ─────────────────────────────────────────────────────── */
 .intel-overlay-mask {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   animation: intel-fade-in 0.2s ease both;
 }
-@keyframes intel-fade-in { from { opacity:0 } to { opacity:1 } }
+@keyframes intel-fade-in { from { opacity: 0 } to { opacity: 1 } }
 
-/* ── Suggestion Center panel ───────────────────────────────────────────────── */
+/* ── Suggestion Center panel ─────────────────────────────────────────────────── */
 /* Mobile: full-screen bottom sheet */
 .intel-center-panel {
   position: fixed;
   inset: 0;
   z-index: 2001;
-  background: var(--bg);
+  background: var(--modal-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -68,6 +70,7 @@
     inset: 0 0 0 auto;
     width: min(420px, 100vw);
     border-left: 1px solid var(--border);
+    box-shadow: var(--shadow);
     animation: intel-slide-right 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
   @keyframes intel-slide-right {
@@ -79,9 +82,8 @@
 /* Swipe-down handle — mobile only */
 .intel-swipe-handle {
   display: block;
-  order: -1; /* appears at very top */
-  width: 36px;
-  height: 4px;
+  order: -1;
+  width: 36px; height: 4px;
   border-radius: 2px;
   background: var(--border);
   margin: 12px auto 0;
@@ -90,7 +92,7 @@
 }
 @media (min-width: 700px) { .intel-swipe-handle { display: none; } }
 
-/* ── Panel header ─────────────────────────────────────────────────────────── */
+/* ── Panel header ────────────────────────────────────────────────────────────── */
 .intel-panel-head {
   display: flex;
   align-items: center;
@@ -99,275 +101,178 @@
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.intel-panel-head-left {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
+.intel-panel-head-left  { display: flex; align-items: center; gap: 11px; }
+
 .intel-head-orb {
-  width: 38px;
-  height: 38px;
+  width: 38px; height: 38px;
   border-radius: 12px;
   background: var(--grad);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   color: #fff;
   flex-shrink: 0;
   box-shadow: 0 4px 12px rgba(124,58,237,0.35);
 }
 .intel-head-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.3px;
+  font-size: 17px; font-weight: 700;
+  color: var(--text); letter-spacing: -0.3px;
 }
 .intel-head-sub {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 1px;
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--text-muted); margin-top: 1px;
 }
 .intel-head-sub.syncing { color: var(--accent); }
 .intel-spin-icon { animation: intel-spin 1s linear infinite; }
+@keyframes intel-spin { to { transform: rotate(360deg); } }
 
-.intel-panel-head-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.intel-panel-head-actions { display: flex; align-items: center; gap: 6px; }
 
 .intel-icon-btn {
-  width: 34px;
-  height: 34px;
+  width: 34px; height: 34px;
   border-radius: 9px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: background var(--tr), color var(--tr), border-color var(--tr);
 }
 .intel-icon-btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
 .intel-icon-btn:disabled { opacity: 0.4; cursor: default; }
 .intel-icon-btn.syncing svg { animation: intel-spin 1s linear infinite; color: var(--accent); }
-@keyframes intel-spin { to { transform: rotate(360deg); } }
 
-/* ── Accounts strip ───────────────────────────────────────────────────────── */
+/* ── Accounts strip ──────────────────────────────────────────────────────────── */
 .intel-accounts {
-  display: flex;
-  gap: 8px;
+  display: flex; gap: 8px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow-x: auto; scrollbar-width: none;
 }
 .intel-accounts::-webkit-scrollbar { display: none; }
 
 .intel-account-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: flex; align-items: center; gap: 6px;
   padding: 6px 12px;
   border-radius: 20px;
   border: 1px solid color-mix(in srgb, var(--chip-color, var(--accent)) 30%, transparent);
   background: color-mix(in srgb, var(--chip-color, var(--accent)) 12%, transparent);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text);
-  white-space: nowrap;
-  flex-shrink: 0;
+  font-size: 12px; font-weight: 500;
+  color: var(--text); white-space: nowrap; flex-shrink: 0;
 }
 .intel-account-chip-dot {
   width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--chip-color, var(--accent));
-  flex-shrink: 0;
+  border-radius: 50%; background: var(--chip-color, var(--accent)); flex-shrink: 0;
 }
-.intel-account-chip-icon {
-  font-size: 11px;
-  opacity: 0.75;
-}
+.intel-account-chip-icon { font-size: 11px; opacity: 0.75; }
 
 .intel-add-account-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  border: 1px dashed var(--border);
-  background: transparent;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 20px;
+  border: 1px dashed var(--border); background: transparent;
+  font-size: 12px; color: var(--text-muted);
+  font-family: inherit; cursor: pointer; white-space: nowrap; flex-shrink: 0;
   transition: border-color var(--tr), color var(--tr), background var(--tr);
 }
 .intel-add-account-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-light);
+  border-color: var(--accent); color: var(--accent); background: var(--accent-light);
 }
 
-/* ── Sync error banner ─────────────────────────────────────────────────────── */
+/* ── Sync error banner ───────────────────────────────────────────────────────── */
 .intel-sync-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: flex; align-items: center; gap: 8px;
   padding: 10px 18px;
-  background: rgba(239,68,68,0.1);
-  border-bottom: 1px solid rgba(239,68,68,0.2);
-  font-size: 12px;
-  color: #f87171;
+  background: rgba(220,38,38,0.10);
+  border-bottom: 1px solid rgba(220,38,38,0.20);
+  font-size: 12px; color: var(--danger);
   flex-shrink: 0;
 }
 .intel-sync-error span { flex: 1; }
 .intel-sync-error button {
-  padding: 4px 10px;
-  border-radius: 7px;
-  border: 1px solid rgba(239,68,68,0.35);
-  background: transparent;
-  color: #f87171;
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
+  padding: 4px 10px; border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  background: transparent; color: var(--danger);
+  font-size: 12px; font-family: inherit; cursor: pointer;
 }
 
-/* ── Panel body ────────────────────────────────────────────────────────────── */
+/* ── Panel body ──────────────────────────────────────────────────────────────── */
 .intel-panel-body {
   flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
   padding-bottom: max(24px, env(safe-area-inset-bottom));
 }
 .intel-panel-body::-webkit-scrollbar { width: 3px; }
 .intel-panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-/* Scanning animation */
+/* Scanning state */
 .intel-scanning {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 60px 24px;
-  text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; padding: 60px 24px; text-align: center;
 }
 .intel-scanning-orb {
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
+  width: 64px; height: 64px; border-radius: 20px;
   background: var(--grad);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  animation: intel-pulse 1.6s ease-in-out infinite;
-  box-shadow: 0 0 0 0 rgba(124,58,237,0.4);
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  animation: intel-pulse-glow 1.6s ease-in-out infinite;
 }
 @keyframes intel-pulse-glow {
-  0%   { box-shadow: 0 0 0 0 rgba(124,58,237,0.5); }
-  70%  { box-shadow: 0 0 0 18px rgba(124,58,237,0); }
-  100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); }
+  0%   { box-shadow: 0 0 0  0   rgba(124,58,237,0.5); }
+  70%  { box-shadow: 0 0 0 18px rgba(124,58,237,0);   }
+  100% { box-shadow: 0 0 0  0   rgba(124,58,237,0);   }
 }
-.intel-scanning-orb { animation: intel-pulse-glow 1.6s ease-in-out infinite; }
-.intel-scanning p {
-  font-size: 14px;
-  color: var(--text-muted);
-}
+.intel-scanning p { font-size: 14px; color: var(--text-muted); }
 
 /* Empty state */
 .intel-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 52px 28px;
-  text-align: center;
-  gap: 10px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 52px 28px; text-align: center; gap: 10px;
 }
 .intel-empty-orb {
-  width: 60px;
-  height: 60px;
-  border-radius: 18px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  margin-bottom: 6px;
+  width: 60px; height: 60px; border-radius: 18px;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; margin-bottom: 6px;
 }
-.intel-empty h3 {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0;
-}
-.intel-empty p {
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 1.55;
-  max-width: 260px;
-  margin: 0;
+.intel-empty h3 { font-size: 16px; font-weight: 700; color: var(--text); margin: 0; }
+.intel-empty p  {
+  font-size: 13px; color: var(--text-muted); line-height: 1.55;
+  max-width: 260px; margin: 0;
 }
 .intel-empty-cta {
-  margin-top: 8px;
-  padding: 11px 22px;
-  border-radius: 12px;
-  border: none;
-  background: var(--grad);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
+  margin-top: 8px; padding: 11px 22px; border-radius: 12px; border: none;
+  background: var(--grad); color: #fff;
+  font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer;
   transition: opacity 0.15s;
 }
 .intel-empty-cta:hover { opacity: 0.88; }
 
 /* Section header */
 .intel-section-hdr {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   padding: 18px 18px 8px;
 }
 .intel-section-hdr h3 {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-muted);
 }
 .intel-section-hdr button {
-  font-size: 12px;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  padding: 3px 8px;
-  border-radius: 6px;
+  font-size: 12px; color: var(--text-muted);
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; padding: 3px 8px; border-radius: 6px;
   transition: color var(--tr), background var(--tr);
 }
 .intel-section-hdr button:hover { color: var(--text); background: var(--surface-2); }
 
-/* ── Suggestion Card ───────────────────────────────────────────────────────── */
+/* ── Suggestion Card ─────────────────────────────────────────────────────────── */
 .suggestion-card {
   margin: 0 14px 10px;
   border-radius: 18px;
   border: 1px solid var(--border);
   background: var(--surface);
+  box-shadow: var(--shadow);
   overflow: hidden;
   animation: card-in 0.25s var(--ease-out) both;
+  transition: transform var(--tr), box-shadow var(--tr), border-color var(--tr);
 }
 @keyframes card-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -376,42 +281,20 @@
 .suggestion-card:active { opacity: 0.9; }
 
 .sc-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 14px 8px;
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 8px;
 }
 .sc-type-icon {
-  font-size: 20px;
-  width: 40px; height: 40px;
-  border-radius: 12px;
-  background: var(--surface-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  font-size: 20px; width: 40px; height: 40px;
+  border-radius: 12px; background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .sc-content { flex: 1; min-width: 0; }
-.sc-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.35;
-  margin-bottom: 3px;
-}
-.sc-summary {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
+.sc-title    { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.35; margin-bottom: 3px; }
+.sc-summary  { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
 .sc-source-badge {
-  padding: 3px 8px;
-  border-radius: 20px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  flex-shrink: 0;
+  padding: 3px 8px; border-radius: 20px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  white-space: nowrap; flex-shrink: 0;
 }
 .sc-source-badge.gmail    { background: rgba(234,67,53,0.15);  color: #ea4335; }
 .sc-source-badge.telegram { background: rgba(42,171,238,0.15); color: #2aabee; }
@@ -419,87 +302,58 @@
 .sc-source-badge.outlook  { background: rgba(0,120,212,0.15);  color: #0078d4; }
 
 .sc-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 14px 12px;
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px;
 }
 .sc-detail-chip {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  font-size: 12px;
-  color: var(--text);
-  border: 1px solid var(--border);
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 12px; color: var(--text);
 }
 .sc-detail-chip svg { color: var(--text-muted); }
 
 .sc-actions {
-  display: flex;
-  gap: 8px;
-  padding: 10px 14px 14px;
+  display: flex; gap: 8px; padding: 10px 14px 14px;
   border-top: 1px solid var(--border);
 }
 .sc-accept-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 12px;
-  border-radius: 12px;
-  border: none;
-  background: var(--grad);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 12px; border-radius: 12px; border: none;
+  background: var(--grad); color: #fff;
+  font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer;
   transition: opacity 0.15s;
 }
 .sc-accept-btn:active { opacity: 0.8; }
 .sc-reject-btn {
-  width: 44px; height: 44px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
+  width: 44px; height: 44px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface-2);
   color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background var(--tr), color var(--tr);
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background var(--tr), color var(--tr); flex-shrink: 0;
 }
-.sc-reject-btn:active { background: rgba(239,68,68,0.15); color: #ef4444; }
+.sc-reject-btn:active { background: rgba(239,68,68,0.15); color: var(--danger); }
 
-/* ── Proactive Overlay ─────────────────────────────────────────────────────── */
+/* ── Proactive Overlay ───────────────────────────────────────────────────────── */
 .proactive-sheet {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 2001;
-  max-width: 480px;
-  margin: 0 auto;
-  background: var(--bg);
+  bottom: 0; left: 0; right: 0; z-index: 2001;
+  max-width: 480px; margin: 0 auto;
+  background: var(--modal-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
-  border-bottom: none;
-  border-radius: 24px 24px 0 0;
+  border-bottom: none; border-radius: 24px 24px 0 0;
   padding: 24px 22px max(28px, calc(env(safe-area-inset-bottom) + 16px));
   animation: intel-slide-up 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
-  box-shadow: 0 -8px 48px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow);
 }
 @media (min-width: 600px) {
   .proactive-sheet {
-    bottom: auto;
-    top: 50%; left: 50%;
+    bottom: auto; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     border: 1px solid var(--border);
     border-radius: 24px;
-    padding: 28px 24px;
-    max-width: 400px;
+    padding: 28px 24px; max-width: 400px;
     animation: intel-scale-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
   @keyframes intel-scale-in {
@@ -508,12 +362,10 @@
   }
 }
 .proactive-sparkle {
-  width: 48px; height: 48px;
-  border-radius: 15px;
+  width: 48px; height: 48px; border-radius: 15px;
   background: var(--grad);
   display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 16px;
-  color: #fff;
+  margin: 0 auto 16px; color: #fff;
   box-shadow: 0 4px 16px rgba(124,58,237,0.4);
 }
 .proactive-greeting {
@@ -530,8 +382,7 @@
 }
 .proactive-preview-chip {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 13px;
-  border-radius: 12px;
+  padding: 10px 13px; border-radius: 12px;
   background: var(--surface); border: 1px solid var(--border);
   font-size: 13px; color: var(--text); line-height: 1.4;
 }
@@ -544,47 +395,44 @@
   width: 100%; padding: 14px; border-radius: 14px; border: none;
   background: var(--grad); color: #fff;
   font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
+  transition: opacity 0.15s;
 }
+.proactive-cta:hover { opacity: 0.88; }
 .proactive-dismiss {
   width: 100%; padding: 11px; border-radius: 12px;
   border: 1px solid var(--border); background: transparent;
   color: var(--text-muted); font-size: 14px; font-family: inherit; cursor: pointer;
 }
 
-/* ── Onboarding ─────────────────────────────────────────────────────────────── */
+/* ── Onboarding ──────────────────────────────────────────────────────────────── */
 .intel-onboarding-wrap {
-  position: fixed;
-  inset: 0;
-  z-index: 3000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  position: fixed; inset: 0; z-index: 3000;
+  display: flex; align-items: flex-end; justify-content: center;
 }
 @media (min-width: 600px) {
   .intel-onboarding-wrap { align-items: center; padding: 24px; }
 }
 .intel-onboarding-modal {
-  width: 100%;
-  max-width: 480px;
-  background: var(--bg);
+  width: 100%; max-width: 480px;
+  background: var(--modal-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
-  border-bottom: none;
-  border-radius: 28px 28px 0 0;
+  border-bottom: none; border-radius: 28px 28px 0 0;
   padding: 28px 24px max(36px, calc(env(safe-area-inset-bottom) + 24px));
   position: relative;
   animation: intel-slide-up 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
-  max-height: 92dvh;
-  overflow-y: auto;
+  max-height: 92dvh; overflow-y: auto;
+  box-shadow: var(--shadow);
 }
 @media (min-width: 600px) {
   .intel-onboarding-modal {
-    border-radius: 28px;
-    border: 1px solid var(--border);
-    padding: 32px 28px;
-    max-height: 90vh;
+    border-radius: 28px; border: 1px solid var(--border);
+    padding: 32px 28px; max-height: 90vh;
     animation: intel-scale-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 }
+
 .ob-close {
   position: absolute; top: 16px; right: 16px;
   width: 30px; height: 30px; border-radius: 50%;
@@ -611,8 +459,14 @@
   margin: 0 auto 16px; color: #fff;
   box-shadow: 0 8px 24px rgba(124,58,237,0.4);
 }
-.ob-hero h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); margin-bottom: 8px; }
-.ob-hero p  { font-size: 14px; color: var(--text-muted); line-height: 1.6; max-width: 300px; margin: 0 auto; }
+.ob-hero h1 {
+  font-size: 22px; font-weight: 800; letter-spacing: -0.4px;
+  color: var(--text); margin-bottom: 8px;
+}
+.ob-hero p {
+  font-size: 14px; color: var(--text-muted); line-height: 1.6;
+  max-width: 300px; margin: 0 auto;
+}
 
 .ob-features { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
 .ob-feature {
@@ -645,22 +499,21 @@
 .ob-connect-btn {
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
   padding: 14px; border-radius: 14px; border: none;
-  font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
-  transition: opacity 0.15s; margin-bottom: 10px;
+  font-size: 15px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: opacity 0.15s; margin-bottom: 10px;
 }
-.ob-connect-btn.gmail     { background: #ea4335; color: #fff; }
-.ob-connect-btn.telegram  { background: #2aabee; color: #fff; }
+.ob-connect-btn.gmail    { background: #ea4335; color: #fff; }
+.ob-connect-btn.telegram { background: #2aabee; color: #fff; }
 .ob-connect-btn.connected {
-  background: rgba(34,197,94,0.12);
-  border: 1px solid rgba(34,197,94,0.3);
-  color: #4ade80; cursor: default;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success); cursor: default;
 }
 .ob-connect-btn:hover:not(:disabled) { opacity: 0.88; }
 
 .ob-telegram-steps {
   padding: 14px 16px; border-radius: 14px;
-  border: 1px solid var(--border); background: var(--surface);
-  margin-bottom: 14px;
+  border: 1px solid var(--border); background: var(--surface); margin-bottom: 14px;
 }
 .ob-link-code-input { display: flex; gap: 8px; margin-top: 10px; }
 .ob-link-code-input input {
@@ -681,7 +534,8 @@
 .ob-success { text-align: center; padding: 8px 0; }
 .ob-success-ring {
   width: 70px; height: 70px; border-radius: 50%;
-  background: rgba(34,197,94,0.12); border: 2px solid rgba(34,197,94,0.3);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border: 2px solid color-mix(in srgb, var(--success) 30%, transparent);
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 16px; font-size: 30px;
   animation: ob-pop 0.5s cubic-bezier(0.32, 0.72, 0, 1) both;
@@ -692,19 +546,150 @@
 .ob-connected-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; text-align: left; }
 .ob-connected-item {
   display: flex; align-items: center; gap: 10px; padding: 10px 13px;
-  border-radius: 12px; border: 1px solid rgba(34,197,94,0.25);
-  background: rgba(34,197,94,0.07); font-size: 13px; color: var(--text);
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  background: color-mix(in srgb, var(--success) 7%, transparent);
+  font-size: 13px; color: var(--text);
 }
 
 .ob-cta {
   width: 100%; padding: 14px; border-radius: 14px; border: none;
   background: var(--grad); color: #fff;
-  font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
-  margin-bottom: 10px; transition: opacity 0.15s;
+  font-size: 15px; font-weight: 600; font-family: inherit;
+  cursor: pointer; margin-bottom: 10px; transition: opacity 0.15s;
 }
 .ob-cta:hover { opacity: 0.88; }
 .ob-skip {
   width: 100%; padding: 11px; border-radius: 12px;
   border: none; background: transparent; color: var(--text-muted);
   font-size: 14px; font-family: inherit; cursor: pointer;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLASS MODE ENHANCEMENTS
+   Adds frosted glass specular reflection to all intel surfaces.
+   Mirrors the patterns in glass.css (Level 3 modal treatment).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Panel — same glass treatment as .chat-panel (Level 1 navigation surface) */
+.glass .intel-center-panel {
+  backdrop-filter: blur(44px) saturate(1.7);
+  -webkit-backdrop-filter: blur(44px) saturate(1.7);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-nav);
+}
+.glass.dark .intel-center-panel {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.09) inset, -6px 0 40px rgba(0,0,0,0.55);
+}
+
+/* Icon buttons with glass backdrop */
+.glass .intel-icon-btn {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 var(--reflect-top) inset;
+}
+
+/* Suggestion cards — Level 2 glass (content cards, same as .task-card) */
+.glass .suggestion-card {
+  position: relative; overflow: hidden;
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1.5px 0   var(--reflect-top)    inset,
+    1px 0 0     rgba(255,255,255,0.20) inset,
+    0 0 0 0.5px rgba(255,255,255,0.12) inset,
+    0 6px 24px  rgba(0,0,0,0.25),
+    0 2px 6px   rgba(0,0,0,0.14);
+}
+.glass .suggestion-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    135deg,
+    var(--reflect-top) 0%,
+    var(--reflect-mid) 28%,
+    transparent 55%
+  );
+  border-radius: inherit; pointer-events: none; z-index: 1;
+}
+.glass .suggestion-card > * { position: relative; z-index: 2; }
+.glass .suggestion-card:hover {
+  transform: translateY(-2px) scale(1.008);
+  box-shadow: var(--shadow-glow);
+}
+
+/* Proactive sheet + onboarding — Level 3 glass (modal treatment) */
+.glass .proactive-sheet,
+.glass .intel-onboarding-modal {
+  position: relative; overflow: hidden;
+  backdrop-filter: blur(56px) saturate(2.0);
+  -webkit-backdrop-filter: blur(56px) saturate(2.0);
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1.5px 0   var(--reflect-top)    inset,
+    0 1px 0     var(--specular-iris)  inset,
+    0 0 0 0.5px rgba(255,255,255,0.14) inset,
+    0 60px 140px rgba(0,0,0,0.30),
+    0 12px 40px  rgba(124,58,237,0.18);
+}
+.glass .proactive-sheet::before,
+.glass .intel-onboarding-modal::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 40%;
+  background: linear-gradient(135deg, var(--reflect-top) 0%, var(--reflect-mid) 30%, transparent 55%);
+  border-radius: inherit; pointer-events: none; z-index: 0;
+}
+.glass .proactive-sheet > *,
+.glass .intel-onboarding-modal > * { position: relative; z-index: 1; }
+
+/* Overlay mask — softer in glass mode */
+.glass .intel-overlay-mask {
+  background: rgba(0,0,0,0.28);
+}
+.glass.dark .intel-overlay-mask {
+  background: rgba(0,0,0,0.45);
+}
+
+/* Ob-feature cards inherit glass treatment from parent */
+.glass .ob-feature {
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  box-shadow: 0 1px 0 var(--reflect-top) inset;
+}
+
+/* Primary buttons in glass — lifted, glowing */
+.glass .sc-accept-btn,
+.glass .ob-cta,
+.glass .proactive-cta,
+.glass .intel-empty-cta {
+  border-radius: 14px;
+  box-shadow:
+    0 1.5px 0 rgba(255,255,255,0.45) inset,
+    0 8px 28px rgba(124,58,237,0.38);
+  transition: transform 0.22s cubic-bezier(0.25,1,0.35,1), box-shadow 0.22s ease;
+}
+.glass .sc-accept-btn:hover,
+.glass .ob-cta:hover,
+.glass .proactive-cta:hover,
+.glass .intel-empty-cta:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow:
+    0 1.5px 0 rgba(255,255,255,0.50) inset,
+    0 14px 40px rgba(124,58,237,0.48);
+}
+
+/* Input fields in glass */
+.glass .ob-link-code-input input {
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 0 var(--reflect-top) inset, 0 1px 4px rgba(0,0,0,0.12);
+}
+.glass .ob-link-code-input input:focus {
+  border-color: var(--border-glow);
+  box-shadow:
+    0 1px 0 var(--reflect-top) inset,
+    0 0 0 3px rgba(124,58,237,0.16),
+    0 2px 20px rgba(124,58,237,0.16);
 }
