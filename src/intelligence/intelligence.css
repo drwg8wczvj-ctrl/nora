@@ -291,15 +291,31 @@
 .sc-content { flex: 1; min-width: 0; }
 .sc-title    { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.35; margin-bottom: 3px; }
 .sc-summary  { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+.sc-badges {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0;
+}
+
 .sc-source-badge {
   padding: 3px 8px; border-radius: 20px;
   font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
-  white-space: nowrap; flex-shrink: 0;
+  white-space: nowrap;
 }
 .sc-source-badge.gmail    { background: rgba(234,67,53,0.15);  color: #ea4335; }
 .sc-source-badge.telegram { background: rgba(42,171,238,0.15); color: #2aabee; }
 .sc-source-badge.manual   { background: var(--accent-light);   color: var(--accent); }
 .sc-source-badge.outlook  { background: rgba(0,120,212,0.15);  color: #0078d4; }
+
+.sc-confidence {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 500; color: var(--text-muted);
+}
+.sc-confidence-bar {
+  width: 32px; height: 4px; border-radius: 2px;
+  background: var(--border); overflow: hidden; flex-shrink: 0;
+}
+.sc-confidence-fill {
+  height: 100%; border-radius: 2px; background: var(--accent);
+}
 
 .sc-details {
   display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px;
