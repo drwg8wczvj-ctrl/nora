@@ -980,10 +980,9 @@
 }
 .mob-notes-section-hdr + .mob-notes-masonry { margin-bottom: 18px; }
 
-/* NoteCard overrides for mobile — no hover actions, slightly tighter */
-.mob-notes-v2 .nc { border-radius: 14px; padding: 12px 12px 10px; }
-.mob-notes-v2 .nc:active { transform: scale(.97); }
-.mob-notes-v2 .nc-hover-actions { display: none !important; }
+/* NoteCard overrides for mobile — slightly tighter padding */
+.mob-notes-v2 .nc { border-radius: 14px; padding: 12px 12px 8px; }
+.mob-notes-v2 .nc:active { transform: scale(.97); opacity: .92; }
 
 /* ── New-note creation bar ── */
 .mob-notes-newbar {

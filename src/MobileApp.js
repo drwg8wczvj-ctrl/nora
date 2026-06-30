@@ -1534,6 +1534,7 @@ function MobileNotes({ ctx }) {
   const { notes, setNotes, deleteNote, patchNote } = ctx;
   const [openId,      setOpenId]      = useState(null);
   const [deletingId,  setDeletingId]  = useState(null);
+  const [newNoteId,   setNewNoteId]   = useState(null);
   const [noteSearch,  setNoteSearch]  = useState("");
 
   const openNote = openId ? notes.find(n => n.id === openId) : null;
@@ -1542,9 +1543,9 @@ function MobileNotes({ ctx }) {
   const closeNote = () => {
     if (openNote) {
       const m = migrateNote(openNote);
-      if (!m.title?.trim() && !m.content?.trim() && !m.items?.length) {
-        deleteNote(openNote.id);
-      }
+      const isEmpty = !m.title?.trim() && !m.content?.trim() && !m.items?.length;
+      const justCreated = (Date.now() - (openNote.createdAt ?? 0)) < 30_000;
+      if (isEmpty && justCreated) deleteNote(openNote.id);
     }
     setOpenId(null);
   };
@@ -1558,6 +1559,8 @@ function MobileNotes({ ctx }) {
   const handleCreate = (type = "note") => {
     const n = { id: uid(), type, title: "", content: "", items: [], color: "cream", pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() };
     setNotes(p => [...p, n]);
+    setNewNoteId(n.id);
+    setTimeout(() => setNewNoteId(null), 400);
     setOpenId(n.id);
   };
 
@@ -1582,6 +1585,7 @@ function MobileNotes({ ctx }) {
       <NoteCard
         note={note}
         deleting={deletingId === note.id}
+        isNew={newNoteId === note.id}
         onClick={() => setOpenId(note.id)}
         onDelete={() => handleDelete(note.id)}
         onPin={() => patchNote(note.id, { pinned: !note.pinned })}

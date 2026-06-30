@@ -2148,6 +2148,7 @@ export default function App() {
 
   const [openNoteId,     setOpenNoteId]     = useState(null);
   const [deletingNoteId, setDeletingNoteId] = useState(null);
+  const [newNoteId,      setNewNoteId]      = useState(null);
   const [noteSearch,     setNoteSearch]     = useState("");
   const [noteMenuOpen,   setNoteMenuOpen]   = useState(null); // "type"|"sort"|"filter"|null
   const [noteSortBy,     setNoteSortBy]     = useState("recent"); // "recent"|"oldest"|"alpha"
@@ -2156,6 +2157,8 @@ export default function App() {
   const createNote = (type = "note") => {
     const n = { id: uid(), type, title: "", content: "", items: [], color: "cream", pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() };
     setNotes((p) => [...p, n]);
+    setNewNoteId(n.id);
+    setTimeout(() => setNewNoteId(null), 400);
     setOpenNoteId(n.id);
   };
   // Keep for mobileCtx backward compat
@@ -4274,7 +4277,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               if (openNote) {
                 const m = migrateNote(openNote);
                 const empty = !m.title?.trim() && !m.content?.trim() && !m.items?.length;
-                if (empty) deleteNote(openNote.id);
+                const justCreated = (Date.now() - (openNote.createdAt ?? 0)) < 30_000;
+                if (empty && justCreated) deleteNote(openNote.id);
               }
               setOpenNoteId(null);
               setNoteMenuOpen(null);
@@ -4444,6 +4448,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           <NoteCard
                             note={note}
                             deleting={deletingNoteId === note.id}
+                            isNew={newNoteId === note.id}
                             onClick={() => setOpenNoteId(note.id)}
                             onDelete={() => handleDelete(note.id)}
                             onPin={() => patchNote(note.id, { pinned: !note.pinned })}
@@ -4465,6 +4470,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                           <NoteCard
                             note={note}
                             deleting={deletingNoteId === note.id}
+                            isNew={newNoteId === note.id}
                             onClick={() => setOpenNoteId(note.id)}
                             onDelete={() => handleDelete(note.id)}
                             onPin={() => patchNote(note.id, { pinned: !note.pinned })}

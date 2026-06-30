@@ -5,22 +5,30 @@
   border:        1px solid var(--nc-border, var(--border));
   color:         var(--nc-text,   var(--text));
   border-radius: 16px;
-  padding:       14px 14px 12px;
+  padding:       14px 14px 8px;
   cursor:        pointer;
   position:      relative;
-  transition:    transform .15s ease, box-shadow .15s ease;
+  transition:    transform .15s ease, box-shadow .15s ease, opacity .15s ease;
   overflow:      hidden;
-  animation:     nc-enter .22s cubic-bezier(.25,1,.35,1) both;
+  touch-action:  manipulation;
+  -webkit-user-select: none;
+  user-select:   none;
 }
-.nc:hover {
-  transform:  translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,.09);
+/* Enter animation only for newly created notes (.nc-new is applied programmatically) */
+.nc.nc-new {
+  animation: nc-enter .22s cubic-bezier(.25,1,.35,1) both;
+}
+@media (hover: hover) {
+  .nc:hover {
+    transform:  translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.09);
+  }
 }
 .nc.nc-deleting {
   animation: nc-exit .2s ease forwards;
   pointer-events: none;
 }
-@keyframes nc-enter { from { opacity: 0; transform: scale(.93); } to { opacity: 1; } }
+@keyframes nc-enter { from { opacity: 0; transform: scale(.93); } to { opacity: 1; transform: scale(1); } }
 @keyframes nc-exit  { to   { opacity: 0; transform: scale(.88); } }
 
 /* ── Color tokens — light ─────── */
@@ -64,6 +72,34 @@
 @media (hover: none) {
   .nc-hover-actions { display: none; }
 }
+
+/* ── Mobile action bar (touch devices only) ─────── */
+.nc-mobile-actions {
+  display: none;
+}
+@media (hover: none) {
+  .nc-mobile-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--nc-border, var(--border));
+  }
+}
+.nc-mob-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 7px 0; border: none; background: transparent;
+  color: var(--nc-muted, var(--text-muted)); cursor: pointer;
+  border-radius: 8px; transition: background .12s, color .12s;
+  font-size: 0; /* hide text, show only icon */
+}
+.nc-mob-btn:active { background: rgba(0,0,0,.06); }
+.dark .nc-mob-btn:active { background: rgba(255,255,255,.07); }
+.nc-mob-btn-pin.nc-mob-on  { color: var(--accent, #8b5cf6); }
+.nc-mob-btn-star.nc-mob-on { color: #f59e0b; }
+.nc-mob-btn-del { color: var(--text-muted); }
+.nc-mob-btn-del:active { background: rgba(239,68,68,.12); color: #dc2626; }
 .nc-hbtn {
   width: 26px; height: 26px; border-radius: 7px;
   border: none; background: transparent;
@@ -156,7 +192,7 @@
 /* ── Timestamp footer ─────── */
 .nc-footer {
   display: flex; align-items: center; justify-content: flex-end;
-  margin-top: 8px;
+  margin-top: 6px; padding-bottom: 4px;
 }
 .nc-ts {
   font-size: 10px; opacity: .32; letter-spacing: .01em;

@@ -30,7 +30,7 @@ const TYPE_LABEL = {
   capture:   "Quick note",
 };
 
-export default function NoteCard({ note, onClick, onDelete, onPin, onStar, deleting }) {
+export default function NoteCard({ note, onClick, onDelete, onPin, onStar, deleting, isNew }) {
   const { type = "note", title, content, items = [], color = "default", pinned, starred, updatedAt, createdAt } = note;
   const checkedCount = items.filter(i => i.checked).length;
   const totalCount   = items.length;
@@ -44,7 +44,7 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
 
   return (
     <div
-      className={`nc${deleting ? " nc-deleting" : ""}`}
+      className={`nc${deleting ? " nc-deleting" : ""}${isNew ? " nc-new" : ""}`}
       data-color={color}
       onClick={onClick}
     >
@@ -137,6 +137,31 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
       {/* Timestamp */}
       <div className="nc-footer">
         <span className="nc-ts">{fmtRelTime(updatedAt ?? createdAt)}</span>
+      </div>
+
+      {/* Mobile action bar — touch devices only, CSS-gated */}
+      <div className="nc-mobile-actions" onClick={e => e.stopPropagation()}>
+        <button
+          className={`nc-mob-btn nc-mob-btn-pin${pinned ? " nc-mob-on" : ""}`}
+          onClick={onPin}
+          aria-label={pinned ? "Unpin" : "Pin"}
+        >
+          <Pin size={14} />
+        </button>
+        <button
+          className={`nc-mob-btn nc-mob-btn-star${starred ? " nc-mob-on" : ""}`}
+          onClick={onStar}
+          aria-label={starred ? "Unstar" : "Star"}
+        >
+          <Star size={14} />
+        </button>
+        <button
+          className="nc-mob-btn nc-mob-btn-del"
+          onClick={onDelete}
+          aria-label="Delete"
+        >
+          <Trash2 size={14} />
+        </button>
       </div>
     </div>
   );
