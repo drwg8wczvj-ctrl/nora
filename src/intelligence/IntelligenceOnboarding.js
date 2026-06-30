@@ -9,16 +9,22 @@ const TELEGRAM_BOT   = "https://t.me/NoraAssistantTelegramm_bot";
 export default function IntelligenceOnboarding({
   onClose,
   onConnectGmail,
-  onLinkTelegram,
+  onConnectTelegramPhone,
+  onVerifyTelegramCode,
   hasGmail,
   hasTelegram,
   markOnboarded,
 }) {
-  const [step, setStep]           = useState(0);
-  const [linkCode, setLinkCode]   = useState("");
-  const [linking, setLinking]     = useState(false);
-  const [linkError, setLinkError] = useState("");
-  const [linkDone, setLinkDone]   = useState(false);
+  const [step, setStep] = useState(0);
+
+  // Telegram auth state
+  const [tgPhase, setTgPhase]     = useState("phone"); // "phone" | "code" | "2fa" | "done"
+  const [phone, setPhone]         = useState("");
+  const [code, setCode]           = useState("");
+  const [tgPassword, setTgPassword] = useState("");
+  const [tgBusy, setTgBusy]       = useState(false);
+  const [tgError, setTgError]     = useState("");
+  const [tgName, setTgName]       = useState("");
 
   const stepKey = STEPS[step];
 
@@ -31,17 +37,48 @@ export default function IntelligenceOnboarding({
     onClose();
   };
 
-  const handleLinkTelegram = async () => {
-    if (!linkCode.trim()) return;
-    setLinking(true);
-    setLinkError("");
-    const result = await onLinkTelegram(linkCode.trim());
-    setLinking(false);
+  const handleSendCode = async () => {
+    if (!phone.trim()) return;
+    setTgBusy(true);
+    setTgError("");
+    const result = await onConnectTelegramPhone(phone.trim());
+    setTgBusy(false);
     if (result?.ok) {
-      setLinkDone(true);
-      setTimeout(next, 1200);
+      setTgPhase("code");
     } else {
-      setLinkError(result?.error ?? "Invalid code. Check you copied it correctly.");
+      setTgError(result?.error ?? "Could not send code. Check the phone number format (+1234567890).");
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!code.trim()) return;
+    setTgBusy(true);
+    setTgError("");
+    const result = await onVerifyTelegramCode(code.trim());
+    setTgBusy(false);
+    if (result?.ok) {
+      setTgName(result.displayName ?? "");
+      setTgPhase("done");
+      setTimeout(next, 1400);
+    } else if (result?.needs2fa) {
+      setTgPhase("2fa");
+    } else {
+      setTgError(result?.error ?? "Incorrect code. Check your Telegram app.");
+    }
+  };
+
+  const handleVerify2fa = async () => {
+    if (!tgPassword.trim()) return;
+    setTgBusy(true);
+    setTgError("");
+    const result = await onVerifyTelegramCode(code.trim(), tgPassword.trim());
+    setTgBusy(false);
+    if (result?.ok) {
+      setTgName(result.displayName ?? "");
+      setTgPhase("done");
+      setTimeout(next, 1400);
+    } else {
+      setTgError(result?.error ?? "Wrong password.");
     }
   };
 
@@ -153,59 +190,106 @@ export default function IntelligenceOnboarding({
                 <div className="ob-connect-icon-wrap telegram">✈️</div>
                 <h2>Connect Telegram</h2>
                 <p>
-                  Forward messages to NORA's Telegram bot and they'll be
-                  analyzed automatically — no copy-paste needed.
+                  NORA reads your recent messages automatically and surfaces
+                  appointments, deadlines, and reservations — you just review
+                  and approve.
                 </p>
               </div>
 
-              {hasTelegram || linkDone ? (
+              {hasTelegram || tgPhase === "done" ? (
                 <button className="ob-connect-btn connected" disabled>
                   <CheckCircle size={18} />
-                  Telegram Connected
+                  Telegram Connected{tgName ? ` · ${tgName}` : ""}
                 </button>
               ) : (
                 <div className="ob-telegram-steps">
-                  <h4>How to connect</h4>
-                  <div className="ob-telegram-step">
-                    <div className="ob-telegram-step-num">1</div>
-                    <span>
-                      Open{" "}
-                      <a href={TELEGRAM_BOT} target="_blank" rel="noopener noreferrer"
-                         style={{ color: "var(--accent)" }}>
-                        @NoraAssistantBot
-                      </a>{" "}
-                      on Telegram and send <code style={{ background: "var(--surface-2)", padding: "1px 5px", borderRadius: 4 }}>/start</code>
-                    </span>
-                  </div>
-                  <div className="ob-telegram-step">
-                    <div className="ob-telegram-step-num">2</div>
-                    <span>The bot will send you a link code like <code style={{ background: "var(--surface-2)", padding: "1px 5px", borderRadius: 4 }}>NORA-xxxxx-XXXXXX</code></span>
-                  </div>
-                  <div className="ob-telegram-step">
-                    <div className="ob-telegram-step-num">3</div>
-                    <span>Paste it below to link your account</span>
-                  </div>
 
-                  <div className="ob-link-code-input">
-                    <input
-                      type="text"
-                      value={linkCode}
-                      onChange={(e) => { setLinkCode(e.target.value); setLinkError(""); }}
-                      placeholder="NORA-000000-XXXXXX"
-                      onKeyDown={(e) => e.key === "Enter" && handleLinkTelegram()}
-                    />
-                    <button onClick={handleLinkTelegram} disabled={linking || !linkCode.trim()}>
-                      {linking ? "Linking…" : "Link"}
-                    </button>
-                  </div>
-                  {linkError && (
-                    <p style={{ marginTop: 8, fontSize: 12, color: "#ef4444" }}>{linkError}</p>
+                  {/* Phone input */}
+                  {tgPhase === "phone" && (
+                    <>
+                      <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
+                        Enter your Telegram phone number. NORA will send you a verification code via Telegram.
+                      </p>
+                      <div className="ob-link-code-input">
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => { setPhone(e.target.value); setTgError(""); }}
+                          placeholder="+1 234 567 8900"
+                          onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
+                          autoFocus
+                        />
+                        <button onClick={handleSendCode} disabled={tgBusy || !phone.trim()}>
+                          {tgBusy ? "Sending…" : "Send code"}
+                        </button>
+                      </div>
+                      <p style={{ marginTop: 6, fontSize: 11, color: "var(--text-muted)" }}>
+                        Include country code, e.g. +49 for Germany
+                      </p>
+                    </>
+                  )}
+
+                  {/* OTP input */}
+                  {tgPhase === "code" && (
+                    <>
+                      <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
+                        Check your Telegram app — a code was just sent to{" "}
+                        <strong>{phone}</strong>.
+                      </p>
+                      <div className="ob-link-code-input">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={code}
+                          onChange={(e) => { setCode(e.target.value); setTgError(""); }}
+                          placeholder="12345"
+                          maxLength={10}
+                          onKeyDown={(e) => e.key === "Enter" && handleVerifyCode()}
+                          autoFocus
+                        />
+                        <button onClick={handleVerifyCode} disabled={tgBusy || !code.trim()}>
+                          {tgBusy ? "Verifying…" : "Verify"}
+                        </button>
+                      </div>
+                      <button
+                        style={{ fontSize: 12, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", marginTop: 6, padding: 0 }}
+                        onClick={() => { setTgPhase("phone"); setCode(""); setTgError(""); }}
+                      >
+                        ← Use a different number
+                      </button>
+                    </>
+                  )}
+
+                  {/* 2FA password */}
+                  {tgPhase === "2fa" && (
+                    <>
+                      <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
+                        Your account has two-step verification enabled. Enter your Telegram cloud password.
+                      </p>
+                      <div className="ob-link-code-input">
+                        <input
+                          type="password"
+                          value={tgPassword}
+                          onChange={(e) => { setTgPassword(e.target.value); setTgError(""); }}
+                          placeholder="Cloud password"
+                          onKeyDown={(e) => e.key === "Enter" && handleVerify2fa()}
+                          autoFocus
+                        />
+                        <button onClick={handleVerify2fa} disabled={tgBusy || !tgPassword.trim()}>
+                          {tgBusy ? "Checking…" : "Confirm"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {tgError && (
+                    <p style={{ marginTop: 8, fontSize: 12, color: "#ef4444" }}>{tgError}</p>
                   )}
                 </div>
               )}
 
-              <button className="ob-cta" onClick={next} style={{ marginTop: 12 }}>
-                {hasTelegram || linkDone ? "Continue" : "Skip for now"}
+              <button className="ob-cta" onClick={next} style={{ marginTop: 16 }}>
+                {hasTelegram || tgPhase === "done" ? "Continue" : "Skip for now"}
               </button>
             </>
           )}

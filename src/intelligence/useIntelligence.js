@@ -179,14 +179,32 @@ export function useIntelligence({ session, onAddTask }) {
     }
   }, [session?.user?.id]);
 
-  // Link Telegram via code
-  const linkTelegram = useCallback(async (linkCode) => {
+  // ── Telegram MTProto auth ─────────────────────────────────────
+
+  // Step 1: send OTP to the user's phone number via Telegram
+  const connectTelegramPhone = useCallback(async (phone) => {
     if (!session?.user?.id) return { ok: false, error: "Not logged in" };
     try {
-      const res = await fetch("/api/telegram-link", {
-        method: "POST",
+      const res = await fetch("/api/telegram-auth-phone", {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: session.user.id, linkCode }),
+        body:    JSON.stringify({ phone, userId: session.user.id }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }, [session?.user?.id]);
+
+  // Step 2: verify OTP (and optionally 2FA cloud password)
+  const verifyTelegramCode = useCallback(async (code, password) => {
+    if (!session?.user?.id) return { ok: false, error: "Not logged in" };
+    try {
+      const res = await fetch("/api/telegram-auth-code", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ code, password, userId: session.user.id }),
       });
       const data = await res.json();
       if (data.ok) await loadAccounts();
@@ -195,6 +213,36 @@ export function useIntelligence({ session, onAddTask }) {
       return { ok: false, error: err.message };
     }
   }, [session?.user?.id, loadAccounts]);
+
+  // Sync: read recent Telegram messages and extract suggestions
+  const syncTelegram = useCallback(async () => {
+    if (!session?.user?.id) return 0;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/telegram-sync", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ userId: session.user.id }),
+      });
+      const data = await res.json();
+      if ((data.suggestions ?? 0) > 0) await loadSuggestions();
+      return data.suggestions ?? 0;
+    } catch {
+      return 0;
+    } finally {
+      setSyncing(false);
+    }
+  }, [session?.user?.id, loadSuggestions]);
+
+  // Auto-sync Telegram once per session when connected
+  const hasTelegramRef = useRef(false);
+  useEffect(() => {
+    const connected = accounts.some((a) => a.provider === "telegram" && a.is_active);
+    if (connected && !hasTelegramRef.current) {
+      hasTelegramRef.current = true;
+      syncTelegram();
+    }
+  }, [accounts, syncTelegram]);
 
   // Onboarding
   const hasOnboarded = Boolean(localStorage.getItem(INTEL_ONBOARDING_KEY));
@@ -226,7 +274,9 @@ export function useIntelligence({ session, onAddTask }) {
     extractFromText,
     syncGmail,
     connectGmail,
-    linkTelegram,
+    connectTelegramPhone,
+    verifyTelegramCode,
+    syncTelegram,
     loadSuggestions,
     loadAccounts,
   };

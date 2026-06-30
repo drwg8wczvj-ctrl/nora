@@ -4944,7 +4944,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           onAccept={intel.acceptSuggestion}
           onReject={intel.rejectSuggestion}
           onRejectAll={intel.rejectAll}
-          onSync={intel.syncGmail}
+          onSync={async () => { await intel.syncGmail(); await intel.syncTelegram(); }}
           onExtractText={intel.extractFromText}
           onOpenOnboarding={() => { intel.setCenterOpen(false); intel.setOnboardingOpen(true); }}
         />
@@ -4956,7 +4956,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           hasTelegram={intel.hasTelegram}
           onClose={() => intel.setOnboardingOpen(false)}
           onConnectGmail={intel.connectGmail}
-          onLinkTelegram={intel.linkTelegram}
+          onConnectTelegramPhone={intel.connectTelegramPhone}
+          onVerifyTelegramCode={intel.verifyTelegramCode}
           markOnboarded={intel.markOnboarded}
         />
       )}
