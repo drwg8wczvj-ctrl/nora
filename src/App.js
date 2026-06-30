@@ -3104,13 +3104,13 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             suggestions={intel.suggestions}
             accounts={intel.accounts}
             syncing={intel.syncing}
-            extracting={intel.extracting}
+            syncError={intel.syncError}
+            lastSyncAt={intel.lastSyncAt}
             onClose={() => intel.setCenterOpen(false)}
             onAccept={intel.acceptSuggestion}
             onReject={intel.rejectSuggestion}
             onRejectAll={intel.rejectAll}
             onSync={async () => { await intel.syncGmail(); await intel.syncTelegram(); }}
-            onExtractText={intel.extractFromText}
             onOpenOnboarding={() => { intel.setCenterOpen(false); intel.setOnboardingOpen(true); }}
           />
         )}

@@ -8,11 +8,13 @@ export function useIntelligence({ session, onAddTask }) {
   const [accounts, setAccounts]               = useState([]);
   const [loading, setLoading]                 = useState(false);
   const [syncing, setSyncing]                 = useState(false);
+  const [syncError, setSyncError]             = useState(null);
   const [proactiveVisible, setProactiveVisible] = useState(false);
   const [centerOpen, setCenterOpen]           = useState(false);
   const [onboardingOpen, setOnboardingOpen]   = useState(false);
   const [extracting, setExtracting]           = useState(false);
   const proactiveShownRef = useRef(false);
+  const lastSyncCallRef   = useRef(0);
 
   // ── Data loading ──────────────────────────────────────────────
 
@@ -223,7 +225,11 @@ export function useIntelligence({ session, onAddTask }) {
   // Sync: read recent Telegram messages and extract suggestions
   const syncTelegram = useCallback(async () => {
     if (!session?.user?.id) return 0;
+    const now = Date.now();
+    if (now - lastSyncCallRef.current < 60_000) return 0; // debounce 1 min
+    lastSyncCallRef.current = now;
     setSyncing(true);
+    setSyncError(null);
     try {
       const res = await fetch("/api/telegram-sync", {
         method:  "POST",
@@ -231,24 +237,28 @@ export function useIntelligence({ session, onAddTask }) {
         body:    JSON.stringify({ userId: session.user.id }),
       });
       const data = await res.json();
-      if ((data.suggestions ?? 0) > 0) await loadSuggestions();
+      if (!res.ok || data.error) {
+        setSyncError(data.error ?? "Sync failed");
+        return 0;
+      }
+      // Always reload suggestions after sync (new ones may have been added)
+      await loadSuggestions();
+      await loadAccounts(); // refresh last_sync_at
       return data.suggestions ?? 0;
-    } catch {
+    } catch (err) {
+      setSyncError(err.message ?? "Network error");
       return 0;
     } finally {
       setSyncing(false);
     }
-  }, [session?.user?.id, loadSuggestions]);
+  }, [session?.user?.id, loadSuggestions, loadAccounts]);
 
-  // Auto-sync Telegram once per session when connected
-  const hasTelegramRef = useRef(false);
+  // Sync every time the center opens (with 1-min debounce)
   useEffect(() => {
+    if (!centerOpen) return;
     const connected = accounts.some((a) => a.provider === "telegram" && a.is_active);
-    if (connected && !hasTelegramRef.current) {
-      hasTelegramRef.current = true;
-      syncTelegram();
-    }
-  }, [accounts, syncTelegram]);
+    if (connected) syncTelegram();
+  }, [centerOpen]); // eslint-disable-line
 
   // Onboarding
   const hasOnboarded = Boolean(localStorage.getItem(INTEL_ONBOARDING_KEY));
@@ -259,7 +269,9 @@ export function useIntelligence({ session, onAddTask }) {
     accounts,
     loading,
     syncing,
+    syncError,
     extracting,
+    lastSyncAt:       accounts.find(a => a.is_active)?.last_sync_at ?? null,
     pendingCount:     suggestions.length,
     hasGmail:         accounts.some((a) => a.provider === "gmail"),
     hasTelegram:      accounts.some((a) => a.provider === "telegram"),
