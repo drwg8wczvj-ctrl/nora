@@ -18,10 +18,10 @@ const supabase = createClient(
 // Only send to AI if the message looks like it might have calendar content
 const CALENDAR_RE = /\b(\d{1,2}:\d{2}|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d+\s*(am|pm)|dinner|lunch|breakfast|meeting|appointment|flight|hotel|reservation|birthday|deadline|dentist|doctor|party|wedding|call|interview|visit|arrive|depart|schedule|event|ticket)\b/i;
 
-const MIN_LEN         = 12;
-const MAX_DIALOGS     = 12;
-const MSGS_PER_DIALOG = 5;
-const MAX_EXTRACT     = 6;
+const MIN_LEN         = 8;
+const MAX_DIALOGS     = 20;
+const MSGS_PER_DIALOG = 8;
+const MAX_EXTRACT     = 8;
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -54,9 +54,11 @@ module.exports = async function handler(req, res) {
   try {
     await client.connect();
 
-    const since = account.last_sync_at
-      ? new Date(account.last_sync_at)
-      : new Date(Date.now() - 72 * 60 * 60 * 1000); // 72h on first sync
+    // Always look back 72 h — dedup in intelligence-extract prevents double-saving.
+    // Using last_sync_at as the cutoff was causing messages to be missed when a
+    // prior sync succeeded at connecting but failed to save suggestions (the
+    // timestamp advanced past the messages).
+    const since = new Date(Date.now() - 72 * 60 * 60 * 1000);
 
     // Fetch dialogs then messages in parallel across dialogs
     const dialogs = await client.getDialogs({ limit: MAX_DIALOGS + 10 });
@@ -78,14 +80,9 @@ module.exports = async function handler(req, res) {
       )
     );
 
-    // Persist refreshed session immediately after disconnect
+    // Save refreshed session string
     const newSession = client.session.save();
     await client.disconnect();
-
-    await supabase.from("nora_connected_accounts").update({
-      telegram_session: newSession,
-      last_sync_at:     new Date().toISOString(),
-    }).eq("id", account.id);
 
     // Filter: recent + long enough + looks like calendar content
     const candidates = msgArrays.flat().filter(m =>
@@ -95,6 +92,11 @@ module.exports = async function handler(req, res) {
     );
 
     if (candidates.length === 0) {
+      // Still update session and timestamp even when nothing to process
+      await supabase.from("nora_connected_accounts").update({
+        telegram_session: newSession,
+        last_sync_at:     new Date().toISOString(),
+      }).eq("id", account.id);
       return res.status(200).json({ ok: true, scanned: 0, suggestions: 0 });
     }
 
@@ -103,8 +105,8 @@ module.exports = async function handler(req, res) {
     const batch  = candidates.slice(0, MAX_EXTRACT);
 
     const results = await Promise.all(
-      batch.map(msg =>
-        fetch(`${appUrl}/api/intelligence-extract`, {
+      batch.map(async msg => {
+        const r = await fetch(`${appUrl}/api/intelligence-extract`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({
@@ -115,13 +117,26 @@ module.exports = async function handler(req, res) {
             senderName:      msg.from,
             sourceAccountId: account.id,
           }),
-        })
-        .then(r => r.ok ? r.json() : { count: 0 })
-        .catch(() => ({ count: 0 }))
-      )
+        }).catch(e => { console.error("[telegram-sync] fetch error:", e.message); return null; });
+
+        if (!r || !r.ok) {
+          if (r) {
+            const body = await r.json().catch(() => ({}));
+            console.error("[telegram-sync] extract error:", body.error ?? body.detail ?? r.status);
+          }
+          return { count: 0 };
+        }
+        return r.json().catch(() => ({ count: 0 }));
+      })
     );
 
     const totalCount = results.reduce((s, r) => s + (r.count ?? 0), 0);
+
+    // Update session + timestamp only after successful extraction
+    await supabase.from("nora_connected_accounts").update({
+      telegram_session: newSession,
+      last_sync_at:     new Date().toISOString(),
+    }).eq("id", account.id);
 
     return res.status(200).json({ ok: true, scanned: batch.length, suggestions: totalCount });
   } catch (err) {

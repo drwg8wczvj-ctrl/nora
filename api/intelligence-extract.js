@@ -109,10 +109,23 @@ module.exports = async function handler(req, res) {
       }));
 
     if (rows.length > 0) {
-      await supabase.from("nora_suggestions").upsert(rows, {
-        onConflict: "user_id,source_type,source_id",
-        ignoreDuplicates: true,
-      });
+      // Supabase can't use a partial unique index with onConflict — do manual dedup instead.
+      const idsToCheck = rows.filter(r => r.source_id != null).map(r => r.source_id);
+      let alreadySaved = new Set();
+      if (idsToCheck.length > 0) {
+        const { data: existing } = await supabase
+          .from("nora_suggestions")
+          .select("source_id")
+          .eq("user_id", userId)
+          .eq("source_type", sourceType)
+          .in("source_id", idsToCheck);
+        if (existing) existing.forEach(r => alreadySaved.add(r.source_id));
+      }
+      const fresh = rows.filter(r => r.source_id == null || !alreadySaved.has(r.source_id));
+      if (fresh.length > 0) {
+        const { error: dbErr } = await supabase.from("nora_suggestions").insert(fresh);
+        if (dbErr) throw new Error(`DB insert failed: ${dbErr.message}`);
+      }
     }
 
     return res.status(200).json({ suggestions: rows, count: rows.length });
