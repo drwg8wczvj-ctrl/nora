@@ -1517,6 +1517,29 @@
 .mob-time-select { flex: 1.5; }
 .mob-min-select  { flex: 1; }
 
+.mob-time-display {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.mob-time-empty {
+  opacity: 0.38;
+  font-weight: 400;
+}
+/* Transparent native input sits on top — tap hits it, iOS opens picker */
+.mob-time-native {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .mob-pill-row { display: flex; gap: 7px; flex-wrap: wrap; }
 .mob-pill {
   display: inline-flex; align-items: center; gap: 5px;

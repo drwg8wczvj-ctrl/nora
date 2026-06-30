@@ -2496,20 +2496,25 @@ function MobileEditModal({ ctx }) {
           {/* Time */}
           <div className="mob-modal-field">
             <label className="mob-modal-label">Time</label>
-            <input
-              type="time"
-              className="mob-modal-select"
-              value={draft.startHour != null ? `${pad(draft.startHour)}:${pad(draft.startMinute ?? 0)}` : ""}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (!val) {
-                  setDraft(d => ({ ...d, startHour: null, startMinute: null }));
-                } else {
-                  const [h, m] = val.split(":").map(Number);
-                  setDraft(d => ({ ...d, startHour: h, startMinute: m }));
-                }
-              }}
-            />
+            <div className="mob-modal-select mob-time-display">
+              {draft.startHour != null
+                ? fmtTime(draft.startHour, draft.startMinute ?? 0)
+                : <span className="mob-time-empty">No time</span>}
+              <input
+                type="time"
+                className="mob-time-native"
+                value={draft.startHour != null ? `${pad(draft.startHour)}:${pad(draft.startMinute ?? 0)}` : ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) {
+                    setDraft(d => ({ ...d, startHour: null, startMinute: null }));
+                  } else {
+                    const [h, m] = val.split(":").map(Number);
+                    setDraft(d => ({ ...d, startHour: h, startMinute: m }));
+                  }
+                }}
+              />
+            </div>
           </div>
 
           {/* Duration */}
