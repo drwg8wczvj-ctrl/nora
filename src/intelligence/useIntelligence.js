@@ -62,6 +62,9 @@ export function useIntelligence({ session, onAddTask }) {
       window.history.replaceState({}, "", window.location.pathname);
     } else if (status === "gmail_denied" || status === "gmail_error") {
       window.history.replaceState({}, "", window.location.pathname);
+    } else if (status === "gmail_not_configured") {
+      window.history.replaceState({}, "", window.location.pathname);
+      alert("Gmail integration isn't set up yet. Add GOOGLE_CLIENT_ID and GOOGLE_REDIRECT_URI to your Vercel environment variables to enable it.");
     }
   }, [loadAccounts]);
 

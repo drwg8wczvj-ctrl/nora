@@ -13,13 +13,15 @@ const SCOPES = [
 
 module.exports = function handler(req, res) {
   const { user_id } = req.query;
-  if (!user_id) return res.status(400).json({ error: "user_id required" });
+  const appUrl = process.env.APP_URL || "https://nora-ten-brown.vercel.app";
+
+  if (!user_id) return res.redirect(302, `${appUrl}?intel_status=gmail_error`);
 
   const clientId     = process.env.GOOGLE_CLIENT_ID;
   const redirectUri  = process.env.GOOGLE_REDIRECT_URI;
 
   if (!clientId || !redirectUri) {
-    return res.status(503).json({ error: "Gmail integration not configured. See SETUP_INTELLIGENCE.md." });
+    return res.redirect(302, `${appUrl}?intel_status=gmail_not_configured`);
   }
 
   const params = new URLSearchParams({
