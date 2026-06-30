@@ -1,5 +1,6 @@
 import React from "react";
 import { X, RefreshCw, Sparkles, Plus, AlertCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import SuggestionCard from "./SuggestionCard";
 
 function formatRelative(ts) {
@@ -27,10 +28,11 @@ export default function SuggestionCenter({
   onSync,
   onOpenOnboarding,
 }) {
-  const syncLabel = syncing ? "Scanning…"
+  const { t } = useTranslation();
+  const syncLabel = syncing ? t("intel.scanning")
     : syncError   ? null
-    : lastSyncAt  ? `Updated ${formatRelative(lastSyncAt)}`
-    : accounts.length > 0 ? "Ready to scan" : null;
+    : lastSyncAt  ? t("intel.updatedAt", { time: formatRelative(lastSyncAt) })
+    : accounts.length > 0 ? t("intel.readyToScan") : null;
 
   return (
     <>
@@ -44,7 +46,7 @@ export default function SuggestionCenter({
               <Sparkles size={15} />
             </div>
             <div>
-              <div className="intel-head-title">Intelligence</div>
+              <div className="intel-head-title">{t("intel.title")}</div>
               {syncLabel && (
                 <div className={`intel-head-sub${syncing ? " syncing" : ""}`}>
                   {syncing && <RefreshCw size={10} className="intel-spin-icon" />}
@@ -58,11 +60,11 @@ export default function SuggestionCenter({
               className={`intel-icon-btn${syncing ? " syncing" : ""}`}
               onClick={onSync}
               disabled={syncing}
-              title="Sync now"
+              title={t("intel.syncNow")}
             >
               <RefreshCw size={15} />
             </button>
-            <button className="intel-icon-btn" onClick={onClose} title="Close">
+            <button className="intel-icon-btn" onClick={onClose} title={t("intel.close")}>
               <X size={17} />
             </button>
           </div>
@@ -85,7 +87,7 @@ export default function SuggestionCenter({
           ))}
           <button className="intel-add-account-btn" onClick={onOpenOnboarding}>
             <Plus size={11} />
-            Add
+            {t("intel.add")}
           </button>
         </div>
 
@@ -94,7 +96,7 @@ export default function SuggestionCenter({
           <div className="intel-sync-error">
             <AlertCircle size={14} />
             <span>{syncError}</span>
-            <button onClick={onSync}>Retry</button>
+            <button onClick={onSync}>{t("intel.retry")}</button>
           </div>
         )}
 
@@ -107,7 +109,7 @@ export default function SuggestionCenter({
               <div className="intel-scanning-orb">
                 <Sparkles size={22} />
               </div>
-              <p>Scanning your messages…</p>
+              <p>{t("intel.scanningMessages")}</p>
             </div>
           )}
 
@@ -115,9 +117,9 @@ export default function SuggestionCenter({
           {suggestions.length > 0 && (
             <>
               <div className="intel-section-hdr">
-                <h3>{suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""}</h3>
+                <h3>{t("intel.suggestionsCount", { count: suggestions.length })}</h3>
                 {suggestions.length > 1 && (
-                  <button onClick={onRejectAll}>Dismiss all</button>
+                  <button onClick={onRejectAll}>{t("intel.dismissAll")}</button>
                 )}
               </div>
               {suggestions.map((s) => (
@@ -135,15 +137,15 @@ export default function SuggestionCenter({
           {!syncing && suggestions.length === 0 && !syncError && (
             <div className="intel-empty">
               <div className="intel-empty-orb">✨</div>
-              <h3>All caught up</h3>
+              <h3>{t("intel.allCaughtUp")}</h3>
               <p>
                 {accounts.length > 0
-                  ? "No new suggestions. NORA scans every time you open this panel."
-                  : "Connect Telegram or Gmail so NORA can automatically detect events, deadlines, and reservations."}
+                  ? t("intel.noNewSuggestions")
+                  : t("intel.connectPrompt")}
               </p>
               {accounts.length === 0 && (
                 <button className="intel-empty-cta" onClick={onOpenOnboarding}>
-                  Connect a source
+                  {t("intel.connectSource")}
                 </button>
               )}
             </div>

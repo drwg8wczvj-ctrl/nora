@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "./lib/supabase";
 import { Eye, EyeOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import "./App.css";
 
 function pwStrength(pw) {
@@ -28,6 +29,7 @@ const maxBirthday = () => {
 };
 
 export default function AuthScreen({ dark, glass }) {
+  const { t } = useTranslation();
   const [mode,     setMode]     = useState("signin");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
@@ -59,14 +61,14 @@ export default function AuthScreen({ dark, glass }) {
           },
         });
         if (error) throw error;
-        setSuccess("Account created — check your email to confirm, then sign in.");
+        setSuccess(t("auth.accountCreated"));
         setMode("signin");
       } else if (mode === "forgot") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin,
         });
         if (error) throw error;
-        setSuccess("Reset link sent — check your inbox.");
+        setSuccess(t("auth.resetSent"));
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -93,23 +95,23 @@ export default function AuthScreen({ dark, glass }) {
             className="auth-brand-logo"
             alt="Nora" />
         </div>
-        <p className="auth-tagline">Your personal productivity assistant</p>
+        <p className="auth-tagline">{t("auth.tagline")}</p>
 
         {mode !== "forgot" && (
           <div className="auth-tabs">
             <button className={`auth-tab${mode === "signin" ? " active" : ""}`} onClick={() => switchMode("signin")}>
-              Sign in
+              {t("auth.signIn")}
             </button>
             <button className={`auth-tab${mode === "signup" ? " active" : ""}`} onClick={() => switchMode("signup")}>
-              Create account
+              {t("auth.createAccount")}
             </button>
           </div>
         )}
 
         {mode === "forgot" && (
           <div className="auth-forgot-header">
-            <p className="auth-forgot-title">Reset your password</p>
-            <p className="auth-forgot-sub">Enter your email and we'll send you a reset link.</p>
+            <p className="auth-forgot-title">{t("auth.resetTitle")}</p>
+            <p className="auth-forgot-sub">{t("auth.resetSub")}</p>
           </div>
         )}
 
@@ -117,7 +119,7 @@ export default function AuthScreen({ dark, glass }) {
           <input
             className="auth-input"
             type="email"
-            placeholder="Email"
+            placeholder={t("auth.email")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -126,13 +128,17 @@ export default function AuthScreen({ dark, glass }) {
 
           {mode !== "forgot" && (() => {
             const strength = mode === "signup" ? pwStrength(password) : null;
+            const strengthLabel = strength ? [null,
+              t("auth.pwWeak"), t("auth.pwFair"), t("auth.pwGood"),
+              t("auth.pwStrong"), t("auth.pwVeryStrong")
+            ][strength.score] : null;
             return (
               <>
                 <div className="auth-pw-wrap">
                   <input
                     className="auth-input"
                     type={showPassword ? "text" : "password"}
-                    placeholder={mode === "signup" ? "Password (min 6 chars)" : "Password"}
+                    placeholder={mode === "signup" ? t("auth.passwordMinChars") : t("auth.password")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -143,7 +149,7 @@ export default function AuthScreen({ dark, glass }) {
                     className="auth-pw-eye"
                     tabIndex={-1}
                     onClick={() => setShowPassword((v) => !v)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
                   >
                     {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
@@ -160,7 +166,7 @@ export default function AuthScreen({ dark, glass }) {
                       ))}
                     </div>
                     <span className="auth-strength-label" style={{ color: strength.color }}>
-                      {strength.label}
+                      {strengthLabel}
                     </span>
                   </div>
                 )}
@@ -174,7 +180,7 @@ export default function AuthScreen({ dark, glass }) {
               className="auth-forgot-link"
               onClick={() => switchMode("forgot")}
             >
-              Forgot password?
+              {t("auth.forgotPassword")}
             </button>
           )}
 
@@ -183,13 +189,13 @@ export default function AuthScreen({ dark, glass }) {
               <input
                 className="auth-input"
                 type="text"
-                placeholder="Your name"
+                placeholder={t("auth.yourName")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
               <div className="auth-field">
-                <label className="auth-field-label">Birthday</label>
+                <label className="auth-field-label">{t("auth.birthday")}</label>
                 <input
                   className="auth-input"
                   type="date"
@@ -207,7 +213,7 @@ export default function AuthScreen({ dark, glass }) {
           {success && <p className="auth-msg auth-success">{success}</p>}
 
           <button className="auth-submit" type="submit" disabled={loading}>
-            {loading ? "…" : mode === "signin" ? "Sign in" : mode === "forgot" ? "Send reset link" : "Create account"}
+            {loading ? t("auth.loading") : mode === "signin" ? t("auth.signIn") : mode === "forgot" ? t("auth.sendResetLink") : t("auth.createAccount")}
           </button>
 
           {mode === "forgot" && (
@@ -216,7 +222,7 @@ export default function AuthScreen({ dark, glass }) {
               className="auth-back-link"
               onClick={() => switchMode("signin")}
             >
-              ← Back to sign in
+              {t("auth.backToSignIn")}
             </button>
           )}
         </form>

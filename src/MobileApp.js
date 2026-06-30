@@ -24,6 +24,7 @@ import ProfileModal from "./components/ProfileModal";
 import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
 import { MobileWhiteboardView } from "./Whiteboard";
 import "./MobileApp.css";
+import { useTranslation } from "react-i18next";
 
 // ── Local helpers ────────────────────────────────────────────
 const uid  = () => Math.random().toString(36).slice(2);
@@ -90,6 +91,7 @@ const fmtDur = (min) => {
 
 // ── Root ─────────────────────────────────────────────────────
 export default function MobileApp({ ctx }) {
+  const { t } = useTranslation();
   const [mobileView,    setMobileView]    = useState("plan");
   const [planSubView,   setPlanSubView]   = useState("day");
   const [dayMode,       setDayMode]       = useState("list");
@@ -143,11 +145,11 @@ export default function MobileApp({ ctx }) {
 
       <nav className="mob-bottom-nav">
         {[
-          ["plan",     "Plan",     <CalendarDays size={21} />],
-          ["tasks",    "Tasks",    <CheckSquare size={21} />],
-          ["notes",    "Notes",    <FileText size={21} />],
-          ["status",   "Status",   <Activity size={21} />],
-          ["settings", "Settings", <Settings size={21} />],
+          ["plan",     t("mob.plan"),     <CalendarDays size={21} />],
+          ["tasks",    t("mob.tasks"),    <CheckSquare size={21} />],
+          ["notes",    t("mob.notes"),    <FileText size={21} />],
+          ["status",   t("mob.status"),   <Activity size={21} />],
+          ["settings", t("mob.settings"), <Settings size={21} />],
         ].map(([v, l, icon]) => (
           <button key={v}
             className={`mob-nav-btn${mobileView === v ? " mob-nav-active" : ""}`}
@@ -2023,6 +2025,7 @@ function MobNameEditor({ name, onSave }) {
 const GROUP_PRESET_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#8b5cf6","#ec4899"];
 
 function MobileSettings({ ctx }) {
+  const { t, i18n } = useTranslation();
   const {
     accountName, setAccountName,
     dark, setDark,
@@ -2052,7 +2055,7 @@ function MobileSettings({ ctx }) {
     <div className="mob-settings">
       {/* Profile */}
       <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><User size={15} /> Profile</div>
+        <div className="mob-sett-card-title"><User size={15} /> {t("account.profile")}</div>
         <div className="mob-sett-avatar-row">
           <button className="mob-sett-avatar-btn" onClick={() => setShowProfileModal?.(true)}>
             <AvatarDisplay avatar={profileToAvatar(userProfile)} size={44} />
@@ -2066,37 +2069,49 @@ function MobileSettings({ ctx }) {
           </div>
         </div>
         <button className="mob-edit-profile-btn" onClick={() => setShowProfileModal?.(true)}>
-          Edit profile &amp; avatar
+          {t("account.editProfileAvatar")}
         </button>
         <button className="mob-edit-profile-btn" onClick={() => ctx.setShowJoinCode?.(true)}>
-          <KeyRound size={14} /> Join with invite code
+          <KeyRound size={14} /> {t("account.joinInviteCode")}
         </button>
       </div>
 
       {/* Appearance */}
       <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><Activity size={15} /> Appearance</div>
+        <div className="mob-sett-card-title"><Activity size={15} /> {t("settings.appearance")}</div>
         <div className="mob-sett-row">
-          <span className="mob-sett-row-label">Dark mode</span>
+          <span className="mob-sett-row-label">{t("settings.darkMode")}</span>
           <button className={`mob-toggle${dark ? " on" : ""}`} onClick={() => setDark((d) => !d)}>
             <span className="mob-toggle-knob" />
           </button>
         </div>
         <div className="mob-sett-divider" />
         <div className="mob-sett-row">
-          <span className="mob-sett-row-label">Theme</span>
+          <span className="mob-sett-row-label">{t("settings.theme")}</span>
         </div>
         <div className="mob-theme-pills">
           <button className={`mob-theme-pill${theme === "default" ? " active" : ""}`}
-            onClick={() => setTheme("default")}>Default</button>
+            onClick={() => setTheme("default")}>{t("settings.default")}</button>
           <button className={`mob-theme-pill${theme === "liquid_glass" ? " active" : ""}`}
-            onClick={() => setTheme("liquid_glass")}>✦ Liquid Glass</button>
+            onClick={() => setTheme("liquid_glass")}>{t("settings.liquidGlass")}</button>
+        </div>
+        <div className="mob-sett-divider" />
+        <div className="mob-sett-row">
+          <span className="mob-sett-row-label">{t("settings.language")}</span>
+        </div>
+        <div className="mob-theme-pills">
+          <button className={`mob-theme-pill${i18n.resolvedLanguage === "en" ? " active" : ""}`}
+            onClick={() => i18n.changeLanguage("en")}>🇬🇧 EN</button>
+          <button className={`mob-theme-pill${i18n.resolvedLanguage === "de" ? " active" : ""}`}
+            onClick={() => i18n.changeLanguage("de")}>🇩🇪 DE</button>
+          <button className={`mob-theme-pill${i18n.resolvedLanguage === "ru" ? " active" : ""}`}
+            onClick={() => i18n.changeLanguage("ru")}>🇷🇺 RU</button>
         </div>
       </div>
 
       {/* Notifications */}
       <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><Bell size={15} /> Notifications</div>
+        <div className="mob-sett-card-title"><Bell size={15} /> {t("settings.notifications")}</div>
         <NotificationSettings
           permission={notifPermission}
           settings={notifSettings}
@@ -2113,7 +2128,7 @@ function MobileSettings({ ctx }) {
 
       {/* Groups */}
       <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><Activity size={15} /> Task Groups</div>
+        <div className="mob-sett-card-title"><Activity size={15} /> {t("account.taskGroups")}</div>
         {/* Existing groups */}
         {(groups || []).map(g => {
           const isBuiltin = g.id === "private" || g.id === "work";
@@ -2122,7 +2137,7 @@ function MobileSettings({ ctx }) {
               <span className="mob-group-dot" style={{ background: g.color }} />
               <span className="mob-group-name">{g.name}</span>
               {isBuiltin
-                ? <span className="mob-group-builtin">Built-in</span>
+                ? <span className="mob-group-builtin">{t("account.builtin")}</span>
                 : <button className="mob-group-del" onClick={() => deleteGroup(g.id)} aria-label={`Delete ${g.name}`}>
                     <Trash2 size={14} />
                   </button>
@@ -2145,7 +2160,7 @@ function MobileSettings({ ctx }) {
             <input className="mob-sett-input" value={newGroupName}
               onChange={e => setNewGroupName(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") addGroup(); }}
-              placeholder="New group name" />
+              placeholder={t("account.newGroupName")} />
             <button className="mob-group-add-btn"
               style={{ background: newGroupColor, opacity: newGroupName.trim() ? 1 : 0.4 }}
               onClick={addGroup} disabled={!newGroupName.trim()}>
@@ -2157,10 +2172,10 @@ function MobileSettings({ ctx }) {
 
       {/* Account */}
       <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><User size={15} /> Account</div>
+        <div className="mob-sett-card-title"><User size={15} /> {t("account.account")}</div>
         <p className="mob-sett-email-text">{session?.user?.email}</p>
         <button className="mob-signout-btn" onClick={() => supabase.auth.signOut()}>
-          Sign out
+          {t("account.signOut")}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { X, CheckCircle, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const STEPS = ["welcome", "gmail", "telegram", "done"];
 const TOTAL  = STEPS.length - 1; // exclude done from progress dots
@@ -14,6 +15,7 @@ export default function IntelligenceOnboarding({
   hasTelegram,
   markOnboarded,
 }) {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
 
   // Telegram auth state
@@ -45,7 +47,7 @@ export default function IntelligenceOnboarding({
     if (result?.ok) {
       setTgPhase("code");
     } else {
-      setTgError(result?.error ?? "Could not send code. Check the phone number format (+1234567890).");
+      setTgError(result?.error ?? t("ob.errSendCode"));
     }
   };
 
@@ -62,7 +64,7 @@ export default function IntelligenceOnboarding({
     } else if (result?.needs2fa) {
       setTgPhase("2fa");
     } else {
-      setTgError(result?.error ?? "Incorrect code. Check your Telegram app.");
+      setTgError(result?.error ?? t("ob.errWrongCode"));
     }
   };
 
@@ -77,7 +79,7 @@ export default function IntelligenceOnboarding({
       setTgPhase("done");
       setTimeout(next, 1400);
     } else {
-      setTgError(result?.error ?? "Wrong password.");
+      setTgError(result?.error ?? t("ob.errWrongPassword"));
     }
   };
 
@@ -107,33 +109,29 @@ export default function IntelligenceOnboarding({
                 <div className="ob-hero-orb">
                   <Sparkles size={28} color="#fff" />
                 </div>
-                <h1>Meet NORA Intelligence</h1>
-                <p>
-                  Connect your inbox and messaging apps. NORA will automatically
-                  detect appointments, deadlines, and reservations — and ask
-                  before adding anything to your planner.
-                </p>
+                <h1>{t("ob.meetTitle")}</h1>
+                <p>{t("ob.meetDesc")}</p>
               </div>
 
               <div className="ob-features">
                 {[
-                  { icon: "📅", title: "Appointment detection", desc: "Doctor visits, meetings, calls" },
-                  { icon: "✈️", title: "Travel recognition",    desc: "Flights, hotels, itineraries" },
-                  { icon: "🍽️", title: "Reservation parsing",  desc: "Restaurants, events, tickets" },
-                  { icon: "⏰", title: "Deadline extraction",   desc: "Due dates, submission windows" },
-                ].map(({ icon, title, desc }) => (
-                  <div key={title} className="ob-feature">
+                  { icon: "📅", titleKey: "ob.feat.appointmentTitle", descKey: "ob.feat.appointmentDesc" },
+                  { icon: "✈️", titleKey: "ob.feat.travelTitle",      descKey: "ob.feat.travelDesc" },
+                  { icon: "🍽️", titleKey: "ob.feat.reservationTitle", descKey: "ob.feat.reservationDesc" },
+                  { icon: "⏰", titleKey: "ob.feat.deadlineTitle",    descKey: "ob.feat.deadlineDesc" },
+                ].map(({ icon, titleKey, descKey }) => (
+                  <div key={titleKey} className="ob-feature">
                     <div className="ob-feature-icon">{icon}</div>
                     <div className="ob-feature-text">
-                      <strong>{title}</strong>
-                      <span>{desc}</span>
+                      <strong>{t(titleKey)}</strong>
+                      <span>{t(descKey)}</span>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <button className="ob-cta" onClick={next}>Get started</button>
-              <button className="ob-skip" onClick={finish}>Maybe later</button>
+              <button className="ob-cta" onClick={next}>{t("ob.getStarted")}</button>
+              <button className="ob-skip" onClick={finish}>{t("ob.maybeLater")}</button>
             </>
           )}
 
@@ -142,23 +140,19 @@ export default function IntelligenceOnboarding({
             <>
               <div className="ob-connect-hero">
                 <div className="ob-connect-icon-wrap gmail">📧</div>
-                <h2>Connect Gmail</h2>
-                <p>
-                  NORA reads your recent emails to detect reservations, flight
-                  confirmations, deadlines, and more — and surfaces them as
-                  suggestions for you to approve.
-                </p>
+                <h2>{t("ob.connectGmailTitle")}</h2>
+                <p>{t("ob.connectGmailDesc")}</p>
               </div>
 
               {hasGmail ? (
                 <button className="ob-connect-btn connected" disabled>
                   <CheckCircle size={18} />
-                  Gmail Connected
+                  {t("ob.gmailConnected")}
                 </button>
               ) : (
                 <button className="ob-connect-btn gmail" onClick={onConnectGmail}>
                   <span>G</span>
-                  Connect with Google
+                  {t("ob.connectWithGoogle")}
                 </button>
               )}
 
@@ -172,12 +166,11 @@ export default function IntelligenceOnboarding({
                 lineHeight: 1.5,
                 marginBottom: 16,
               }}>
-                🔒 NORA only reads emails — never sends, modifies, or deletes anything.
-                You can disconnect at any time.
+                {t("ob.gmailPrivacy")}
               </div>
 
               <button className="ob-cta" onClick={next}>
-                {hasGmail ? "Continue" : "Skip for now"}
+                {hasGmail ? t("ob.continue") : t("ob.skipForNow")}
               </button>
             </>
           )}
@@ -187,18 +180,14 @@ export default function IntelligenceOnboarding({
             <>
               <div className="ob-connect-hero">
                 <div className="ob-connect-icon-wrap telegram">✈️</div>
-                <h2>Connect Telegram</h2>
-                <p>
-                  NORA reads your recent messages automatically and surfaces
-                  appointments, deadlines, and reservations — you just review
-                  and approve.
-                </p>
+                <h2>{t("ob.connectTelegramTitle")}</h2>
+                <p>{t("ob.connectTelegramDesc")}</p>
               </div>
 
               {hasTelegram || tgPhase === "done" ? (
                 <button className="ob-connect-btn connected" disabled>
                   <CheckCircle size={18} />
-                  Telegram Connected{tgName ? ` · ${tgName}` : ""}
+                  {tgName ? t("ob.telegramConnectedName", { name: tgName }) : t("ob.telegramConnected")}
                 </button>
               ) : (
                 <div className="ob-telegram-steps">
@@ -207,23 +196,23 @@ export default function IntelligenceOnboarding({
                   {tgPhase === "phone" && (
                     <>
                       <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
-                        Enter your Telegram phone number. NORA will send you a verification code via Telegram.
+                        {t("ob.enterPhone")}
                       </p>
                       <div className="ob-link-code-input">
                         <input
                           type="tel"
                           value={phone}
                           onChange={(e) => { setPhone(e.target.value); setTgError(""); }}
-                          placeholder="+1 234 567 8900"
+                          placeholder={t("ob.phonePlaceholder")}
                           onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
                           autoFocus
                         />
                         <button onClick={handleSendCode} disabled={tgBusy || !phone.trim()}>
-                          {tgBusy ? "Sending…" : "Send code"}
+                          {tgBusy ? t("ob.sending") : t("ob.sendCode")}
                         </button>
                       </div>
                       <p style={{ marginTop: 6, fontSize: 11, color: "var(--text-muted)" }}>
-                        Include country code, e.g. +49 for Germany
+                        {t("ob.phoneHint")}
                       </p>
                     </>
                   )}
@@ -232,8 +221,7 @@ export default function IntelligenceOnboarding({
                   {tgPhase === "code" && (
                     <>
                       <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
-                        Check your Telegram app — a code was just sent to{" "}
-                        <strong>{phone}</strong>.
+                        {t("ob.codeSentTo", { phone })}
                       </p>
                       <div className="ob-link-code-input">
                         <input
@@ -247,14 +235,14 @@ export default function IntelligenceOnboarding({
                           autoFocus
                         />
                         <button onClick={handleVerifyCode} disabled={tgBusy || !code.trim()}>
-                          {tgBusy ? "Verifying…" : "Verify"}
+                          {tgBusy ? t("ob.verifying") : t("ob.verify")}
                         </button>
                       </div>
                       <button
                         style={{ fontSize: 12, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", marginTop: 6, padding: 0 }}
                         onClick={() => { setTgPhase("phone"); setCode(""); setTgError(""); }}
                       >
-                        ← Use a different number
+                        {t("ob.useDifferentNumber")}
                       </button>
                     </>
                   )}
@@ -263,19 +251,19 @@ export default function IntelligenceOnboarding({
                   {tgPhase === "2fa" && (
                     <>
                       <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
-                        Your account has two-step verification enabled. Enter your Telegram cloud password.
+                        {t("ob.twoFaDesc")}
                       </p>
                       <div className="ob-link-code-input">
                         <input
                           type="password"
                           value={tgPassword}
                           onChange={(e) => { setTgPassword(e.target.value); setTgError(""); }}
-                          placeholder="Cloud password"
+                          placeholder={t("ob.cloudPassword")}
                           onKeyDown={(e) => e.key === "Enter" && handleVerify2fa()}
                           autoFocus
                         />
                         <button onClick={handleVerify2fa} disabled={tgBusy || !tgPassword.trim()}>
-                          {tgBusy ? "Checking…" : "Confirm"}
+                          {tgBusy ? t("ob.checking") : t("ob.confirm")}
                         </button>
                       </div>
                     </>
@@ -288,7 +276,7 @@ export default function IntelligenceOnboarding({
               )}
 
               <button className="ob-cta" onClick={next} style={{ marginTop: 16 }}>
-                {hasTelegram || tgPhase === "done" ? "Continue" : "Skip for now"}
+                {hasTelegram || tgPhase === "done" ? t("ob.continue") : t("ob.skipForNow")}
               </button>
             </>
           )}
@@ -297,21 +285,17 @@ export default function IntelligenceOnboarding({
           {stepKey === "done" && (
             <div className="ob-success">
               <div className="ob-success-ring">✨</div>
-              <h2>NORA Intelligence is active</h2>
-              <p>
-                I'll monitor your connected sources and surface suggestions
-                whenever I find something worth your attention. You'll always
-                review before anything is added.
-              </p>
+              <h2>{t("ob.doneTitle")}</h2>
+              <p>{t("ob.doneDesc")}</p>
 
               {(hasGmail || hasTelegram) && (
                 <div className="ob-connected-list">
-                  {hasGmail    && <div className="ob-connected-item">📧 Gmail connected</div>}
-                  {hasTelegram && <div className="ob-connected-item">✈️ Telegram connected</div>}
+                  {hasGmail    && <div className="ob-connected-item">{t("ob.gmailConnectedItem")}</div>}
+                  {hasTelegram && <div className="ob-connected-item">{t("ob.telegramConnectedItem")}</div>}
                 </div>
               )}
 
-              <button className="ob-cta" onClick={finish}>Open NORA</button>
+              <button className="ob-cta" onClick={finish}>{t("ob.openNora")}</button>
             </div>
           )}
         </div>

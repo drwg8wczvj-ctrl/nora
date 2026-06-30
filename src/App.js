@@ -47,6 +47,7 @@ import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
 import "./App.css";
 import "./glass.css";
+import { useTranslation } from "react-i18next";
 import { useIntelligence } from "./intelligence/useIntelligence";
 import ProactiveOverlay from "./intelligence/ProactiveOverlay";
 import SuggestionCenter from "./intelligence/SuggestionCenter";
@@ -668,6 +669,7 @@ export default function App() {
   });
   useEffect(() => { try { localStorage.setItem("nora_whiteboards", JSON.stringify(boards)); } catch {} }, [boards]);
   const [dark,         setDark]         = useLocalStorage("nora_dark", false);
+  const { t, i18n } = useTranslation();
   const [dragOver,     setDragOver]     = useState(null);
   const [zoomLevel,    setZoomLevel]    = useState(1);
   const [filterGroup,      setFilterGroup]      = useState(null);
@@ -3159,7 +3161,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         </div>
 
         <nav className="sidebar-nav">
-          {[["day","Day View",<CalendarDays size={16} />],["month","Month View",<CalendarDays size={16} />],["list","All Tasks",<List size={16} />],["notes","Notes",<FileText size={16} />],["boards","Whiteboards",<Layers size={16} />],["status","My Status",<Activity size={16} />]].map(([v,label,icon]) => (
+          {[["day",t("nav.dayView"),<CalendarDays size={16} />],["month",t("nav.monthView"),<CalendarDays size={16} />],["list",t("nav.allTasks"),<List size={16} />],["notes",t("nav.notes"),<FileText size={16} />],["boards",t("nav.whiteboards"),<Layers size={16} />],["status",t("nav.myStatus"),<Activity size={16} />]].map(([v,label,icon]) => (
             <button key={v} className={`snav-btn${view === v ? " active" : ""}`}
               onClick={() => { navigateTo(v); setSidebarOpen(false); }}>
               {icon} {label}
@@ -3173,24 +3175,32 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           <button className={`sacc-btn${activeSettings === "program" ? " open" : ""}`}
             onClick={() => setActiveSettings(activeSettings === "program" ? null : "program")}>
             <Settings size={15} />
-            <span>Program Settings</span>
+            <span>{t("settings.programSettings")}</span>
             <ChevronDown size={13} className={`sacc-arrow${activeSettings === "program" ? " open" : ""}`} />
           </button>
           {activeSettings === "program" && (
             <div className="sacc-body">
               <div className="sett-row">
-                <span className="sett-label">Dark Mode</span>
+                <span className="sett-label">{t("settings.darkMode")}</span>
                 <button className={`theme-toggle${dark ? " on" : ""}`} onClick={() => setDark((d) => !d)} />
               </div>
               <div className="sett-field">
-                <label className="sett-field-lbl">Appearance</label>
+                <label className="sett-field-lbl">{t("settings.appearance")}</label>
                 <div className="theme-pill-group">
-                  <button className={`theme-pill${theme === "default" ? " active" : ""}`} onClick={() => setTheme("default")}>Default</button>
-                  <button className={`theme-pill${theme === "liquid_glass" ? " active" : ""}`} onClick={() => setTheme("liquid_glass")}>✦ Liquid Glass</button>
+                  <button className={`theme-pill${theme === "default" ? " active" : ""}`} onClick={() => setTheme("default")}>{t("settings.default")}</button>
+                  <button className={`theme-pill${theme === "liquid_glass" ? " active" : ""}`} onClick={() => setTheme("liquid_glass")}>{t("settings.liquidGlass")}</button>
+                </div>
+              </div>
+              <div className="sett-field">
+                <label className="sett-field-lbl">{t("settings.language")}</label>
+                <div className="theme-pill-group">
+                  <button className={`theme-pill${i18n.resolvedLanguage === "en" ? " active" : ""}`} onClick={() => i18n.changeLanguage("en")}>🇬🇧 EN</button>
+                  <button className={`theme-pill${i18n.resolvedLanguage === "de" ? " active" : ""}`} onClick={() => i18n.changeLanguage("de")}>🇩🇪 DE</button>
+                  <button className={`theme-pill${i18n.resolvedLanguage === "ru" ? " active" : ""}`} onClick={() => i18n.changeLanguage("ru")}>🇷🇺 RU</button>
                 </div>
               </div>
               <div className="sett-row">
-                <span className="sett-label">Notifications</span>
+                <span className="sett-label">{t("settings.notifications")}</span>
               </div>
               <NotificationSettings
                 permission={notifPermission}
@@ -3212,13 +3222,13 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           <button className={`sacc-btn${activeSettings === "account" ? " open" : ""}`}
             onClick={() => setActiveSettings(activeSettings === "account" ? null : "account")}>
             <User size={15} />
-            <span>Account</span>
+            <span>{t("account.account")}</span>
             <ChevronDown size={13} className={`sacc-arrow${activeSettings === "account" ? " open" : ""}`} />
           </button>
           {activeSettings === "account" && (
             <div className="sacc-body">
               <div className="acc-profile-card">
-                <button className="acc-avatar-btn" onClick={() => setShowProfileModal(true)} title="Edit profile">
+                <button className="acc-avatar-btn" onClick={() => setShowProfileModal(true)} title={t("account.editProfile")}>
                   <AvatarDisplay avatar={profileToAvatar(userProfile)} size={38} />
                 </button>
                 <div className="acc-profile-info">
@@ -3230,13 +3240,13 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 </div>
               </div>
               <button className="acc-edit-profile-btn" onClick={() => setShowProfileModal(true)}>
-                Edit profile
+                {t("account.editProfile")}
               </button>
               <button className="acc-edit-profile-btn" onClick={() => setShowJoinCode(true)}>
-                <KeyRound size={13} /> Join with invite code
+                <KeyRound size={13} /> {t("account.joinInviteCode")}
               </button>
               <button className="sett-signout-btn" onClick={() => supabase.auth.signOut()}>
-                Sign out
+                {t("account.signOut")}
               </button>
             </div>
           )}
