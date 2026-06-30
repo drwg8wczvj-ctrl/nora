@@ -3089,7 +3089,44 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       onIntelClick: () => intel.setCenterOpen(true),
       intelCount: intel.pendingCount,
     };
-    return <MobileApp ctx={mobileCtx} />;
+    return (
+      <>
+        <MobileApp ctx={mobileCtx} />
+        {intel.proactiveVisible && !intel.centerOpen && (
+          <ProactiveOverlay
+            suggestions={intel.suggestions}
+            onReview={() => { intel.setProactiveVisible(false); intel.setCenterOpen(true); }}
+            onDismiss={() => intel.setProactiveVisible(false)}
+          />
+        )}
+        {intel.centerOpen && (
+          <SuggestionCenter
+            suggestions={intel.suggestions}
+            accounts={intel.accounts}
+            syncing={intel.syncing}
+            extracting={intel.extracting}
+            onClose={() => intel.setCenterOpen(false)}
+            onAccept={intel.acceptSuggestion}
+            onReject={intel.rejectSuggestion}
+            onRejectAll={intel.rejectAll}
+            onSync={async () => { await intel.syncGmail(); await intel.syncTelegram(); }}
+            onExtractText={intel.extractFromText}
+            onOpenOnboarding={() => { intel.setCenterOpen(false); intel.setOnboardingOpen(true); }}
+          />
+        )}
+        {intel.onboardingOpen && (
+          <IntelligenceOnboarding
+            hasGmail={intel.hasGmail}
+            hasTelegram={intel.hasTelegram}
+            onClose={() => intel.setOnboardingOpen(false)}
+            onConnectGmail={intel.connectGmail}
+            onConnectTelegramPhone={intel.connectTelegramPhone}
+            onVerifyTelegramCode={intel.verifyTelegramCode}
+            markOnboarded={intel.markOnboarded}
+          />
+        )}
+      </>
+    );
   }
 
   // ── Desktop render ────────────────────────────────────

@@ -41,7 +41,13 @@ export function useIntelligence({ session, onAddTask }) {
   useEffect(() => {
     if (!session) return;
     setLoading(true);
-    Promise.all([loadSuggestions(), loadAccounts()]).finally(() => setLoading(false));
+    Promise.all([loadSuggestions(), loadAccounts()]).finally(() => {
+      setLoading(false);
+      // First-time users: auto-open onboarding so NORA asks for access
+      if (!localStorage.getItem(INTEL_ONBOARDING_KEY)) {
+        setTimeout(() => setOnboardingOpen(true), 2000);
+      }
+    });
   }, [session, loadSuggestions, loadAccounts]);
 
   // Show proactive overlay once per session when suggestions exist
