@@ -47,6 +47,11 @@ import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
 import "./App.css";
 import "./glass.css";
+import { useIntelligence } from "./intelligence/useIntelligence";
+import ProactiveOverlay from "./intelligence/ProactiveOverlay";
+import SuggestionCenter from "./intelligence/SuggestionCenter";
+import IntelligenceOnboarding from "./intelligence/IntelligenceOnboarding";
+import "./intelligence/intelligence.css";
 
 // ── Constants ──────────────────────────────────────────
 const COMPLEXITY = {
@@ -784,6 +789,25 @@ export default function App() {
     subscribeToPush,
     forceResubscribe:  forceResubscribePush,
   } = useNotifications();
+
+  // ── Intelligence Layer ─────────────────────────────────────────────────────
+  const intel = useIntelligence({
+    session,
+    onAddTask: (task) => {
+      const newTask = {
+        id:          Math.random().toString(36).slice(2),
+        title:       task.title ?? "New task",
+        date:        task.date ?? today,
+        startHour:   task.startHour   ?? null,
+        startMinute: task.startMinute ?? null,
+        completed:   false,
+        type:        "task",
+        note:        task.note ?? null,
+        repeat:      null,
+      };
+      setTasks((prev) => [...prev, newTask]);
+    },
+  });
 
   // Re-sync push subscription to server whenever auth session is confirmed.
   // Belt-and-suspenders: covers the race where SW fired before Supabase session was ready.
@@ -3183,6 +3207,15 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </div>
           <div className="header-right">
             <span className="header-date">{view === "day" ? prettyDate(selectedDate) : view === "month" ? monthLabel : view === "notes" ? "Notes" : "All Tasks"}</span>
+            <button
+              className="intel-btn"
+              onClick={() => intel.setCenterOpen(true)}
+              title="NORA Intelligence"
+              aria-label={intel.pendingCount > 0 ? `${intel.pendingCount} suggestions` : "NORA Intelligence"}
+            >
+              <Sparkles size={17} />
+              {intel.pendingCount > 0 && <span className="intel-btn-dot" />}
+            </button>
           </div>
         </header>
 
@@ -4886,6 +4919,42 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             setUserProfile((p) => ({ ...p, ...updated }));
             if (updated.name) setAccountName(updated.name);
           }}
+        />
+      )}
+
+      {/* ── Intelligence Layer ──────────────────────────────── */}
+      {intel.proactiveVisible && !intel.centerOpen && (
+        <ProactiveOverlay
+          suggestions={intel.suggestions}
+          onReview={() => { intel.setProactiveVisible(false); intel.setCenterOpen(true); }}
+          onDismiss={() => intel.setProactiveVisible(false)}
+        />
+      )}
+
+      {intel.centerOpen && (
+        <SuggestionCenter
+          suggestions={intel.suggestions}
+          accounts={intel.accounts}
+          syncing={intel.syncing}
+          extracting={intel.extracting}
+          onClose={() => intel.setCenterOpen(false)}
+          onAccept={intel.acceptSuggestion}
+          onReject={intel.rejectSuggestion}
+          onRejectAll={intel.rejectAll}
+          onSync={intel.syncGmail}
+          onExtractText={intel.extractFromText}
+          onOpenOnboarding={() => { intel.setCenterOpen(false); intel.setOnboardingOpen(true); }}
+        />
+      )}
+
+      {intel.onboardingOpen && (
+        <IntelligenceOnboarding
+          hasGmail={intel.hasGmail}
+          hasTelegram={intel.hasTelegram}
+          onClose={() => intel.setOnboardingOpen(false)}
+          onConnectGmail={intel.connectGmail}
+          onLinkTelegram={intel.linkTelegram}
+          markOnboarded={intel.markOnboarded}
         />
       )}
     </div>
