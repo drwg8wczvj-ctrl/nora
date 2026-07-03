@@ -2557,18 +2557,6 @@
 .dark .mob-nav-btn.mob-nav-active {
   background: rgba(124, 58, 237, 0.18);
 }
-.mob-nav-btn.mob-nav-active::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 5px;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: currentColor;
-  transform: translateX(-50%);
-  box-shadow: 0 0 14px currentColor;
-}
 .mob-nav-btn:active {
   opacity: 1;
   transform: scale(0.94);
