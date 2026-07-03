@@ -51,6 +51,8 @@ function AddPlaceForm({ onAdd, onCancel }) {
     setResults([]);
   };
 
+  const fmtResult = (r) => r.line1 && r.line2 ? { top: r.line1, sub: r.line2 } : { top: r.shortName, sub: null };
+
   const handleSave = () => {
     if (!name.trim()) return;
     onAdd({
@@ -85,12 +87,18 @@ function AddPlaceForm({ onAdd, onCancel }) {
         </div>
         {results.length > 0 && (
           <div className="spm-geo-results">
-            {results.map((r, i) => (
-              <button key={i} className="spm-geo-opt" onClick={() => handlePickResult(r)}>
-                <MapPin size={11} />
-                <span>{r.shortName}</span>
-              </button>
-            ))}
+            {results.map((r, i) => {
+              const fmt = fmtResult(r);
+              return (
+                <button key={i} className="spm-geo-opt" onClick={() => handlePickResult(r)}>
+                  <MapPin size={11} />
+                  <span className="spm-geo-opt-info">
+                    <span className="spm-geo-opt-line1">{fmt.top}</span>
+                    {fmt.sub && <span className="spm-geo-opt-line2">{fmt.sub}</span>}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

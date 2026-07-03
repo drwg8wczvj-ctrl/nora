@@ -33,19 +33,36 @@ export function estimateTravelMinutes(from, to, mode = 'mixed') {
   return Math.ceil((distKm / speed) * 60 * 1.25) + 5;
 }
 
+// Format a Nominatim address object into "Street Number\nCity" style
+function formatAddress(r) {
+  const a = r.address ?? {};
+
+  // Line 1: road + house number (or fallback to amenity / display_name first chunk)
+  const street = a.road ?? a.pedestrian ?? a.footway ?? a.cycleway ?? "";
+  const num    = a.house_number ?? "";
+  const line1  = street ? (num ? `${street} ${num}` : street) : (a.amenity ?? r.display_name.split(",")[0].trim());
+
+  // Line 2: city-level name
+  const city = a.city ?? a.town ?? a.village ?? a.municipality ?? a.county ?? "";
+
+  return {
+    line1:       line1.trim(),
+    line2:       city.trim(),
+    shortName:   city ? `${line1.trim()}, ${city.trim()}` : line1.trim(),
+    displayName: r.display_name,
+    lat:         parseFloat(r.lat),
+    lng:         parseFloat(r.lon),
+  };
+}
+
 // Geocode an address using Nominatim (OpenStreetMap, no API key needed)
 export async function geocodeAddress(query) {
   if (!query?.trim()) return [];
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=0&q=${encodeURIComponent(query)}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=${encodeURIComponent(query)}`;
   try {
     const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
     const data = await resp.json();
-    return data.map((r) => ({
-      displayName: r.display_name,
-      shortName:   r.display_name.split(',').slice(0, 2).join(',').trim(),
-      lat:         parseFloat(r.lat),
-      lng:         parseFloat(r.lon),
-    }));
+    return data.map(formatAddress);
   } catch {
     return [];
   }

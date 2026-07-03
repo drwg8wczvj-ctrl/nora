@@ -215,6 +215,9 @@
 .spm-geo-opt:hover { background: rgba(0,0,0,.04); }
 .dark .spm-geo-opt:hover { background: rgba(255,255,255,.06); }
 .spm-geo-opt svg { color: var(--accent); flex-shrink: 0; }
+.spm-geo-opt-info { display: flex; flex-direction: column; min-width: 0; }
+.spm-geo-opt-line1 { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spm-geo-opt-line2 { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .spm-coords-badge {
   display: inline-flex;

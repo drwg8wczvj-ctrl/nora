@@ -42,7 +42,7 @@ import {
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
   MapPin, Navigation, Car, Bus, Bike, PersonStanding,
 } from "lucide-react";
-import { computeTravelBlocks, describeTravelBlock } from "./location";
+import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, getModeLabel } from "./location";
 import LocationField from "./components/LocationField";
 import SavedPlacesManager from "./components/SavedPlacesManager";
 import { calculateTaskWeight } from "./utils/taskUtils";
@@ -2301,6 +2301,21 @@ export default function App() {
       .slice(0, 12);
     if (coachingInsights.length > 0) prefsLines.push(...coachingInsights);
 
+    // ── Location & travel context ─────────────────────────────────────────
+    const placesWithCoords = savedPlaces.filter((p) => p.lat && p.lng);
+    const travelPairs = [];
+    for (let i = 0; i < placesWithCoords.length; i++) {
+      for (let j = i + 1; j < placesWithCoords.length; j++) {
+        const from = placesWithCoords[i];
+        const to   = placesWithCoords[j];
+        const mins = estimateTravelMinutes(from, to, transportProfile.defaultMode ?? "mixed");
+        if (mins) travelPairs.push(`• ${from.name} ↔ ${to.name}: ~${mins} min`);
+      }
+    }
+    const placesBlock = savedPlaces.length > 0
+      ? `\n━━━ LOCATION & TRAVEL INTELLIGENCE ━━━━━━━━━━━━━━━━━━━━\n\nSaved places:\n${savedPlaces.map((p) => `• ${p.name}${p.address ? `: ${p.address}` : ""}${p.lat ? "" : " (no coordinates — use city knowledge to estimate distance)"}`).join("\n")}\n\nDefault transport: ${getModeLabel(transportProfile.defaultMode ?? "mixed")}\n${travelPairs.length ? `\nKnown travel times (${getModeLabel(transportProfile.defaultMode ?? "mixed")} mode):\n${travelPairs.join("\n")}\n` : ""}\nTRAVEL-TIME RULES (MANDATORY — treat as hard constraints like RULE 1):\n• When the user mentions sequential activities at DIFFERENT locations, automatically add travel time between them.\n• Scheduled task B must start at: task_A_end_time + travel_minutes. NEVER start B exactly when A ends if they are in different places.\n• If coordinates are unknown, use your city knowledge to estimate distance, then apply: Walk=5km/h, Bike=16km/h, Transit=28km/h, Car=45km/h, Mixed=25km/h (+25% urban, +5min overhead).\n• When you apply a travel buffer, state it naturally in your reply: "Travel from Home to Billa takes ~20 min, so I've set it for 18:20."\n• If a user's requested time is physically impossible (travel time > gap), warn them and suggest a realistic time instead.\n`
+      : "";
+
     const prefsBlock = prefsLines.length > 0
       ? `\n━━━ PERSISTENT USER CONTEXT (coaching memory) ━━━━━━━━━\n\n${prefsLines.join("\n")}\n\nApply these silently when planning. Never re-ask for information already stored here.\nWhen you learn new relevant information (habits, recurring goals, schedules, preferences), call save_insight to remember it.\n`
       : `\n(No coaching insights saved yet. Use save_insight when you learn something useful about how this user works.)\n`;
@@ -2392,6 +2407,7 @@ Data confidence:   ${behaviorProfile.confidence} (${behaviorProfile.sampleSize} 
 Cognitive load (today): ${workloadForecast[0]?.weightedLoad ?? 0} pts · Baseline avg: ${userLoadBaseline.avgDailyWeight} pts/day · Overload threshold: ${userLoadBaseline.overloadThreshold} pts
 (Load is weighted by task complexity, duration, keywords and urgency — not raw task count)
 ${boardsBlock}
+${placesBlock}
 ${prefsBlock}
 ━━━ CURRENT WELLNESS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
