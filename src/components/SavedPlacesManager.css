@@ -188,14 +188,19 @@
   top: calc(100% + 3px);
   left: 0;
   right: 0;
-  background: var(--surface);
+  background: var(--surface-solid, #ffffff);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 6px 18px rgba(0,0,0,.11);
+  box-shadow: 0 8px 28px rgba(0,0,0,.22);
   z-index: 300;
   overflow: hidden;
   max-height: 180px;
   overflow-y: auto;
+}
+.dark .spm-geo-results {
+  background: #1f1d35;
+  border-color: rgba(255,255,255,.14);
+  box-shadow: 0 8px 32px rgba(0,0,0,.55);
 }
 .spm-geo-opt {
   display: flex;
@@ -212,8 +217,8 @@
   font-family: inherit;
   transition: background .1s;
 }
-.spm-geo-opt:hover { background: rgba(0,0,0,.04); }
-.dark .spm-geo-opt:hover { background: rgba(255,255,255,.06); }
+.spm-geo-opt:hover { background: rgba(0,0,0,.05); }
+.dark .spm-geo-opt:hover { background: rgba(255,255,255,.08); }
 .spm-geo-opt svg { color: var(--accent); flex-shrink: 0; }
 .spm-geo-opt-info { display: flex; flex-direction: column; min-width: 0; }
 .spm-geo-opt-line1 { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

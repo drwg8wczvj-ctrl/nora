@@ -2457,3 +2457,565 @@
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PREMIUM iOS POLISH
+   A final mobile-only layer for richer depth, calmer native motion,
+   and more deliberate iPhone surfaces.
+   ═══════════════════════════════════════════════════════════════ */
+
+.mob-app {
+  --ios-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ios-bounce: cubic-bezier(0.20, 1.18, 0.34, 1);
+  --ios-hairline: rgba(17, 24, 39, 0.075);
+  --ios-material: rgba(255, 255, 255, 0.76);
+  --ios-material-strong: rgba(255, 255, 255, 0.88);
+  --ios-card-shadow: 0 18px 44px rgba(31, 27, 65, 0.10), 0 2px 8px rgba(31, 27, 65, 0.06);
+  --ios-raised-shadow: 0 22px 60px rgba(37, 31, 79, 0.18), 0 4px 14px rgba(37, 31, 79, 0.10);
+  --ios-press-shadow: 0 8px 22px rgba(37, 31, 79, 0.10);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(247,248,255,0.92) 42%, var(--bg) 100%);
+}
+
+.mob-app.dark {
+  --ios-hairline: rgba(255, 255, 255, 0.13);
+  --ios-material: rgba(24, 22, 43, 0.68);
+  --ios-material-strong: rgba(29, 27, 51, 0.82);
+  --ios-card-shadow: 0 18px 48px rgba(0, 0, 0, 0.34), 0 2px 10px rgba(0, 0, 0, 0.22);
+  --ios-raised-shadow: 0 24px 70px rgba(0, 0, 0, 0.48), 0 0 32px rgba(124, 58, 237, 0.12);
+  --ios-press-shadow: 0 9px 24px rgba(0, 0, 0, 0.28);
+  background:
+    linear-gradient(180deg, rgba(31,28,58,0.92) 0%, rgba(15,14,31,0.96) 46%, var(--bg) 100%);
+}
+
+.mob-header {
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 10px;
+  background: var(--ios-material);
+  border-bottom-color: var(--ios-hairline);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.55) inset, 0 10px 30px rgba(31,27,65,0.055);
+}
+.dark .mob-header {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 14px 34px rgba(0,0,0,0.26);
+}
+.mob-brand-logo {
+  height: 38px;
+  filter: drop-shadow(0 5px 10px rgba(31,27,65,0.10));
+}
+.mob-header-date {
+  font-size: 13px;
+  font-weight: 650;
+  opacity: 0.82;
+}
+.mob-header-boards-btn,
+.mob-date-nav-btn,
+.mob-modal-close,
+.mob-chat-close {
+  background: rgba(255,255,255,0.52);
+  border-color: var(--ios-hairline);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset;
+}
+.dark .mob-header-boards-btn,
+.dark .mob-date-nav-btn,
+.dark .mob-modal-close,
+.dark .mob-chat-close {
+  background: rgba(255,255,255,0.07);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset;
+}
+
+.mob-main {
+  scroll-padding-top: 16px;
+  padding-bottom: calc(122px + env(safe-area-inset-bottom, 0px));
+}
+
+.mob-bottom-nav {
+  left: 10px;
+  right: 10px;
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--ios-hairline);
+  border-radius: 26px;
+  padding: 6px 8px;
+  background: var(--ios-material);
+  box-shadow: var(--ios-raised-shadow), 0 1px 0 rgba(255,255,255,0.50) inset;
+  overflow: hidden;
+}
+.dark .mob-bottom-nav {
+  box-shadow: var(--ios-raised-shadow), 0 1px 0 rgba(255,255,255,0.08) inset;
+}
+.mob-nav-btn {
+  position: relative;
+  min-height: 52px;
+  gap: 4px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  transition: color 0.22s var(--ios-ease), transform 0.16s var(--ios-ease), background 0.22s var(--ios-ease);
+}
+.mob-nav-btn.mob-nav-active {
+  color: var(--accent);
+  background: rgba(124, 58, 237, 0.10);
+}
+.dark .mob-nav-btn.mob-nav-active {
+  background: rgba(124, 58, 237, 0.18);
+}
+.mob-nav-btn.mob-nav-active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: translateX(-50%);
+  box-shadow: 0 0 14px currentColor;
+}
+.mob-nav-btn:active {
+  opacity: 1;
+  transform: scale(0.94);
+}
+
+.mob-ai-fab {
+  right: 18px;
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgba(255,255,255,0.34);
+  background: linear-gradient(145deg, #8b5cf6 0%, #2563eb 58%, #06b6d4 100%);
+  box-shadow: 0 18px 38px rgba(37,99,235,0.34), 0 8px 18px rgba(124,58,237,0.24), 0 1px 0 rgba(255,255,255,0.44) inset;
+  transition: transform 0.24s var(--ios-bounce), box-shadow 0.24s var(--ios-ease), background 0.24s var(--ios-ease);
+}
+.mob-ai-fab:active {
+  transform: scale(0.91);
+}
+.mob-ai-fab.fab-open {
+  background: var(--ios-material-strong);
+  color: var(--accent);
+  box-shadow: var(--ios-card-shadow), 0 1px 0 rgba(255,255,255,0.45) inset;
+}
+
+.mob-plan-segs,
+.mob-day-mode-row,
+.mob-day-summary,
+.mob-focus-card,
+.mai2,
+.mob-gc,
+.mob-task-row,
+.mob-status-card,
+.mob-sv2-card,
+.mob-notes-newbar,
+.mob-notes-search-bar,
+.mob-notes-v2 .nc,
+.mob-deferred-row {
+  background: var(--ios-material-strong);
+  border-color: var(--ios-hairline);
+  box-shadow: var(--ios-card-shadow), 0 1px 0 rgba(255,255,255,0.52) inset;
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+}
+.dark .mob-plan-segs,
+.dark .mob-day-mode-row,
+.dark .mob-day-summary,
+.dark .mob-focus-card,
+.dark .mai2,
+.dark .mob-gc,
+.dark .mob-task-row,
+.dark .mob-status-card,
+.dark .mob-sv2-card,
+.dark .mob-notes-newbar,
+.dark .mob-notes-search-bar,
+.dark .mob-notes-v2 .nc,
+.dark .mob-deferred-row {
+  box-shadow: var(--ios-card-shadow), 0 1px 0 rgba(255,255,255,0.07) inset;
+}
+
+.mob-focus-card {
+  border-radius: 28px;
+  padding: 22px;
+}
+.mob-focus-card::before {
+  background:
+    linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(37,99,235,0.06) 46%, transparent 78%);
+}
+.mob-focus-title {
+  font-size: 24px;
+  letter-spacing: 0;
+}
+.mob-ctx-badge,
+.mob-done-pill,
+.mai2-badge,
+.mob-ds-wl,
+.mob-trend-badge {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.mob-progress-track,
+.mob-ds-bar,
+.mob-momentum-bar-wrap {
+  height: 6px;
+  background: rgba(120, 120, 140, 0.13);
+}
+.mob-progress-fill,
+.mob-ds-bar-fill,
+.mob-momentum-fill {
+  background-image: linear-gradient(90deg, currentColor, rgba(37,99,235,0.9));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.mob-btn,
+.mob-plan-cta,
+.mob-quick-add,
+.mob-join-task,
+.mob-plan-filter-btn,
+.mob-mode-btn,
+.mob-filter-pill,
+.mai2-act,
+.mtr-act,
+.mob-notes-newbar-type-btn,
+.mob-chat-send,
+.mob-modal-save,
+.mob-modal-delete,
+.mob-modal-share,
+.mob-pill,
+.mob-type-btn {
+  transition:
+    transform 0.14s var(--ios-ease),
+    background 0.22s var(--ios-ease),
+    color 0.22s var(--ios-ease),
+    border-color 0.22s var(--ios-ease),
+    box-shadow 0.22s var(--ios-ease),
+    opacity 0.22s var(--ios-ease);
+}
+.mob-btn:active,
+.mob-plan-cta:active,
+.mob-quick-add:active,
+.mob-join-task:active,
+.mob-plan-filter-btn:active,
+.mob-mode-btn:active,
+.mob-filter-pill:active,
+.mai2-act:active,
+.mtr-act:active,
+.mob-notes-newbar-type-btn:active,
+.mob-chat-send:active,
+.mob-modal-save:active,
+.mob-modal-delete:active,
+.mob-modal-share:active,
+.mob-pill:active,
+.mob-type-btn:active {
+  transform: scale(0.955);
+}
+
+.mob-seg-pill {
+  background: linear-gradient(145deg, #7c3aed, #2563eb 68%, #0891b2);
+  box-shadow: 0 10px 24px rgba(37,99,235,0.24), 0 1px 0 rgba(255,255,255,0.34) inset;
+  transition: left 0.34s var(--ios-bounce), width 0.26s var(--ios-bounce) !important;
+}
+.mob-seg-btn,
+.mob-mode-btn,
+.mob-plan-filter-btn {
+  font-weight: 720;
+}
+.mob-mode-btn.active,
+.mob-plan-filter-btn.active {
+  background: rgba(124,58,237,0.12);
+  box-shadow: 0 8px 18px rgba(124,58,237,0.10);
+}
+
+.mob-day-summary {
+  border-radius: 18px;
+  padding: 12px 15px;
+}
+.mob-agenda2 {
+  gap: 8px;
+}
+.mai2 {
+  border-radius: 18px;
+  border-left-width: 0;
+  position: relative;
+  transform-origin: center;
+  transition: transform 0.18s var(--ios-ease), box-shadow 0.22s var(--ios-ease), opacity 0.22s var(--ios-ease), border-color 0.22s var(--ios-ease);
+}
+.mai2::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: var(--gc, var(--accent));
+  opacity: 0.78;
+}
+.mai2-main {
+  padding: 12px 13px 12px 15px;
+}
+.mai2-title,
+.mtr-title,
+.mai-title {
+  font-weight: 680;
+}
+.mai2.mai2-next {
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--accent) 18%, transparent), var(--ios-card-shadow);
+}
+.mai2.mai2-open {
+  transform: translateY(-1px);
+  box-shadow: var(--ios-raised-shadow);
+}
+.mai2-actions {
+  background: rgba(120,120,140,0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.mai2-check,
+.mob-check,
+.mai-check,
+.mob-gc-check {
+  background: rgba(255,255,255,0.48);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.42) inset;
+}
+.dark .mai2-check,
+.dark .mob-check,
+.dark .mai-check,
+.dark .mob-gc-check {
+  background: rgba(255,255,255,0.07);
+}
+.mai2-check.done,
+.mob-check.checked,
+.mai-check.checked,
+.mob-gc-check.done {
+  background: linear-gradient(145deg, #22c55e, #10b981);
+  border-color: transparent;
+  box-shadow: 0 8px 18px rgba(16,185,129,0.25), 0 1px 0 rgba(255,255,255,0.35) inset;
+}
+
+.swipe-row {
+  border-radius: 18px;
+}
+.swipe-inner {
+  border-radius: 18px;
+  background: transparent;
+  transition: transform 0.34s var(--ios-bounce);
+}
+.swipe-bg {
+  font-weight: 750;
+}
+.swipe-bg-done {
+  background: linear-gradient(135deg, #22c55e, #10b981);
+  border-radius: 18px 0 0 18px;
+}
+.swipe-bg-rsc {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border-radius: 0 18px 18px 0;
+}
+
+.mob-sheet-overlay,
+.mob-modal-overlay {
+  background: rgba(10, 10, 22, 0.34);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+}
+.mob-sheet,
+.mob-modal,
+.mcu-modal,
+.mob-chat {
+  background: var(--ios-material-strong);
+  border-color: var(--ios-hairline);
+  box-shadow: 0 -28px 80px rgba(0,0,0,0.28), 0 1px 0 rgba(255,255,255,0.40) inset;
+  backdrop-filter: blur(30px) saturate(170%);
+  -webkit-backdrop-filter: blur(30px) saturate(170%);
+}
+.dark .mob-sheet,
+.dark .mob-modal,
+.dark .mcu-modal,
+.dark .mob-chat {
+  box-shadow: 0 -30px 90px rgba(0,0,0,0.54), 0 1px 0 rgba(255,255,255,0.08) inset;
+}
+.mob-sheet,
+.mob-modal {
+  border-radius: 30px 30px 0 0;
+}
+.mob-modal-handle {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(120,120,140,0.30);
+}
+.mob-sheet-header,
+.mob-modal-header,
+.mob-modal-footer,
+.mob-chat-header,
+.mob-chat-input-bar,
+.mob-chat-suggestions {
+  background: transparent;
+  border-color: var(--ios-hairline);
+}
+.mob-modal-select,
+.mob-modal-notes,
+.mob-chat-input-wrap,
+.mob-micro-btn,
+.mob-suggestions-toggle,
+.mob-chat-ai-bubble,
+.mob-chat-chips-pill {
+  background: rgba(255,255,255,0.56);
+  border-color: var(--ios-hairline);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.42) inset;
+}
+.dark .mob-modal-select,
+.dark .mob-modal-notes,
+.dark .mob-chat-input-wrap,
+.dark .mob-micro-btn,
+.dark .mob-suggestions-toggle,
+.dark .mob-chat-ai-bubble,
+.dark .mob-chat-chips-pill {
+  background: rgba(255,255,255,0.08);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.07) inset;
+}
+
+.mob-chat {
+  transition: transform 0.42s var(--ios-bounce), opacity 0.28s var(--ios-ease);
+  opacity: 0.96;
+}
+.mob-chat.mob-chat-open {
+  opacity: 1;
+}
+.mob-chat-bubble {
+  box-shadow: 0 10px 22px rgba(31,27,65,0.08);
+}
+.mob-chat-user .mob-chat-bubble {
+  background: linear-gradient(145deg, #7c3aed, #2563eb);
+}
+.mob-chat-assistant .mob-chat-bubble {
+  background: rgba(255,255,255,0.58);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.dark .mob-chat-assistant .mob-chat-bubble {
+  background: rgba(255,255,255,0.08);
+}
+.mob-chat-send,
+.mob-modal-save,
+.mob-btn-done,
+.mob-plan-cta {
+  background: linear-gradient(145deg, #7c3aed, #2563eb 68%, #0891b2);
+  box-shadow: 0 12px 24px rgba(37,99,235,0.22), 0 1px 0 rgba(255,255,255,0.38) inset;
+}
+
+.mob-notes-v2 {
+  gap: 16px;
+}
+.mob-notes-newbar,
+.mob-notes-search-bar {
+  border-radius: 18px;
+}
+.mob-notes-v2 .nc {
+  border-radius: 18px;
+  overflow: hidden;
+}
+.mob-status-card {
+  border-radius: 22px;
+}
+
+.mob-timetable,
+.mob-grid-scroll {
+  background:
+    linear-gradient(180deg, transparent, rgba(120,120,140,0.035));
+}
+.mob-tt-task,
+.mob-grid-block {
+  border-radius: 14px;
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--gc, var(--accent)) 16%, transparent), 0 1px 0 rgba(255,255,255,0.36) inset;
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+.mob-tt-now,
+.mob-grid-now-wrap {
+  filter: drop-shadow(0 0 8px rgba(34,197,94,0.34));
+}
+
+.mob-home,
+.mob-tasks,
+.mob-notes-v2,
+.mob-status-v2,
+.mob-status,
+.mob-settings,
+.mob-month-view,
+.mob-plan {
+  animation: noraPremiumViewIn 0.34s var(--ios-ease) both;
+}
+.mob-sheet,
+.mob-modal,
+.mob-sticky-sheet {
+  animation-name: noraPremiumSlideUp;
+  animation-duration: 0.36s;
+  animation-timing-function: var(--ios-bounce);
+  animation-fill-mode: both;
+}
+.mob-focus-card,
+.mob-day-summary,
+.swipe-row,
+.mob-gc,
+.mob-task-row,
+.mob-status-card,
+.mob-sv2-card,
+.mob-notes-newbar,
+.mob-notes-masonry-item {
+  animation-name: noraPremiumCardIn;
+  animation-duration: 0.42s;
+  animation-timing-function: var(--ios-ease);
+  animation-fill-mode: both;
+}
+.swipe-row:nth-child(1),
+.mob-notes-masonry-item:nth-child(1) { animation-delay: 0.02s; }
+.swipe-row:nth-child(2),
+.mob-notes-masonry-item:nth-child(2) { animation-delay: 0.055s; }
+.swipe-row:nth-child(3),
+.mob-notes-masonry-item:nth-child(3) { animation-delay: 0.09s; }
+.swipe-row:nth-child(4),
+.mob-notes-masonry-item:nth-child(4) { animation-delay: 0.125s; }
+.swipe-row:nth-child(5),
+.mob-notes-masonry-item:nth-child(5) { animation-delay: 0.16s; }
+
+@keyframes noraPremiumViewIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.992);
+    filter: saturate(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: saturate(1);
+  }
+}
+
+@keyframes noraPremiumCardIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.982);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes noraPremiumSlideUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 42px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mob-app *,
+  .mob-app *::before,
+  .mob-app *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

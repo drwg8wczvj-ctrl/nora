@@ -75,14 +75,19 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--surface);
+  background: var(--surface-solid, #ffffff);
   border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  box-shadow: 0 8px 28px rgba(0,0,0,.22);
   z-index: 200;
   overflow: hidden;
   max-height: 220px;
   overflow-y: auto;
+}
+.dark .lf-dropdown {
+  background: #1f1d35;
+  border-color: rgba(255,255,255,.14);
+  box-shadow: 0 8px 32px rgba(0,0,0,.55);
 }
 
 .lf-opt {
