@@ -23,6 +23,9 @@ import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
 import ProfileModal from "./components/ProfileModal";
 import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
 import { MobileWhiteboardView } from "./Whiteboard";
+import { MapPin } from "lucide-react";
+import LocationField from "./components/LocationField";
+import SavedPlacesManager from "./components/SavedPlacesManager";
 import "./MobileApp.css";
 import { useTranslation } from "react-i18next";
 
@@ -2130,6 +2133,17 @@ function MobileSettings({ ctx }) {
         />
       </div>
 
+      {/* Places & Transport */}
+      <div className="mob-sett-card">
+        <div className="mob-sett-card-title"><MapPin size={15} /> Places</div>
+        <SavedPlacesManager
+          savedPlaces={ctx.savedPlaces ?? []}
+          onSavedPlacesChange={ctx.setSavedPlaces ?? (() => {})}
+          transportProfile={ctx.transportProfile ?? { defaultMode: "mixed" }}
+          onTransportProfileChange={ctx.setTransportProfile ?? (() => {})}
+        />
+      </div>
+
       {/* Groups */}
       <div className="mob-sett-card">
         <div className="mob-sett-card-title"><Activity size={15} /> {t("account.taskGroups")}</div>
@@ -2578,6 +2592,16 @@ function MobileEditModal({ ctx }) {
               </div>
             </div>
           )}
+
+          {/* Location */}
+          <div className="mob-modal-field">
+            <label className="mob-modal-label">Location</label>
+            <LocationField
+              value={draft.location ?? null}
+              onChange={(loc) => setDraft((d) => ({ ...d, location: loc }))}
+              savedPlaces={ctx.savedPlaces ?? []}
+            />
+          </div>
 
           {/* Notes */}
           <div className="mob-modal-field">

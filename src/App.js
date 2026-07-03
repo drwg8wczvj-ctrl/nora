@@ -40,7 +40,11 @@ import {
   Brain, Target, Lightbulb, BarChart2, AlertTriangle,
   Pencil, SkipForward, Sparkles, Moon, Sunrise,
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
+  MapPin, Navigation, Car, Bus, Bike, PersonStanding,
 } from "lucide-react";
+import { computeTravelBlocks, describeTravelBlock } from "./location";
+import LocationField from "./components/LocationField";
+import SavedPlacesManager from "./components/SavedPlacesManager";
 import { calculateTaskWeight } from "./utils/taskUtils";
 import { extractJoinInviteCode } from "./utils/sharingIntent";
 import NoteCard from "./components/NoteCard";
@@ -579,6 +583,8 @@ export default function App() {
       if (p.relaxation   != null) setRelaxation(p.relaxation);
       if (p.energy       != null) setEnergy(p.energy);
       if (p.theme        != null) setTheme(p.theme);
+      if (Array.isArray(p.savedPlaces) && p.savedPlaces.length) setSavedPlaces(p.savedPlaces);
+      if (p.transportProfile) setTransportProfile(p.transportProfile);
     }).catch(console.error);
   }, [session]); // eslint-disable-line
 
@@ -683,6 +689,8 @@ export default function App() {
   const pendingViewRef   = useRef(null);
   const [editingTask, setEditingTask] = useState(null);
   const [draft,       setDraft]       = useState(null);
+  const [savedPlaces,      setSavedPlaces]      = useState([]);
+  const [transportProfile, setTransportProfile] = useState({ defaultMode: "mixed", routeOverrides: {} });
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [newGroupName,   setNewGroupName]   = useState("");
   const [newGroupColor,  setNewGroupColor]  = useState("#10b981");
@@ -869,9 +877,9 @@ export default function App() {
   useEffect(() => {
     latestSyncDataRef.current = {
       tasks, groups, notes, boards,
-      preferences: { accountName, dark, reminderMins, relaxation, energy, theme },
+      preferences: { accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile },
     };
-  }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme]); // eslint-disable-line
+  }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile]); // eslint-disable-line
 
   // Sync all app data to Supabase 1 s after the last change
   useEffect(() => {
@@ -882,7 +890,7 @@ export default function App() {
         saveUserData(latestSyncDataRef.current).catch(console.error);
       }
     }, 1000);
-  }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme]); // eslint-disable-line
+  }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile]); // eslint-disable-line
 
   // Flush immediately when the PWA goes to background (iOS swipe-away, tab switch).
   // Without this, the 1-second debounce above is killed before it fires and the
@@ -2086,7 +2094,7 @@ export default function App() {
     // Best-effort immediate cloud save; the normal autosave retries this too.
     saveUserData({
       tasks: remainingTasks, groups, notes, boards,
-      preferences: { accountName, dark, reminderMins, relaxation, energy, theme },
+      preferences: { accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile },
     }).catch((error) => console.warn("[Delete task] App-data sync queued:", error?.message ?? error));
     flushPendingSharedDeletions();
   };
@@ -3099,6 +3107,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       // Intelligence
       onIntelClick: () => intel.setCenterOpen(true),
       intelCount: intel.pendingCount,
+      // Location / Travel
+      savedPlaces, setSavedPlaces, transportProfile, setTransportProfile,
     };
     // display:contents makes this div invisible to layout but gives the overlays
     // a .dark/.glass ancestor so intelligence.css glass rules match on mobile.
@@ -3216,6 +3226,25 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 sendTestNotification={sendTestNotification}
                 testServerPush={testServerPush}
                 forceResubscribe={forceResubscribePush}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="sidebar-accordion">
+          <button className={`sacc-btn${activeSettings === "places" ? " open" : ""}`}
+            onClick={() => setActiveSettings(activeSettings === "places" ? null : "places")}>
+            <MapPin size={15} />
+            <span>Places</span>
+            <ChevronDown size={13} className={`sacc-arrow${activeSettings === "places" ? " open" : ""}`} />
+          </button>
+          {activeSettings === "places" && (
+            <div className="sacc-body">
+              <SavedPlacesManager
+                savedPlaces={savedPlaces}
+                onSavedPlacesChange={setSavedPlaces}
+                transportProfile={transportProfile}
+                onTransportProfileChange={setTransportProfile}
               />
             </div>
           )}
@@ -3620,6 +3649,24 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   onDragOver={handleTimelineDragOver}
                   onDragLeave={() => setDragOver(null)}
                   onDrop={handleTimelineDrop}>
+
+                  {/* Travel time blocks */}
+                  {computeTravelBlocks(filteredTodayTasks, savedPlaces, transportProfile).map((block) => {
+                    const startH = Math.floor(block.startMin / 60);
+                    const startM = block.startMin % 60;
+                    const top    = cTop(startH, startM);
+                    const height = Math.max(block.durationMin / 60 * zoomedH, 16);
+                    const TravelIcon = block.mode === "car" ? Car : block.mode === "bicycle" ? Bike : block.mode === "public_transport" ? Bus : block.mode === "walking" ? PersonStanding : Navigation;
+                    return (
+                      <div key={block.id} className={`tl-travel-block${block.isConflict ? " tl-travel-conflict" : ""}`}
+                        style={{ top, height }}
+                        title={describeTravelBlock(block)}>
+                        <TravelIcon size={9} />
+                        <span>{block.durationMin}m</span>
+                        {block.isConflict && <span className="tl-travel-warn" title={`${block.minutesShort} min short`}>!</span>}
+                      </div>
+                    );
+                  })}
 
                   {/* Hour lines and labels */}
                   {HOURS.map((hour, idx) => (
@@ -4834,6 +4881,14 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                   </div>
                 </div>
               )}
+              <div className="modal-field">
+                <label className="field-label">Location</label>
+                <LocationField
+                  value={draft.location ?? null}
+                  onChange={(loc) => setDraft((d) => ({ ...d, location: loc }))}
+                  savedPlaces={savedPlaces}
+                />
+              </div>
               <div className="modal-field">
                 <label className="field-label">Notes</label>
                 <textarea className="modal-notes" rows={4} value={draft.notes}

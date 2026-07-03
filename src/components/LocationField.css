@@ -1,0 +1,134 @@
+/* ─── LocationField ────────────────────────────────────────────────────────── */
+
+.lf-wrap {
+  position: relative;
+}
+
+.lf-input-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2, var(--surface));
+  transition: border-color .15s;
+}
+.lf-input-row:focus-within {
+  border-color: var(--accent);
+}
+
+.lf-input-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.lf-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--text);
+  font-family: inherit;
+}
+.lf-input::placeholder { color: var(--text-muted); }
+
+/* ── Value chip (when a location is selected) ── */
+.lf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--accent-light, rgba(139,92,246,.12));
+  border: 1px solid rgba(139,92,246,.25);
+  color: var(--accent, #8b5cf6);
+  font-size: 13px;
+  font-weight: 500;
+}
+.lf-chip-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lf-chip-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--accent);
+  opacity: .6;
+  padding: 0;
+  border-radius: 4px;
+}
+.lf-chip-clear:hover { opacity: 1; }
+
+/* ── Dropdown ── */
+.lf-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  z-index: 200;
+  overflow: hidden;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.lf-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background .1s;
+}
+.lf-opt:hover { background: var(--hover, rgba(0,0,0,.04)); }
+.dark .lf-opt:hover { background: rgba(255,255,255,.06); }
+
+.lf-opt-icon { color: var(--text-muted); flex-shrink: 0; }
+.lf-opt-custom .lf-opt-icon { color: var(--accent); }
+
+.lf-opt-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lf-opt-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-opt-addr {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-opt-custom .lf-opt-name { color: var(--accent); }
+
+.lf-empty {
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+}
