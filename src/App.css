@@ -2140,10 +2140,18 @@
 
 /* Masonry grid */
 .notes-masonry {
-  columns: 3 220px;
-  column-gap: 14px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
 }
-.notes-masonry-item { break-inside: avoid; margin-bottom: 14px; }
+.notes-masonry-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
 
 /* Section headers */
 .notes-section-hdr {
@@ -2767,6 +2775,21 @@
   transition: background .15s;
 }
 .sett-signout-btn:hover { background: rgba(220,38,38,.14); }
+
+.acc-upgrade-btn {
+  width: 100%; padding: 10px 14px; margin-top: 4px; margin-bottom: 2px;
+  border-radius: 10px; border: 1px solid rgba(139,92,246,.35);
+  background: linear-gradient(135deg, rgba(124,58,237,.15), rgba(139,92,246,.1));
+  color: #a78bfa; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  display: flex; align-items: center; gap: 8px; font-family: inherit;
+}
+.acc-upgrade-btn:hover { background: linear-gradient(135deg, rgba(124,58,237,.25), rgba(139,92,246,.18)); border-color: rgba(139,92,246,.6); }
+.acc-upgrade-plan-badge {
+  font-size: 10px; font-weight: 800; padding: 1px 7px;
+  border-radius: 20px; background: rgba(139,92,246,.25);
+  color: #c4b5fd; letter-spacing: .06em; text-transform: uppercase;
+}
 
 /* ── Account profile card ──────────────────────────────── */
 .acc-profile-card {

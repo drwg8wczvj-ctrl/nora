@@ -42,13 +42,14 @@ import {
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
   MapPin, Navigation, Car, Bus, Bike, PersonStanding,
 } from "lucide-react";
-import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, getModeLabel, findNearbyPlace } from "./location";
+import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, fetchTravelMinutes, getModeLabel, findNearbyPlace } from "./location";
 import LocationField from "./components/LocationField";
 import SavedPlacesManager from "./components/SavedPlacesManager";
 import { calculateTaskWeight } from "./utils/taskUtils";
 import { extractJoinInviteCode } from "./utils/sharingIntent";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
+import PricingModal from "./components/PricingModal";
 import "./App.css";
 import "./glass.css";
 import { useTranslation } from "react-i18next";
@@ -654,8 +655,21 @@ export default function App() {
       if (p.theme        != null) setTheme(p.theme);
       if (Array.isArray(p.savedPlaces) && p.savedPlaces.length) setSavedPlaces(p.savedPlaces);
       if (p.transportProfile) setTransportProfile(p.transportProfile);
+      if (p.subscription) setSubscription(p.subscription);
     }).catch(console.error);
   }, [session]); // eslint-disable-line
+
+  // Handle Stripe checkout redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    if (checkout === "success") {
+      setPricingOpen(false);
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (checkout === "canceled") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []); // eslint-disable-line
 
   // Load chat history (last 24h) and persistent preferences on login
   useEffect(() => {
@@ -847,6 +861,8 @@ export default function App() {
   const [showOnboarding,  setShowOnboarding]  = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showUsernameBanner, setShowUsernameBanner] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [subscription, setSubscription] = useState({ plan: "free", status: "active" });
   const notifTimers       = useRef({});
   const syncTimer         = useRef(null);
   // Always-current snapshot of data to save — used by the emergency flush below.
@@ -3023,12 +3039,13 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 toolResults.push({ role: "tool", tool_call_id: tc.id, content: `No ${category} found within ${Math.round(radiusMeters / 1000 * 10) / 10} km of ${anchor.name}. Try increasing the radius or asking the user for a specific address.` });
               } else {
                 const mode = transportProfile.defaultMode ?? "mixed";
-                const travelMin = estimateTravelMinutes(anchor, place, mode);
-                const distStr = place.distanceKm < 1
-                  ? `${Math.round(place.distanceKm * 1000)} m`
-                  : `${place.distanceKm.toFixed(1)} km`;
+                const travelMin = await fetchTravelMinutes(anchor, place, mode);
+                const distStr = (place.distanceKm ?? 0) < 1
+                  ? `${Math.round((place.distanceKm ?? 0) * 1000)} m`
+                  : `${(place.distanceKm ?? 0).toFixed(1)} km`;
                 const addrStr = place.address ? ` at ${place.address}` : "";
-                toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Nearest ${category} to ${anchor.name}: "${place.name}"${addrStr} — ${distStr} away. Travel time (${getModeLabel(mode)}): ~${travelMin} min. Coordinates: ${place.lat.toFixed(5)},${place.lng.toFixed(5)}.` });
+                const openStr = place.openNow === true ? " (open now)" : place.openNow === false ? " (currently closed)" : "";
+                toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Nearest ${category} to ${anchor.name}: "${place.name}"${addrStr}${openStr} — ${distStr} away. Travel time (${getModeLabel(mode)}): ~${travelMin} min. Schedule the task at: departure_time + ${travelMin} min. Coordinates: ${place.lat.toFixed(5)},${place.lng.toFixed(5)}.` });
               }
             }
           } else if (tc.function.name === "create_whiteboard") {
@@ -3267,6 +3284,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       intelCount: intel.pendingCount,
       // Location / Travel
       savedPlaces, setSavedPlaces, transportProfile, setTransportProfile,
+      // Pricing
+      pricingOpen, setPricingOpen, subscription,
     };
     // display:contents makes this div invisible to layout but gives the overlays
     // a .dark/.glass ancestor so intelligence.css glass rules match on mobile.
@@ -3434,6 +3453,16 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               </button>
               <button className="acc-edit-profile-btn" onClick={() => setShowJoinCode(true)}>
                 <KeyRound size={13} /> {t("account.joinInviteCode")}
+              </button>
+              {/* Subscription / Upgrade */}
+              <button
+                className="acc-upgrade-btn"
+                onClick={() => { setSidebarOpen(false); setPricingOpen(true); }}
+              >
+                <span className="acc-upgrade-plan-badge">
+                  {subscription?.plan === "free" ? "Free" : subscription?.plan === "plus" ? "Plus" : subscription?.plan === "pro" ? "Pro" : subscription?.plan === "team" ? "Team" : "Free"}
+                </span>
+                {subscription?.plan === "free" ? "Upgrade to Pro" : "Manage Subscription"}
               </button>
               <button className="sett-signout-btn" onClick={() => supabase.auth.signOut()}>
                 {t("account.signOut")}
@@ -4516,6 +4545,31 @@ Everything else → as short as possible. If nothing notable to add, don't add i
             const pinnedNotes = sorted.filter(n => n.pinned);
             const otherNotes  = sorted.filter(n => !n.pinned);
 
+            const renderNotesMasonry = (list) => {
+              const cols = 3;
+              const columns = Array.from({ length: cols }, (_, ci) => list.filter((_, i) => i % cols === ci));
+              return (
+                <div className="notes-masonry">
+                  {columns.map((col, ci) => (
+                    <div key={ci} className="notes-masonry-col">
+                      {col.map(note => (
+                        <NoteCard
+                          key={note.id}
+                          note={note}
+                          deleting={deletingNoteId === note.id}
+                          isNew={newNoteId === note.id}
+                          onClick={() => setOpenNoteId(note.id)}
+                          onDelete={() => handleDelete(note.id)}
+                          onPin={() => patchNote(note.id, { pinned: !note.pinned })}
+                          onStar={() => patchNote(note.id, { starred: !note.starred })}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            };
+
             return (
               <div className="notes-view">
                 {/* ── Toolbar ── */}
@@ -4647,21 +4701,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 {pinnedNotes.length > 0 && (
                   <>
                     <div className="notes-section-hdr">Pinned</div>
-                    <div className="notes-masonry">
-                      {pinnedNotes.map(note => (
-                        <div key={note.id} className="notes-masonry-item">
-                          <NoteCard
-                            note={note}
-                            deleting={deletingNoteId === note.id}
-                            isNew={newNoteId === note.id}
-                            onClick={() => setOpenNoteId(note.id)}
-                            onDelete={() => handleDelete(note.id)}
-                            onPin={() => patchNote(note.id, { pinned: !note.pinned })}
-                            onStar={() => patchNote(note.id, { starred: !note.starred })}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                    {renderNotesMasonry(pinnedNotes)}
                   </>
                 )}
 
@@ -4669,21 +4709,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 {otherNotes.length > 0 && (
                   <>
                     {pinnedNotes.length > 0 && <div className="notes-section-hdr">Notes</div>}
-                    <div className="notes-masonry">
-                      {otherNotes.map(note => (
-                        <div key={note.id} className="notes-masonry-item">
-                          <NoteCard
-                            note={note}
-                            deleting={deletingNoteId === note.id}
-                            isNew={newNoteId === note.id}
-                            onClick={() => setOpenNoteId(note.id)}
-                            onDelete={() => handleDelete(note.id)}
-                            onPin={() => patchNote(note.id, { pinned: !note.pinned })}
-                            onStar={() => patchNote(note.id, { starred: !note.starred })}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                    {renderNotesMasonry(otherNotes)}
                   </>
                 )}
 
@@ -5234,6 +5260,15 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           onConnectTelegramPhone={intel.connectTelegramPhone}
           onVerifyTelegramCode={intel.verifyTelegramCode}
           markOnboarded={intel.markOnboarded}
+        />
+      )}
+
+      {pricingOpen && (
+        <PricingModal
+          onClose={() => setPricingOpen(false)}
+          currentPlan={subscription?.plan ?? "free"}
+          userId={session?.user?.id}
+          userEmail={session?.user?.email}
         />
       )}
     </div>

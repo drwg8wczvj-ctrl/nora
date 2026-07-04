@@ -2,6 +2,7 @@ export {
   TRANSPORT_MODES,
   TRANSPORT_MODE_LIST,
   estimateTravelMinutes,
+  fetchTravelMinutes,
   geocodeAddress,
   getModeLabel,
   getModeShortLabel,

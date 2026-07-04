@@ -26,6 +26,7 @@ import { MobileWhiteboardView } from "./Whiteboard";
 import { MapPin } from "lucide-react";
 import LocationField from "./components/LocationField";
 import SavedPlacesManager from "./components/SavedPlacesManager";
+import PricingModal from "./components/PricingModal";
 import "./MobileApp.css";
 import { useTranslation } from "react-i18next";
 
@@ -353,6 +354,16 @@ export default function MobileApp({ ctx }) {
             ctx.setUserProfile?.((p) => ({ ...p, ...updated }));
             if (updated.name) ctx.setAccountName?.(updated.name);
           }}
+        />
+      )}
+
+      {/* Pricing modal */}
+      {ctx.pricingOpen && (
+        <PricingModal
+          onClose={() => ctx.setPricingOpen?.(false)}
+          currentPlan={ctx.subscription?.plan ?? "free"}
+          userId={session?.user?.id}
+          userEmail={session?.user?.email}
         />
       )}
 
@@ -1584,18 +1595,34 @@ function MobileNotes({ ctx }) {
   const otherNotes  = sorted.filter(n => !n.pinned);
 
   const renderNoteCard = (note) => (
-    <div key={note.id} className="mob-notes-masonry-item">
-      <NoteCard
-        note={note}
-        deleting={deletingId === note.id}
-        isNew={newNoteId === note.id}
-        onClick={() => setOpenId(note.id)}
-        onDelete={() => handleDelete(note.id)}
-        onPin={() => patchNote(note.id, { pinned: !note.pinned })}
-        onStar={() => patchNote(note.id, { starred: !note.starred })}
-      />
-    </div>
+    <NoteCard
+      key={note.id}
+      note={note}
+      deleting={deletingId === note.id}
+      isNew={newNoteId === note.id}
+      onClick={() => setOpenId(note.id)}
+      onDelete={() => handleDelete(note.id)}
+      onPin={() => patchNote(note.id, { pinned: !note.pinned })}
+      onStar={() => patchNote(note.id, { starred: !note.starred })}
+    />
   );
+
+  // Split notes into two explicit columns (avoids CSS columns overlap bug)
+  const splitColumns = (notes) => {
+    const left  = notes.filter((_, i) => i % 2 === 0);
+    const right = notes.filter((_, i) => i % 2 === 1);
+    return { left, right };
+  };
+
+  const renderMasonry = (notes) => {
+    const { left, right } = splitColumns(notes);
+    return (
+      <div className="mob-notes-masonry">
+        <div className="mob-notes-col">{left.map(renderNoteCard)}</div>
+        <div className="mob-notes-col">{right.map(renderNoteCard)}</div>
+      </div>
+    );
+  };
 
   const [firstType, ...typeShortcuts] = NOTE_TYPE_DEFS;
 
@@ -1658,9 +1685,7 @@ function MobileNotes({ ctx }) {
         {pinnedNotes.length > 0 && (
           <>
             <div className="mob-notes-section-hdr">Pinned</div>
-            <div className="mob-notes-masonry">
-              {pinnedNotes.map(renderNoteCard)}
-            </div>
+            {renderMasonry(pinnedNotes)}
           </>
         )}
 
@@ -1668,9 +1693,7 @@ function MobileNotes({ ctx }) {
         {otherNotes.length > 0 && (
           <>
             {pinnedNotes.length > 0 && <div className="mob-notes-section-hdr">Notes</div>}
-            <div className="mob-notes-masonry">
-              {otherNotes.map(renderNoteCard)}
-            </div>
+            {renderMasonry(otherNotes)}
           </>
         )}
       </div>
@@ -2192,6 +2215,20 @@ function MobileSettings({ ctx }) {
       <div className="mob-sett-card">
         <div className="mob-sett-card-title"><User size={15} /> {t("account.account")}</div>
         <p className="mob-sett-email-text">{session?.user?.email}</p>
+        {/* Upgrade button */}
+        <button
+          className="mob-upgrade-btn"
+          onClick={() => ctx.setPricingOpen?.(true)}
+        >
+          <span className="mob-upgrade-plan-badge">
+            {ctx.subscription?.plan === "free"  ? "Free"
+           : ctx.subscription?.plan === "plus"  ? "Plus"
+           : ctx.subscription?.plan === "pro"   ? "Pro"
+           : ctx.subscription?.plan === "team"  ? "Team"
+           : "Free"}
+          </span>
+          {ctx.subscription?.plan === "free" ? "Upgrade to Pro" : "Manage Subscription"}
+        </button>
         <button className="mob-signout-btn" onClick={() => supabase.auth.signOut()}>
           {t("account.signOut")}
         </button>
