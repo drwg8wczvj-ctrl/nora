@@ -2787,11 +2787,11 @@
   font-weight: 750;
 }
 .swipe-bg-done {
-  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  background: linear-gradient(135deg, #22c55e, #10b981);
   border-radius: 18px 0 0 18px;
 }
 .swipe-bg-rsc {
-  background: linear-gradient(135deg, rgba(124,58,237,0.78), rgba(100,116,139,0.86));
+  background: linear-gradient(135deg, #f59e0b, #f97316);
   border-radius: 0 18px 18px 0;
 }
 
@@ -3006,4 +3006,198 @@
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME PARITY
+   Bring standard light/dark modes up to the same component quality
+   as liquid-glass dark without forcing every mode into one palette.
+   ═══════════════════════════════════════════════════════════════ */
+
+.mob-app:not(.glass) {
+  --ios-control-bg: rgba(255,255,255,0.78);
+  --ios-control-active: linear-gradient(145deg, #7c3aed, #2563eb 70%, #0891b2);
+  --ios-card-bg:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,249,255,0.90));
+  --ios-card-border: rgba(105, 91, 155, 0.16);
+  --ios-soft-shadow: 0 20px 52px rgba(64, 56, 112, 0.12), 0 2px 10px rgba(64, 56, 112, 0.06);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(124,58,237,0.12), transparent 36%),
+    radial-gradient(circle at 88% 18%, rgba(37,99,235,0.10), transparent 34%),
+    linear-gradient(180deg, #fbfbff 0%, #f2f3fb 46%, #edeff8 100%);
+}
+
+.mob-app.dark:not(.glass) {
+  --ios-hairline: rgba(210, 200, 255, 0.16);
+  --ios-material: rgba(22, 19, 46, 0.76);
+  --ios-material-strong: rgba(28, 25, 55, 0.90);
+  --ios-control-bg: rgba(255,255,255,0.075);
+  --ios-card-bg:
+    linear-gradient(180deg, rgba(255,255,255,0.082), rgba(255,255,255,0.035)),
+    rgba(22, 20, 45, 0.94);
+  --ios-card-border: rgba(210, 200, 255, 0.17);
+  --ios-soft-shadow: 0 22px 58px rgba(0,0,0,0.44), 0 2px 12px rgba(0,0,0,0.28);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(124,58,237,0.20), transparent 34%),
+    radial-gradient(circle at 85% 18%, rgba(37,99,235,0.15), transparent 34%),
+    linear-gradient(180deg, #181432 0%, #0f0e22 46%, #0b0c1d 100%);
+}
+
+.mob-app:not(.glass) .mob-header {
+  background: var(--ios-material);
+  border-bottom-color: var(--ios-hairline);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.42) inset,
+    0 12px 32px rgba(42, 35, 88, 0.08);
+}
+
+.mob-app.dark:not(.glass) .mob-header {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.08) inset,
+    0 12px 34px rgba(0,0,0,0.28);
+}
+
+.mob-app:not(.glass) .mob-plan-segs,
+.mob-app:not(.glass) .mob-day-mode-row,
+.mob-app:not(.glass) .mob-day-summary,
+.mob-app:not(.glass) .mob-focus-card,
+.mob-app:not(.glass) .mai2,
+.mob-app:not(.glass) .mob-gc,
+.mob-app:not(.glass) .mob-task-row,
+.mob-app:not(.glass) .mob-status-card,
+.mob-app:not(.glass) .mob-sv2-card,
+.mob-app:not(.glass) .mob-notes-newbar,
+.mob-app:not(.glass) .mob-notes-search-bar,
+.mob-app:not(.glass) .mob-notes-v2 .nc,
+.mob-app:not(.glass) .mob-deferred-row {
+  background: var(--ios-card-bg);
+  border-color: var(--ios-card-border);
+  box-shadow: var(--ios-soft-shadow), 0 1px 0 rgba(255,255,255,0.42) inset;
+}
+
+.mob-app.dark:not(.glass) .mob-plan-segs,
+.mob-app.dark:not(.glass) .mob-day-mode-row,
+.mob-app.dark:not(.glass) .mob-day-summary,
+.mob-app.dark:not(.glass) .mob-focus-card,
+.mob-app.dark:not(.glass) .mai2,
+.mob-app.dark:not(.glass) .mob-gc,
+.mob-app.dark:not(.glass) .mob-task-row,
+.mob-app.dark:not(.glass) .mob-status-card,
+.mob-app.dark:not(.glass) .mob-sv2-card,
+.mob-app.dark:not(.glass) .mob-notes-newbar,
+.mob-app.dark:not(.glass) .mob-notes-search-bar,
+.mob-app.dark:not(.glass) .mob-notes-v2 .nc,
+.mob-app.dark:not(.glass) .mob-deferred-row {
+  box-shadow: var(--ios-soft-shadow), 0 1px 0 rgba(255,255,255,0.08) inset;
+}
+
+.mob-app:not(.glass) .mob-plan-segs {
+  border-radius: 24px;
+  padding: 5px;
+}
+
+.mob-app:not(.glass) .mob-day-mode-row {
+  gap: 0;
+  padding: 4px;
+  overflow: hidden;
+  border-radius: 22px;
+  width: max-content;
+}
+
+.mob-app:not(.glass) .mob-mode-btn {
+  min-width: 92px;
+  justify-content: center;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.mob-app:not(.glass) .mob-mode-btn + .mob-mode-btn {
+  margin-left: 2px;
+}
+
+.mob-app:not(.glass) .mob-mode-btn.active {
+  color: #fff;
+  background: var(--ios-control-active);
+  box-shadow:
+    0 10px 20px rgba(37,99,235,0.18),
+    0 1px 0 rgba(255,255,255,0.34) inset;
+}
+
+.mob-app:not(.glass) .mob-plan-filter-btn,
+.mob-app:not(.glass) .mob-date-nav-btn,
+.mob-app:not(.glass) .mob-join-task,
+.mob-app:not(.glass) .mob-modal-share,
+.mob-app:not(.glass) .mtr-act,
+.mob-app:not(.glass) .mai2-act {
+  background: var(--ios-control-bg);
+  border-color: var(--ios-card-border);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.36) inset, 0 8px 18px rgba(45, 39, 91, 0.08);
+}
+
+.mob-app.dark:not(.glass) .mob-plan-filter-btn,
+.mob-app.dark:not(.glass) .mob-date-nav-btn,
+.mob-app.dark:not(.glass) .mob-join-task,
+.mob-app.dark:not(.glass) .mob-modal-share,
+.mob-app.dark:not(.glass) .mtr-act,
+.mob-app.dark:not(.glass) .mai2-act {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 8px 20px rgba(0,0,0,0.22);
+}
+
+.mob-app:not(.glass) .mob-focus-card,
+.mob-app:not(.glass) .mai2,
+.mob-app:not(.glass) .mob-status-card {
+  border-radius: 28px;
+}
+
+.mob-app:not(.glass) .mai2::before {
+  background: linear-gradient(180deg, #8b5cf6, #2563eb);
+  opacity: 0.82;
+}
+
+.mob-app:not(.glass) .mob-bottom-nav {
+  left: 14px;
+  right: 14px;
+  bottom: calc(max(env(safe-area-inset-bottom, 0px), 8px) + 2px);
+  min-height: 76px;
+  padding: 8px;
+  border-radius: 999px;
+  background: var(--ios-material);
+  border-color: var(--ios-card-border);
+  box-shadow:
+    0 22px 56px rgba(46, 39, 94, 0.16),
+    0 1px 0 rgba(255,255,255,0.46) inset;
+}
+
+.mob-app.dark:not(.glass) .mob-bottom-nav {
+  box-shadow:
+    0 24px 70px rgba(0,0,0,0.52),
+    0 1px 0 rgba(255,255,255,0.08) inset;
+}
+
+.mob-app:not(.glass) .mob-nav-btn {
+  min-height: 60px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.mob-app:not(.glass) .mob-nav-btn.mob-nav-active {
+  color: var(--accent);
+  background: rgba(124,58,237,0.12);
+  box-shadow: 0 10px 22px rgba(124,58,237,0.12);
+}
+
+.mob-app.dark:not(.glass) .mob-nav-btn.mob-nav-active {
+  color: #c4b5fd;
+  background: rgba(124,58,237,0.22);
+  box-shadow: 0 12px 26px rgba(124,58,237,0.16);
+}
+
+.mob-app:not(.glass) .mob-nav-btn.mob-nav-active svg {
+  transform: translateY(-2px) scale(1.06);
+}
+
+.mob-app:not(.glass) .mob-ai-fab {
+  bottom: calc(104px + env(safe-area-inset-bottom, 0px));
 }

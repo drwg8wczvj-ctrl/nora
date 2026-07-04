@@ -42,7 +42,7 @@ import {
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
   MapPin, Navigation, Car, Bus, Bike, PersonStanding,
 } from "lucide-react";
-import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, getModeLabel } from "./location";
+import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, getModeLabel, findNearbyPlace } from "./location";
 import LocationField from "./components/LocationField";
 import SavedPlacesManager from "./components/SavedPlacesManager";
 import { calculateTaskWeight } from "./utils/taskUtils";
@@ -453,6 +453,75 @@ const AI_TOOLS = [
           },
         },
         required: ["title","blocks"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "find_nearby_place",
+      description: "Search for the nearest real-world location of a given type (grocery store, pharmacy, cafe, gym, bakery, etc.) near one of the user's saved places. Returns the actual name, address, distance, and walking/travel time. ALWAYS call this before scheduling a task that requires travelling to a type of place (not a specific saved place). Do NOT guess travel time — call this tool, get the real distance, then schedule accordingly.",
+      parameters: {
+        type: "object",
+        properties: {
+          category:      { type: "string", description: "What to find, in plain English: 'grocery store', 'pharmacy', 'cafe', 'gym', 'bakery', 'bank', 'restaurant', 'park', 'library', etc." },
+          nearSavedPlace:{ type: "string", description: "Name of the user's saved place to search from (e.g. 'Home', 'Work'). Must match a saved place name." },
+          radiusMeters:  { type: "number", description: "Search radius in metres (default 2000, max 5000)" },
+        },
+        required: ["category","nearSavedPlace"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_note",
+      description: "Create a new note in the user's Notes section. Use for capturing ideas, shopping lists, checklists, or any text the user wants to save. Prefer 'checklist' or 'shopping' type when the content is a list of items.",
+      parameters: {
+        type: "object",
+        properties: {
+          title:   { type: "string", description: "Note title (optional but recommended)" },
+          content: { type: "string", description: "Note body text. For checklist/shopping, use one item per line — they'll be split into list items automatically." },
+          type:    { type: "string", enum: ["note","checklist","shopping","idea","capture"], description: "note=plain text, checklist=to-do items, shopping=shopping list with checkboxes, idea=idea capture, capture=quick capture" },
+          color:   { type: "string", enum: ["cream","yellow","orange","rose","teal","blue","mint","lavender","purple"], description: "Card color (optional, default cream)" },
+          pinned:  { type: "boolean", description: "Pin to top (optional)" },
+        },
+        required: ["content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_note",
+      description: "Update an existing note's title, content, or type. Use the note's id from the notes context. Can append text to content or fully replace it.",
+      parameters: {
+        type: "object",
+        properties: {
+          noteId:  { type: "string", description: "The note's id" },
+          title:   { type: "string" },
+          content: { type: "string", description: "New full content, or use appendContent to add to existing." },
+          appendContent: { type: "string", description: "Text to append to existing content instead of replacing it." },
+          type:    { type: "string", enum: ["note","checklist","shopping","idea","capture"] },
+          color:   { type: "string", enum: ["cream","yellow","orange","rose","teal","blue","mint","lavender","purple"] },
+          pinned:  { type: "boolean" },
+          starred: { type: "boolean" },
+        },
+        required: ["noteId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_note",
+      description: "Permanently delete a note. Only do this if the user explicitly asks to delete or remove a note.",
+      parameters: {
+        type: "object",
+        properties: {
+          noteId: { type: "string", description: "The note's id" },
+        },
+        required: ["noteId"],
       },
     },
   },
@@ -2324,6 +2393,16 @@ export default function App() {
       ? `\n━━━ PROJECT WHITEBOARDS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nThe user has ${boards.length} whiteboard(s):\n${boards.map(b => `• "${b.title}" — ${b.blocks.length} blocks: ${b.blocks.map(x=>x.type+':'+x.title).join(', ')}`).join('\n')}\n\nYou can create new whiteboards with create_whiteboard, or modify existing ones with update_whiteboard.\nWhen the user asks to plan a project visually, create a whiteboard. When they ask to add/change items on a board, use update_whiteboard.\n`
       : `\n(No whiteboards yet. Use create_whiteboard when the user wants to plan a project visually.)\n`;
 
+    const notesBlock = notes.length
+      ? `\n━━━ USER NOTES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nThe user has ${notes.length} note(s). You can read, create, update, or delete notes:\n\n${notes.map((n) => {
+          const preview = n.content ? n.content.slice(0, 120) + (n.content.length > 120 ? "…" : "") : "";
+          const itemsPreview = Array.isArray(n.items) && n.items.length
+            ? `[${n.items.length} items: ${n.items.slice(0, 5).map(i => (i.done ? "✓" : "•") + " " + i.text).join(", ")}${n.items.length > 5 ? "…" : ""}]`
+            : "";
+          return `• id="${n.id}" | type=${n.type ?? "note"} | title="${n.title ?? "(untitled)"}" | ${itemsPreview || preview || "(empty)"}${n.pinned ? " [pinned]" : ""}${n.starred ? " [starred]" : ""}`;
+        }).join("\n")}\n\nTools: create_note to add a new note, update_note to edit/append (use noteId from above), delete_note to remove.\nWhen the user references a note by name or asks to edit/update one, always call update_note — never create a duplicate.\n`
+      : `\n━━━ USER NOTES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nNo notes yet. Use create_note when the user asks to jot something down, save an idea, or make a list.\n`;
+
     const noraStateGuidance = {
       recovery_day:      "Protect the user today. No new tasks. Offer to defer or remove items only.",
       high_load:         "Acknowledge the load. Suggest removing ≥1 task before adding any.",
@@ -2407,6 +2486,7 @@ Data confidence:   ${behaviorProfile.confidence} (${behaviorProfile.sampleSize} 
 Cognitive load (today): ${workloadForecast[0]?.weightedLoad ?? 0} pts · Baseline avg: ${userLoadBaseline.avgDailyWeight} pts/day · Overload threshold: ${userLoadBaseline.overloadThreshold} pts
 (Load is weighted by task complexity, duration, keywords and urgency — not raw task count)
 ${boardsBlock}
+${notesBlock}
 ${placesBlock}
 ${prefsBlock}
 ━━━ CURRENT WELLNESS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2932,6 +3012,25 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               return updated;
             });
             toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Insight saved: ${key} = "${value}"${note ? ` (${note})` : ""}` });
+          } else if (tc.function.name === "find_nearby_place") {
+            const { category, nearSavedPlace, radiusMeters = 2000 } = input;
+            const anchor = savedPlaces.find((p) => p.name?.toLowerCase() === nearSavedPlace?.toLowerCase()) ?? savedPlaces[0];
+            if (!anchor?.lat || !anchor?.lng) {
+              toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Cannot search: saved place "${nearSavedPlace}" has no coordinates. Ask the user to add their address in Settings → Places.` });
+            } else {
+              const place = await findNearbyPlace(category, anchor.lat, anchor.lng, Math.min(radiusMeters, 5000));
+              if (!place) {
+                toolResults.push({ role: "tool", tool_call_id: tc.id, content: `No ${category} found within ${Math.round(radiusMeters / 1000 * 10) / 10} km of ${anchor.name}. Try increasing the radius or asking the user for a specific address.` });
+              } else {
+                const mode = transportProfile.defaultMode ?? "mixed";
+                const travelMin = estimateTravelMinutes(anchor, place, mode);
+                const distStr = place.distanceKm < 1
+                  ? `${Math.round(place.distanceKm * 1000)} m`
+                  : `${place.distanceKm.toFixed(1)} km`;
+                const addrStr = place.address ? ` at ${place.address}` : "";
+                toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Nearest ${category} to ${anchor.name}: "${place.name}"${addrStr} — ${distStr} away. Travel time (${getModeLabel(mode)}): ~${travelMin} min. Coordinates: ${place.lat.toFixed(5)},${place.lng.toFixed(5)}.` });
+              }
+            }
           } else if (tc.function.name === "create_whiteboard") {
             const { title, blocks: rawBlocks = [], connections: rawConns = [] } = input;
             const BS_DEFAULTS = { goal:{w:240,h:110}, idea:{w:200,h:88}, task_group:{w:240,h:130}, deadline:{w:220,h:90}, note:{w:240,h:130}, decision:{w:210,h:100} };
@@ -2976,6 +3075,49 @@ Everything else → as short as possible. If nothing notable to add, don't add i
               return b;
             }));
             toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Board "${boardTitle}" updated (${action}).` });
+          } else if (tc.function.name === "create_note") {
+            const { title = "", content = "", type = "note", color = "cream", pinned = false } = input;
+            const isListType = type === "checklist" || type === "shopping";
+            const items = isListType && content
+              ? content.split("\n").filter(Boolean).map((text) => ({ id: uid(), text: text.replace(/^[-•*]\s*/, "").trim(), done: false }))
+              : [];
+            const newNote = {
+              id: uid(), title, content: isListType ? "" : content,
+              color, type, items, pinned, starred: false,
+              createdAt: Date.now(), updatedAt: Date.now(),
+            };
+            setNotes((prev) => [...prev, newNote]);
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Note created (id="${newNote.id}"): "${title || content.slice(0, 40)}"` });
+          } else if (tc.function.name === "update_note") {
+            const { noteId, title, content, appendContent, type, color, pinned, starred } = input;
+            let found = false;
+            setNotes((prev) => prev.map((n) => {
+              if (n.id !== noteId) return n;
+              found = true;
+              const patch = { updatedAt: Date.now() };
+              if (title !== undefined)   patch.title   = title;
+              if (type  !== undefined)   patch.type    = type;
+              if (color !== undefined)   patch.color   = color;
+              if (pinned !== undefined)  patch.pinned  = pinned;
+              if (starred !== undefined) patch.starred = starred;
+              if (appendContent !== undefined) {
+                patch.content = ((n.content ?? "") + "\n" + appendContent).trimStart();
+              } else if (content !== undefined) {
+                const isListType = (patch.type ?? n.type) === "checklist" || (patch.type ?? n.type) === "shopping";
+                if (isListType) {
+                  patch.items = content.split("\n").filter(Boolean).map((text) => ({ id: uid(), text: text.replace(/^[-•*✓]\s*/, "").trim(), done: false }));
+                  patch.content = "";
+                } else {
+                  patch.content = content;
+                }
+              }
+              return { ...n, ...patch };
+            }));
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: found ? `Note "${noteId}" updated.` : `Note "${noteId}" not found.` });
+          } else if (tc.function.name === "delete_note") {
+            const { noteId } = input;
+            setNotes((prev) => prev.filter((n) => n.id !== noteId));
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Note "${noteId}" deleted.` });
           } else {
             const { result, nextTasks } = executeAiTool(tc.function.name, input, workingTasks);
             workingTasks = nextTasks;

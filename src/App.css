@@ -3654,3 +3654,297 @@ button:not(:disabled):active {
     font-size: 16px !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DESKTOP PREMIUM COHESION
+   Desktop keeps its denser workflow, but shares the same Nora
+   material language, depth, and motion as the iPhone experience.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (min-width: 769px) {
+  .app:not(.mob-app) {
+    --desk-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --desk-bounce: cubic-bezier(0.20, 1.12, 0.34, 1);
+    --desk-material: rgba(255,255,255,0.78);
+    --desk-material-strong: rgba(255,255,255,0.92);
+    --desk-hairline: rgba(70, 62, 120, 0.12);
+    --desk-shadow: 0 20px 56px rgba(48, 42, 92, 0.12), 0 2px 10px rgba(48, 42, 92, 0.06);
+    --desk-shadow-raised: 0 28px 76px rgba(48, 42, 92, 0.18), 0 6px 22px rgba(48, 42, 92, 0.10);
+    background:
+      radial-gradient(circle at 12% -8%, rgba(124,58,237,0.12), transparent 34%),
+      radial-gradient(circle at 88% 8%, rgba(37,99,235,0.10), transparent 32%),
+      linear-gradient(180deg, #fbfbff 0%, #f3f4fb 50%, #ebeef8 100%);
+  }
+
+  .app.dark:not(.mob-app) {
+    --desk-material: rgba(22, 19, 46, 0.76);
+    --desk-material-strong: rgba(27, 24, 54, 0.91);
+    --desk-hairline: rgba(210, 200, 255, 0.16);
+    --desk-shadow: 0 22px 62px rgba(0,0,0,0.44), 0 2px 12px rgba(0,0,0,0.30);
+    --desk-shadow-raised: 0 30px 86px rgba(0,0,0,0.58), 0 0 36px rgba(124,58,237,0.12);
+    background:
+      radial-gradient(circle at 12% -8%, rgba(124,58,237,0.22), transparent 34%),
+      radial-gradient(circle at 88% 8%, rgba(37,99,235,0.16), transparent 32%),
+      linear-gradient(180deg, #17132f 0%, #0e0d20 52%, #090b1a 100%);
+  }
+
+  .app:not(.mob-app) .main-wrap {
+    background: transparent;
+  }
+
+  .app:not(.mob-app) .header,
+  .app:not(.mob-app) .sidebar,
+  .app:not(.mob-app) .chat-panel {
+    background: var(--desk-material);
+    border-color: var(--desk-hairline);
+    backdrop-filter: blur(28px) saturate(1.55);
+    -webkit-backdrop-filter: blur(28px) saturate(1.55);
+    box-shadow: var(--desk-shadow), 0 1px 0 rgba(255,255,255,0.42) inset;
+  }
+
+  .app.dark:not(.mob-app) .header,
+  .app.dark:not(.mob-app) .sidebar,
+  .app.dark:not(.mob-app) .chat-panel {
+    box-shadow: var(--desk-shadow), 0 1px 0 rgba(255,255,255,0.08) inset;
+  }
+
+  .app:not(.mob-app) .header {
+    height: 72px;
+  }
+
+  .app:not(.mob-app) .container {
+    max-width: 1040px;
+    gap: 18px;
+    padding-top: 28px;
+  }
+
+  .app:not(.mob-app) .stats-bar,
+  .app:not(.mob-app) .controls,
+  .app:not(.mob-app) .filter-bar,
+  .app:not(.mob-app) .progress-wrap,
+  .app:not(.mob-app) .unscheduled-section,
+  .app:not(.mob-app) .timeline,
+  .app:not(.mob-app) .month-wrap,
+  .app:not(.mob-app) .ai-focus-panel,
+  .app:not(.mob-app) .stat-card,
+  .app:not(.mob-app) .status-card,
+  .app:not(.mob-app) .sv2-card,
+  .app:not(.mob-app) .lti-card,
+  .app:not(.mob-app) .notes-toolbar,
+  .app:not(.mob-app) .notes-search-bar,
+  .app:not(.mob-app) .notes-new-btn,
+  .app:not(.mob-app) .nc,
+  .app:not(.mob-app) .modal {
+    background: var(--desk-material-strong);
+    border-color: var(--desk-hairline);
+    box-shadow: var(--desk-shadow), 0 1px 0 rgba(255,255,255,0.46) inset;
+    backdrop-filter: blur(22px) saturate(1.55);
+    -webkit-backdrop-filter: blur(22px) saturate(1.55);
+  }
+
+  .app.dark:not(.mob-app) .stats-bar,
+  .app.dark:not(.mob-app) .controls,
+  .app.dark:not(.mob-app) .filter-bar,
+  .app.dark:not(.mob-app) .progress-wrap,
+  .app.dark:not(.mob-app) .unscheduled-section,
+  .app.dark:not(.mob-app) .timeline,
+  .app.dark:not(.mob-app) .month-wrap,
+  .app.dark:not(.mob-app) .ai-focus-panel,
+  .app.dark:not(.mob-app) .stat-card,
+  .app.dark:not(.mob-app) .status-card,
+  .app.dark:not(.mob-app) .sv2-card,
+  .app.dark:not(.mob-app) .lti-card,
+  .app.dark:not(.mob-app) .notes-toolbar,
+  .app.dark:not(.mob-app) .notes-search-bar,
+  .app.dark:not(.mob-app) .notes-new-btn,
+  .app.dark:not(.mob-app) .nc,
+  .app.dark:not(.mob-app) .modal {
+    box-shadow: var(--desk-shadow), 0 1px 0 rgba(255,255,255,0.08) inset;
+  }
+
+  .app:not(.mob-app) .controls,
+  .app:not(.mob-app) .filter-bar,
+  .app:not(.mob-app) .progress-wrap,
+  .app:not(.mob-app) .unscheduled-section,
+  .app:not(.mob-app) .timeline,
+  .app:not(.mob-app) .month-wrap,
+  .app:not(.mob-app) .ai-focus-panel,
+  .app:not(.mob-app) .modal {
+    border-radius: 24px;
+  }
+
+  .app:not(.mob-app) .stat-card,
+  .app:not(.mob-app) .status-card,
+  .app:not(.mob-app) .sv2-card,
+  .app:not(.mob-app) .lti-card,
+  .app:not(.mob-app) .nc {
+    border-radius: 18px;
+  }
+
+  .app:not(.mob-app) .menu-btn,
+  .app:not(.mob-app) .nav-btn,
+  .app:not(.mob-app) .tl-zoom-btn,
+  .app:not(.mob-app) .modal-close,
+  .app:not(.mob-app) .chat-close,
+  .app:not(.mob-app) .notes-tb-btn,
+  .app:not(.mob-app) .notes-new-btn,
+  .app:not(.mob-app) .sidebar-close,
+  .app:not(.mob-app) .theme-pill,
+  .app:not(.mob-app) .date-input,
+  .app:not(.mob-app) .sett-input,
+  .app:not(.mob-app) .modal-select,
+  .app:not(.mob-app) .modal-notes,
+  .app:not(.mob-app) .chat-input-wrap,
+  .app:not(.mob-app) .chat-micro-btn,
+  .app:not(.mob-app) .chat-suggestions-toggle {
+    background: rgba(255,255,255,0.58);
+    border-color: var(--desk-hairline);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.40) inset, 0 8px 18px rgba(45, 39, 91, 0.07);
+    transition:
+      transform 0.16s var(--desk-ease),
+      background 0.22s var(--desk-ease),
+      color 0.22s var(--desk-ease),
+      border-color 0.22s var(--desk-ease),
+      box-shadow 0.22s var(--desk-ease);
+  }
+
+  .app.dark:not(.mob-app) .menu-btn,
+  .app.dark:not(.mob-app) .nav-btn,
+  .app.dark:not(.mob-app) .tl-zoom-btn,
+  .app.dark:not(.mob-app) .modal-close,
+  .app.dark:not(.mob-app) .chat-close,
+  .app.dark:not(.mob-app) .notes-tb-btn,
+  .app.dark:not(.mob-app) .notes-new-btn,
+  .app.dark:not(.mob-app) .sidebar-close,
+  .app.dark:not(.mob-app) .theme-pill,
+  .app.dark:not(.mob-app) .date-input,
+  .app.dark:not(.mob-app) .sett-input,
+  .app.dark:not(.mob-app) .modal-select,
+  .app.dark:not(.mob-app) .modal-notes,
+  .app.dark:not(.mob-app) .chat-input-wrap,
+  .app.dark:not(.mob-app) .chat-micro-btn,
+  .app.dark:not(.mob-app) .chat-suggestions-toggle {
+    background: rgba(255,255,255,0.075);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 8px 20px rgba(0,0,0,0.24);
+  }
+
+  .app:not(.mob-app) .menu-btn:hover,
+  .app:not(.mob-app) .nav-btn:hover,
+  .app:not(.mob-app) .tl-zoom-btn:hover:not(:disabled),
+  .app:not(.mob-app) .modal-close:hover,
+  .app:not(.mob-app) .chat-close:hover,
+  .app:not(.mob-app) .notes-tb-btn:hover,
+  .app:not(.mob-app) .notes-new-btn:hover,
+  .app:not(.mob-app) .theme-pill:hover {
+    transform: translateY(-1px);
+    border-color: var(--border-glow);
+    color: var(--accent);
+    box-shadow: 0 12px 26px rgba(124,58,237,0.14), 0 1px 0 rgba(255,255,255,0.44) inset;
+  }
+
+  .app:not(.mob-app) .view-tabs {
+    padding: 5px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.56);
+    border-color: var(--desk-hairline);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.42) inset, 0 12px 26px rgba(45,39,91,0.08);
+    overflow: hidden;
+  }
+
+  .app.dark:not(.mob-app) .view-tabs {
+    background: rgba(255,255,255,0.075);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 12px 28px rgba(0,0,0,0.22);
+  }
+
+  .app:not(.mob-app) .tab-slider {
+    top: 5px;
+    bottom: 5px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, #7c3aed, #2563eb 68%, #0891b2);
+    box-shadow: 0 12px 26px rgba(37,99,235,0.22), 0 1px 0 rgba(255,255,255,0.34) inset;
+  }
+
+  .app:not(.mob-app) .tab-btn {
+    border-radius: 14px;
+    font-weight: 720;
+    min-width: 92px;
+  }
+
+  .app:not(.mob-app) .filter-pill,
+  .app:not(.mob-app) .tca,
+  .app:not(.mob-app) .badge,
+  .app:not(.mob-app) .chat-chip,
+  .app:not(.mob-app) .chat-ai-bubble {
+    border-radius: 999px;
+    transition:
+      transform 0.16s var(--desk-ease),
+      background 0.22s var(--desk-ease),
+      color 0.22s var(--desk-ease),
+      border-color 0.22s var(--desk-ease),
+      box-shadow 0.22s var(--desk-ease);
+  }
+
+  .app:not(.mob-app) .filter-pill:hover,
+  .app:not(.mob-app) .tca:hover,
+  .app:not(.mob-app) .chat-chip:hover,
+  .app:not(.mob-app) .chat-ai-bubble:hover {
+    transform: translateY(-1px);
+  }
+
+  .app:not(.mob-app) .task-chip,
+  .app:not(.mob-app) .tl-task-chip,
+  .app:not(.mob-app) .month-task-pill {
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--gc) 10%, var(--desk-material-strong));
+    border-color: color-mix(in srgb, var(--gc) 18%, var(--desk-hairline));
+    box-shadow: 0 1px 0 rgba(255,255,255,0.22) inset;
+  }
+
+  .app.dark:not(.mob-app) .task-chip,
+  .app.dark:not(.mob-app) .tl-task-chip,
+  .app.dark:not(.mob-app) .month-task-pill {
+    background: color-mix(in srgb, var(--gc) 18%, rgba(27,24,54,0.92));
+    box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset;
+  }
+
+  .app:not(.mob-app) .task-chip:hover,
+  .app:not(.mob-app) .tl-task-chip:hover {
+    transform: translateY(-2px) scale(1.006);
+    box-shadow: var(--desk-shadow-raised);
+  }
+
+  .app:not(.mob-app) .chat-fab {
+    width: 58px;
+    height: 58px;
+    border-radius: 999px;
+    background: linear-gradient(145deg, #8b5cf6 0%, #2563eb 62%, #06b6d4 100%);
+    border: 1px solid rgba(255,255,255,0.30);
+    box-shadow: 0 18px 42px rgba(37,99,235,0.30), 0 8px 20px rgba(124,58,237,0.22), 0 1px 0 rgba(255,255,255,0.40) inset;
+  }
+
+  .app:not(.mob-app) .chat-panel {
+    width: min(460px, calc(100vw - 48px));
+    border-radius: 28px;
+  }
+
+  .app:not(.mob-app) .chat-bubble {
+    border-radius: 18px;
+    box-shadow: 0 10px 24px rgba(31,27,65,0.08);
+  }
+
+  .app:not(.mob-app) .chat-msg.user .chat-bubble {
+    background: linear-gradient(145deg, #7c3aed, #2563eb);
+  }
+
+  .app:not(.mob-app) .modal {
+    border-radius: 28px;
+  }
+
+  .app:not(.mob-app) .modal-save,
+  .app:not(.mob-app) .add-btn,
+  .app:not(.mob-app) .send-btn,
+  .app:not(.mob-app) .auth-submit {
+    background: linear-gradient(145deg, #7c3aed, #2563eb 68%, #0891b2);
+    box-shadow: 0 12px 26px rgba(37,99,235,0.22), 0 1px 0 rgba(255,255,255,0.38) inset;
+  }
+}

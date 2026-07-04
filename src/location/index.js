@@ -5,6 +5,7 @@ export {
   geocodeAddress,
   getModeLabel,
   getModeShortLabel,
+  findNearbyPlace,
 } from './RouteEstimationService';
 
 export {
