@@ -2780,18 +2780,18 @@
 }
 .swipe-inner {
   border-radius: 18px;
-  background: transparent;
+  background: var(--ios-material-strong);
   transition: transform 0.34s var(--ios-bounce);
 }
 .swipe-bg {
   font-weight: 750;
 }
 .swipe-bg-done {
-  background: linear-gradient(135deg, #22c55e, #10b981);
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
   border-radius: 18px 0 0 18px;
 }
 .swipe-bg-rsc {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  background: linear-gradient(135deg, rgba(124,58,237,0.78), rgba(100,116,139,0.86));
   border-radius: 0 18px 18px 0;
 }
 
