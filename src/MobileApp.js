@@ -118,9 +118,10 @@ export default function MobileApp({ ctx }) {
   const hasFilters = filterType || filterGroup || filterComplex;
 
   // Bottom nav drag/dial — DOM-direct (no re-renders per frame)
-  const navRef          = useRef(null);
-  const navDragRef      = useRef({ active: false, startX: 0, startIdx: 0, moved: false });
-  const navFirstMount   = useRef(true);
+  const navRef           = useRef(null);
+  const navIndicatorRef  = useRef(null);
+  const navDragRef       = useRef({ active: false, startX: 0, startIdx: 0, moved: false });
+  const navFirstMount    = useRef(true);
   const [isDraggingNav, setIsDraggingNav] = useState(false);
 
   const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
@@ -135,22 +136,25 @@ export default function MobileApp({ ctx }) {
   const VIEWS_NAV = ["plan", "tasks", "notes", "status", "settings"];
   const navIdx = VIEWS_NAV.indexOf(mobileView);
 
-  // Drive the glass ::after indicator position via CSS custom property.
-  // No transition on first paint (prevents the circle flashing from default to real position).
+  // Snap the indicator to the active tab.
+  // Suppress transition on first paint so it doesn't fly in from (0,0).
   useLayoutEffect(() => {
     const nav = navRef.current;
-    if (!nav) return;
+    const ind = navIndicatorRef.current;
+    if (!nav || !ind) return;
     const btns = nav.querySelectorAll(".mob-nav-btn");
     const btn  = btns[navIdx];
     if (!btn) return;
-    const x = btn.offsetLeft + 5; // centered: offsetLeft + (tabW - (tabW-10)) / 2 = offsetLeft + 5
+
+    ind.style.left   = `${btn.offsetLeft}px`;
+    ind.style.top    = `${btn.offsetTop}px`;
+    ind.style.width  = `${btn.offsetWidth}px`;
+    ind.style.height = `${btn.offsetHeight}px`;
+
     if (navFirstMount.current) {
       nav.classList.add('mob-nav-no-trans');
       navFirstMount.current = false;
-      nav.style.setProperty('--mob-pill-x', `${x}px`);
       requestAnimationFrame(() => nav.classList.remove('mob-nav-no-trans'));
-    } else {
-      nav.style.setProperty('--mob-pill-x', `${x}px`);
     }
   }, [navIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -170,9 +174,10 @@ export default function MobileApp({ ctx }) {
     const btns = navRef.current.querySelectorAll(".mob-nav-btn");
     const tabW = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
     const clampedIdx = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
-    // Move the glass ::after circle in real-time via CSS custom property (no transition while dragging)
-    navRef.current.style.setProperty('--mob-pill-x',
-      `${(btns[0]?.offsetLeft ?? 0) + clampedIdx * tabW + 5}px`);
+    if (navIndicatorRef.current) {
+      navIndicatorRef.current.style.left =
+        `${(btns[0]?.offsetLeft ?? 0) + clampedIdx * tabW}px`;
+    }
     const snapIdx = Math.round(clampedIdx);
     navRef.current.querySelectorAll(".mob-nav-btn").forEach((btn, i) => {
       btn.style.color = i === snapIdx ? "var(--accent)" : "";
@@ -244,6 +249,7 @@ export default function MobileApp({ ctx }) {
         onPointerUp={onNavPointerUp}
         onPointerCancel={onNavPointerCancel}
       >
+        <div ref={navIndicatorRef} className="mob-nav-indicator" />
         {[
           ["plan",     t("mob.plan"),     <CalendarDays size={20} />],
           ["tasks",    t("mob.tasks"),    <CheckSquare  size={20} />],

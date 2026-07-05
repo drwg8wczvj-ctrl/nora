@@ -98,46 +98,23 @@
   position: fixed;
 }
 
-/* ── Sliding nav pill ─────────────────────────────────────────────────────────
-   All position/size values set by useLayoutEffect (JS) for pixel accuracy.
-   Transition is also set by JS (no animation on first paint).
-   ─────────────────────────────────────────────────────────────────────────── */
-.mob-nav-pill {
+/* ── Nav indicator — non-glass mode (glass mode overrides live in glass.css) ── */
+.mob-nav-indicator {
   position: absolute;
-  border-radius: 50%;
+  border-radius: 999px;
   pointer-events: none;
   z-index: 0;
-  /* Default (non-glass) subtle fill */
-  background: rgba(124,58,237,0.12);
+  background: rgba(124,58,237,0.10);
+  transition: left 0.38s cubic-bezier(0.34,1.28,0.64,1);
 }
-.dark .mob-nav-pill {
-  background: rgba(139,92,246,0.20);
+.dark .mob-nav-indicator {
+  background: rgba(139,92,246,0.18);
+}
+.mob-bottom-nav.mob-nav-dragging .mob-nav-indicator,
+.mob-bottom-nav.mob-nav-no-trans .mob-nav-indicator {
+  transition: none !important;
 }
 
-/* ── Glass mode pill — the premium frosted look ── */
-.glass .mob-nav-pill {
-  background: linear-gradient(148deg,
-    rgba(255,255,255,0.26) 0%,
-    rgba(255,255,255,0.08) 55%,
-    rgba(139,92,246,0.10) 100%);
-  backdrop-filter: blur(18px) saturate(200%);
-  -webkit-backdrop-filter: blur(18px) saturate(200%);
-  border: 1px solid rgba(255,255,255,0.30);
-  box-shadow:
-    0 4px 18px rgba(0,0,0,0.14),
-    0 1px 0 rgba(255,255,255,0.50) inset;
-}
-.dark .glass .mob-nav-pill,
-.glass.dark .mob-nav-pill {
-  background: linear-gradient(148deg,
-    rgba(255,255,255,0.16) 0%,
-    rgba(255,255,255,0.04) 50%,
-    rgba(139,92,246,0.16) 100%);
-  border: 1px solid rgba(255,255,255,0.16);
-  box-shadow:
-    0 6px 24px rgba(0,0,0,0.38),
-    0 1px 0 rgba(255,255,255,0.22) inset;
-}
 
 .mob-nav-btn {
   flex: 1;
@@ -3255,12 +3232,12 @@
     0 1px 0 rgba(255,255,255,0.05) inset;
 }
 
-/* Non-glass pill: subtle fill, no glass effect */
-.mob-app:not(.glass) .mob-nav-pill {
+/* Non-glass indicator override */
+.mob-app:not(.glass) .mob-nav-indicator {
   background: rgba(124,58,237,0.11);
-  border-radius: 50%;
+  border-radius: 22px;
 }
-.mob-app.dark:not(.glass) .mob-nav-pill {
+.mob-app.dark:not(.glass) .mob-nav-indicator {
   background: rgba(139,92,246,0.20);
 }
 
