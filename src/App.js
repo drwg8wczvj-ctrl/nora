@@ -847,6 +847,11 @@ export default function App() {
   // eslint-disable-next-line no-unused-vars
   const newNoteRef = useRef(null);
 
+  // View-tabs drag/dial
+  const tabsRef    = useRef(null);
+  const tabDragRef = useRef({ active: false, startX: 0, startIdx: 0, moved: false });
+  const [dragTabIdx, setDragTabIdx] = useState(null);
+
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [activeSettings, setActiveSettings] = useState(null);
   const [accountName,    setAccountName]    = useLocalStorage("nora_account_name", "");
@@ -2226,6 +2231,39 @@ export default function App() {
     }, 130);
   };
 
+  const VIEWS_DIAL = ["day", "month", "list"];
+  const onTabPointerDown = (e) => {
+    tabDragRef.current = { active: true, startX: e.clientX, startIdx: VIEWS_DIAL.indexOf(view), moved: false };
+    tabsRef.current?.setPointerCapture(e.pointerId);
+  };
+  const onTabPointerMove = (e) => {
+    if (!tabDragRef.current.active || !tabsRef.current) return;
+    const dx = e.clientX - tabDragRef.current.startX;
+    if (Math.abs(dx) > 5) {
+      tabDragRef.current.moved = true;
+      const tabW = (tabsRef.current.clientWidth - 8) / 3;
+      setDragTabIdx(Math.max(0, Math.min(2, tabDragRef.current.startIdx + dx / tabW)));
+    }
+  };
+  const onTabPointerUp = (e) => {
+    if (!tabDragRef.current.active) return;
+    const { moved, startX, startIdx } = tabDragRef.current;
+    tabDragRef.current.active = false;
+    setDragTabIdx(null);
+    if (moved && tabsRef.current) {
+      const tabW = (tabsRef.current.clientWidth - 8) / 3;
+      const snapped = Math.max(0, Math.min(2, Math.round(startIdx + (e.clientX - startX) / tabW)));
+      navigateTo(VIEWS_DIAL[snapped]);
+      setTimeout(() => { tabDragRef.current.moved = false; }, 0);
+    } else {
+      tabDragRef.current.moved = false;
+    }
+  };
+  const onTabPointerCancel = () => {
+    tabDragRef.current = { active: false, startX: 0, startIdx: 0, moved: false };
+    setDragTabIdx(null);
+  };
+
   const askNORAtoReschedule = (task) => {
     const daysDeferred = Math.round(
       (new Date(today + "T00:00:00") - new Date(task.date + "T00:00:00")) / 86400000
@@ -3331,6 +3369,13 @@ Everything else → as short as possible. If nothing notable to add, don't add i
   }
 
   // ── Desktop render ────────────────────────────────────
+  const tabIdxCur  = view === "day" ? 0 : view === "month" ? 1 : 2;
+  const snapTabIdx = dragTabIdx !== null ? Math.max(0, Math.min(2, Math.round(dragTabIdx))) : tabIdxCur;
+  const tabSliderStyle = (() => {
+    if (dragTabIdx === null || !tabsRef.current) return undefined;
+    const w = (tabsRef.current.clientWidth - 8) / 3;
+    return { left: `${4 + dragTabIdx * w}px`, width: `${w}px`, transition: "none", boxShadow: "0 0 28px rgba(124,58,237,0.75), 0 2px 12px rgba(0,0,0,0.35)" };
+  })();
   return (
     <div className={`app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
 
@@ -3568,11 +3613,21 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 : <span className="month-label-nav">All Tasks</span>}
               <button className="nav-btn" onClick={() => view === "month" ? shiftMo(1) : shiftDate(1)}><ChevronRight size={16} /></button>
             </div>
-            <div className="view-tabs">
-              <div className={`tab-slider tab-slider-${view === "day" ? 0 : view === "month" ? 1 : 2}`} />
-              <button className={`tab-btn${view === "day"   ? " active" : ""}`} onClick={() => navigateTo("day")}>Day</button>
-              <button className={`tab-btn${view === "month" ? " active" : ""}`} onClick={() => navigateTo("month")}>Month</button>
-              <button className={`tab-btn${view === "list"  ? " active" : ""}`} onClick={() => navigateTo("list")}>All</button>
+            <div
+              className={`view-tabs${dragTabIdx !== null ? " view-tabs-dragging" : ""}`}
+              ref={tabsRef}
+              onPointerDown={onTabPointerDown}
+              onPointerMove={onTabPointerMove}
+              onPointerUp={onTabPointerUp}
+              onPointerCancel={onTabPointerCancel}
+            >
+              <div
+                className={`tab-slider${dragTabIdx === null ? ` tab-slider-${tabIdxCur}` : " tab-slider-drag"}`}
+                style={tabSliderStyle}
+              />
+              <button className={`tab-btn${snapTabIdx === 0 ? " active" : ""}`} onClick={() => { if (!tabDragRef.current.moved) navigateTo("day"); }}>Day</button>
+              <button className={`tab-btn${snapTabIdx === 1 ? " active" : ""}`} onClick={() => { if (!tabDragRef.current.moved) navigateTo("month"); }}>Month</button>
+              <button className={`tab-btn${snapTabIdx === 2 ? " active" : ""}`} onClick={() => { if (!tabDragRef.current.moved) navigateTo("list"); }}>All</button>
             </div>
           </div>}
 
