@@ -1,6 +1,18 @@
 import UIKit
 import SwiftUI
 
+// Applies .symbolEffect(.bounce) only where available (iOS 17+)
+private struct BounceEffect: ViewModifier {
+    let trigger: Bool
+    func body(content: Content) -> some View {
+        if #available(iOS 17, *) {
+            content.symbolEffect(.bounce, value: trigger)
+        } else {
+            content
+        }
+    }
+}
+
 // ─── UIViewController host ─────────────────────────────────────────────────────
 
 final class NativeTabBarHost: UIViewController {
@@ -100,19 +112,17 @@ struct NativeTabBarContent: View {
     @ViewBuilder
     private var glassContainer: some View {
         if #available(iOS 26, *) {
-            // Real Liquid Glass — the OS compositor renders refraction,
-            // specular highlights, and vibrancy. We set shape; iOS does the rest.
             Capsule()
                 .glassEffect()
         } else {
-            // iOS 17–25 graceful fallback: system material blur
+            // iOS 17–25 fallback: solid tinted background so it's always visible
             Capsule()
-                .fill(.regularMaterial)
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.22), lineWidth: 0.5)
-                )
-                .shadow(color: .black.opacity(0.24), radius: 18, y: 8)
+                .fill(dark
+                    ? Color(red: 0.11, green: 0.08, blue: 0.22).opacity(0.94)
+                    : Color.white.opacity(0.94))
+                .overlay(Capsule().fill(.ultraThinMaterial))
+                .overlay(Capsule().stroke(Color(uiColor: .separator), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.20), radius: 16, y: 6)
         }
     }
 
@@ -135,7 +145,7 @@ struct NativeTabBarContent: View {
                 VStack(spacing: 3) {
                     Image(systemName: tab.sfSymbol)
                         .font(.system(size: 21, weight: .medium))
-                        .symbolEffect(.bounce, value: isActive)
+                        .modifier(BounceEffect(trigger: isActive))
                     Text(tab.label)
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
                 }
