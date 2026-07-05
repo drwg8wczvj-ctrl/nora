@@ -760,7 +760,7 @@
   position: absolute;
   z-index: 1;
   top: 8px;
-  left: 8px;
+  left: var(--mob-pill-x, 5px);
   width: calc(20% - 10px);
   height: 60px;
   pointer-events: none;
@@ -777,20 +777,12 @@
     0 -8px 16px rgba(11, 8, 33, 0.16) inset;
   backdrop-filter: blur(18px) saturate(2.0) brightness(1.10);
   -webkit-backdrop-filter: blur(18px) saturate(2.0) brightness(1.10);
-  transition: left 0.42s cubic-bezier(0.20, 1.18, 0.34, 1);
+  transition: left 0.42s cubic-bezier(0.20, 1.18, 0.64, 1);
 }
-
-.glass.mob-app .mob-bottom-nav:has(.mob-nav-btn:nth-child(2).mob-nav-active)::after {
-  left: calc(20% + 6px);
-}
-.glass.mob-app .mob-bottom-nav:has(.mob-nav-btn:nth-child(3).mob-nav-active)::after {
-  left: calc(40% + 4px);
-}
-.glass.mob-app .mob-bottom-nav:has(.mob-nav-btn:nth-child(4).mob-nav-active)::after {
-  left: calc(60% + 2px);
-}
-.glass.mob-app .mob-bottom-nav:has(.mob-nav-btn:nth-child(5).mob-nav-active)::after {
-  left: calc(80% + 0px);
+/* Disable transition during drag or initial paint (JS adds/removes these classes) */
+.glass.mob-app .mob-bottom-nav.mob-nav-dragging::after,
+.glass.mob-app .mob-bottom-nav.mob-nav-no-trans::after {
+  transition: none !important;
 }
 
 .glass.mob-app .mob-nav-btn {

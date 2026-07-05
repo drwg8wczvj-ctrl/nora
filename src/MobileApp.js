@@ -119,9 +119,8 @@ export default function MobileApp({ ctx }) {
 
   // Bottom nav drag/dial — DOM-direct (no re-renders per frame)
   const navRef          = useRef(null);
-  const navPillRef      = useRef(null);
   const navDragRef      = useRef({ active: false, startX: 0, startIdx: 0, moved: false });
-  const navFirstMount   = useRef(true);   // suppress transition on initial paint
+  const navFirstMount   = useRef(true);
   const [isDraggingNav, setIsDraggingNav] = useState(false);
 
   const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
@@ -134,27 +133,24 @@ export default function MobileApp({ ctx }) {
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
 
   const VIEWS_NAV = ["plan", "tasks", "notes", "status", "settings"];
-  const navIdx    = VIEWS_NAV.indexOf(mobileView);
-  const NAV_INSET = 5; // px, pill inset from button bounds for a clean inset look
+  const navIdx = VIEWS_NAV.indexOf(mobileView);
 
-  // Position pill using offsetLeft/offsetWidth (reliable for position:fixed containers).
-  // No transition on first paint (prevents flash from 0,0 to real position).
+  // Drive the glass ::after indicator position via CSS custom property.
+  // No transition on first paint (prevents the circle flashing from default to real position).
   useLayoutEffect(() => {
-    if (!navRef.current || !navPillRef.current) return;
-    const btns = navRef.current.querySelectorAll(".mob-nav-btn");
-    if (!btns[navIdx]) return;
+    const nav = navRef.current;
+    if (!nav) return;
+    const btns = nav.querySelectorAll(".mob-nav-btn");
     const btn  = btns[navIdx];
-    const pill = navPillRef.current;
-    const diameter = btn.offsetHeight - NAV_INSET * 2;
-    pill.style.width  = `${diameter}px`;
-    pill.style.height = `${diameter}px`;
-    pill.style.left   = `${btn.offsetLeft + (btn.offsetWidth - diameter) / 2}px`;
-    pill.style.top    = `${btn.offsetTop  + NAV_INSET}px`;
+    if (!btn) return;
+    const x = btn.offsetLeft + 5; // centered: offsetLeft + (tabW - (tabW-10)) / 2 = offsetLeft + 5
     if (navFirstMount.current) {
-      pill.style.transition = "none";
+      nav.classList.add('mob-nav-no-trans');
       navFirstMount.current = false;
+      nav.style.setProperty('--mob-pill-x', `${x}px`);
+      requestAnimationFrame(() => nav.classList.remove('mob-nav-no-trans'));
     } else {
-      pill.style.transition = "left 0.38s cubic-bezier(0.34,1.28,0.64,1), top 0.22s ease";
+      nav.style.setProperty('--mob-pill-x', `${x}px`);
     }
   }, [navIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -164,21 +160,19 @@ export default function MobileApp({ ctx }) {
   };
 
   const onNavPointerMove = (e) => {
-    if (!navDragRef.current.active || !navRef.current || !navPillRef.current) return;
+    if (!navDragRef.current.active || !navRef.current) return;
     const dx = e.clientX - navDragRef.current.startX;
     if (Math.abs(dx) <= 8) return;
     if (!navDragRef.current.moved) {
       navDragRef.current.moved = true;
       setIsDraggingNav(true);
     }
-    // Use first/last button offsetLeft + widths to stay pixel-perfect during drag
     const btns = navRef.current.querySelectorAll(".mob-nav-btn");
     const tabW = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
     const clampedIdx = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
-    const pill = navPillRef.current;
-    const diameter = parseFloat(pill.style.height) || (btns[0] ? btns[0].offsetHeight - NAV_INSET * 2 : 42);
-    pill.style.left       = `${(btns[0]?.offsetLeft ?? 0) + clampedIdx * tabW + (tabW - diameter) / 2}px`;
-    pill.style.transition = "none";
+    // Move the glass ::after circle in real-time via CSS custom property (no transition while dragging)
+    navRef.current.style.setProperty('--mob-pill-x',
+      `${(btns[0]?.offsetLeft ?? 0) + clampedIdx * tabW + 5}px`);
     const snapIdx = Math.round(clampedIdx);
     navRef.current.querySelectorAll(".mob-nav-btn").forEach((btn, i) => {
       btn.style.color = i === snapIdx ? "var(--accent)" : "";
@@ -250,7 +244,6 @@ export default function MobileApp({ ctx }) {
         onPointerUp={onNavPointerUp}
         onPointerCancel={onNavPointerCancel}
       >
-        <div ref={navPillRef} className="mob-nav-pill" />
         {[
           ["plan",     t("mob.plan"),     <CalendarDays size={20} />],
           ["tasks",    t("mob.tasks"),    <CheckSquare  size={20} />],

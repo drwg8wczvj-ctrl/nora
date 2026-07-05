@@ -139,24 +139,12 @@
     0 1px 0 rgba(255,255,255,0.22) inset;
 }
 
-/* ── Nav buttons — NO background ever; circle pill is the only visual indicator ── */
-.mob-nav-btn,
-.mob-nav-btn.mob-nav-active,
-.glass .mob-nav-btn,
-.glass .mob-nav-btn.mob-nav-active,
-.dark .mob-nav-btn,
-.dark .mob-nav-btn.mob-nav-active {
-  background: transparent !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
-}
 .mob-nav-btn {
   flex: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 3px;
   padding: 10px 0 6px;
-  border: none; cursor: pointer;
+  border: none; background: transparent; cursor: pointer;
   color: var(--text-muted);
   font-size: 10px; font-weight: 600; letter-spacing: .01em;
   min-height: 49px;
@@ -2642,7 +2630,7 @@
   border-radius: 20px;
   font-size: 10px;
   font-weight: 700;
-  background: transparent !important;
+  background: transparent;
   transition: color 0.20s var(--ios-ease);
 }
 .mob-nav-btn:active {
@@ -3276,11 +3264,9 @@
   background: rgba(139,92,246,0.20);
 }
 
-.mob-app:not(.glass) .mob-nav-btn,
-.mob-app:not(.glass) .mob-nav-btn.mob-nav-active {
+.mob-app:not(.glass) .mob-nav-btn {
   min-height: 60px;
-  background: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
 }
 .mob-app:not(.glass) .mob-nav-btn.mob-nav-active { color: var(--accent); }
 .mob-app.dark:not(.glass) .mob-nav-btn.mob-nav-active { color: #c4b5fd; }
