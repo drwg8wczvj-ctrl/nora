@@ -11,7 +11,7 @@ const today = () => new Date().toISOString().split("T")[0];
 
 const SYSTEM_PROMPT = `You are NORA's intelligence extraction engine. Analyze the provided text and extract all actionable items a user would want to add to their personal planner.
 
-The text may be in ANY language (English, German, Russian, Ukrainian, French, Spanish, etc.). Understand it fully, then return the JSON fields ALWAYS in English regardless of the input language.
+The text may be in ANY language (English, German, Russian, Ukrainian, French, Spanish, etc.). Understand it fully, then return JSON fields ALWAYS in English.
 
 Look for:
 - Restaurant / dinner reservations
@@ -25,7 +25,16 @@ Look for:
 - Reminders and follow-up requests
 - Tasks or to-dos mentioned by the sender
 
-For each item return a JSON object with exactly these fields:
+━━ CONVERSATION-THREAD DATE RULES (critical) ━━
+When a conversation thread is provided, you MUST resolve dates using the full conversational context:
+1. Relative time anchors (e.g. "tomorrow", "next Monday", "this weekend") established earlier in the thread carry forward to ALL subsequent messages UNLESS a new, explicit date is introduced.
+2. Track WHO said WHAT. If Person A says "I have time tomorrow" and Person B later says "Make an appointment at 3 PM", that appointment inherits Person A's "tomorrow" anchor — it is NOT today.
+3. "We have to go shopping at 4 PM" without an explicit day reference defaults to the NEAREST matching time slot (often today), unless the thread has established a different anchor.
+4. When in doubt about a relative reference, always prefer the most recent explicit date anchor in the thread over defaulting to today.
+5. Messages marked with ◄ are the primary message being analyzed. Use surrounding messages only as context for date/time/intent resolution.
+
+━━ OUTPUT FORMAT ━━
+For each item return:
 {
   "type": "event" | "task" | "travel" | "reservation" | "deadline" | "delivery" | "reminder",
   "title": "Clear concise title in English, under 60 chars",
@@ -39,11 +48,9 @@ For each item return a JSON object with exactly these fields:
   "extra": {}
 }
 
-Put any bonus info (flight numbers, booking refs, confirmation codes, attendees) in "extra".
-
-Return ONLY a raw JSON array — no markdown, no wrapper object. Example: [{"type":"event",...}]
-Include only items where confidence >= 0.65.
-If nothing actionable: return []
+Put bonus info (flight numbers, booking refs, attendees) in "extra".
+Return ONLY a raw JSON array — no markdown, no wrapper. Example: [{"type":"event",...}]
+Include only items where confidence >= 0.65. If nothing actionable: return []
 
 Today is ${today()}.`;
 
@@ -56,6 +63,7 @@ module.exports = async function handler(req, res) {
 
   const {
     message,
+    context   = null,   // optional: surrounding conversation thread
     userId,
     sourceType = "manual",
     sourceId = null,
@@ -66,12 +74,18 @@ module.exports = async function handler(req, res) {
   if (!message?.trim()) return res.status(400).json({ error: "message required" });
   if (!userId) return res.status(400).json({ error: "userId required" });
 
+  // Build user content: if context is provided, prepend the thread so the AI
+  // can resolve relative dates (e.g. "tomorrow") from the conversation.
+  const userContent = context
+    ? `CONVERSATION THREAD (◄ marks the message to analyze):\n${context.slice(0, 4000)}\n\nEXTRACT FROM MESSAGE MARKED ◄ ONLY:\n${message.slice(0, 4000)}`
+    : message.slice(0, 8000);
+
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: message.slice(0, 8000) },
+        { role: "user", content: userContent },
       ],
       temperature: 0.1,
       max_tokens: 1200,

@@ -47,8 +47,21 @@ const CALENDAR_RE = new RegExp(
 
 const MIN_LEN         = 8;
 const MAX_DIALOGS     = 20;
-const MSGS_PER_DIALOG = 8;
+const MSGS_PER_DIALOG = 12; // fetch more so context window is wider
 const MAX_EXTRACT     = 8;
+
+// Format a list of msgs (sorted chronologically) as a readable conversation thread.
+// isOutgoing=true → "Me", isOutgoing=false → contact's name.
+function buildConversationContext(msgs, targetMessageId, contactName) {
+  return msgs.map(m => {
+    const d  = new Date(m.date * 1000);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const speaker = m.isOutgoing ? "Me" : (contactName || "Them");
+    const arrow   = m.messageId === targetMessageId ? " ◄" : "";
+    return `[${hh}:${mm}] ${speaker}: ${m.text}${arrow}`;
+  }).join("\n");
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -97,11 +110,12 @@ module.exports = async function handler(req, res) {
       relevant.map(dialog =>
         client.getMessages(dialog.entity, { limit: MSGS_PER_DIALOG })
           .then(msgs => msgs.map(msg => ({
-            text:      msg.message ?? "",
-            from:      dialog.title || dialog.name || "Telegram",
-            messageId: String(msg.id),
-            chatId:    String(dialog.id),
-            date:      msg.date,
+            text:       msg.message ?? "",
+            from:       dialog.title || dialog.name || "Telegram",
+            messageId:  String(msg.id),
+            chatId:     String(dialog.id),
+            date:       msg.date,
+            isOutgoing: msg.out ?? false,
           })))
           .catch(() => [])
       )
@@ -110,6 +124,15 @@ module.exports = async function handler(req, res) {
     // Save refreshed session string
     const newSession = client.session.save();
     await client.disconnect();
+
+    // Group all messages by chatId and sort chronologically so we can
+    // attach conversation context to each candidate message.
+    const byChat = {};
+    msgArrays.flat().forEach(m => {
+      if (!byChat[m.chatId]) byChat[m.chatId] = [];
+      byChat[m.chatId].push(m);
+    });
+    Object.values(byChat).forEach(arr => arr.sort((a, b) => a.date - b.date));
 
     // Filter: recent + long enough + looks like calendar content
     const candidates = msgArrays.flat().filter(m =>
@@ -133,11 +156,22 @@ module.exports = async function handler(req, res) {
 
     const results = await Promise.all(
       batch.map(async msg => {
+        // Build conversation context: up to 8 messages around this one
+        const chatMsgs = byChat[msg.chatId] ?? [];
+        const idx      = chatMsgs.findIndex(m => m.messageId === msg.messageId);
+        const start    = Math.max(0, idx - 6);
+        const end      = Math.min(chatMsgs.length, idx + 3);
+        const ctxMsgs  = chatMsgs.slice(start, end);
+        const context  = ctxMsgs.length > 1
+          ? buildConversationContext(ctxMsgs, msg.messageId, msg.from)
+          : null;
+
         const r = await fetch(`${appUrl}/api/intelligence-extract`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({
             message:         msg.text,
+            context,
             userId,
             sourceType:      "telegram",
             sourceId:        `${msg.chatId}_${msg.messageId}`,

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import {
   Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
   FileText, Trash2, User, RotateCcw, CalendarDays,
@@ -132,13 +132,31 @@ export default function MobileApp({ ctx }) {
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
 
-  const VIEWS_NAV = ["plan", "tasks", "notes", "status", "settings"];
-  const navIdx    = VIEWS_NAV.indexOf(mobileView);
+  const VIEWS_NAV  = ["plan", "tasks", "notes", "status", "settings"];
+  const navIdx     = VIEWS_NAV.indexOf(mobileView);
+  const NAV_INSET  = 4; // px, pill inset from button bounds
+
+  // Measure button bounds and position the pill exactly — no CSS percentage guesswork.
+  // Only fires on navIdx change (not during drag), so zero cost while dragging.
+  useLayoutEffect(() => {
+    if (!navRef.current || !navPillRef.current) return;
+    const btns = navRef.current.querySelectorAll(".mob-nav-btn");
+    if (!btns[navIdx]) return;
+    const navRect = navRef.current.getBoundingClientRect();
+    const bRect   = btns[navIdx].getBoundingClientRect();
+    const pill    = navPillRef.current;
+    pill.style.left       = `${bRect.left - navRect.left + NAV_INSET}px`;
+    pill.style.width      = `${bRect.width - NAV_INSET * 2}px`;
+    pill.style.top        = `${bRect.top  - navRect.top  + NAV_INSET}px`;
+    pill.style.height     = `${bRect.height - NAV_INSET * 2}px`;
+    pill.style.transition = "left 0.36s cubic-bezier(0.34,1.26,0.64,1), width 0.24s ease, top 0.24s ease, height 0.24s ease";
+  }, [navIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onNavPointerDown = (e) => {
-    navDragRef.current = { active: true, startX: e.clientX, startIdx: VIEWS_NAV.indexOf(mobileView), moved: false };
+    navDragRef.current = { active: true, startX: e.clientX, startIdx: navIdx, moved: false };
     navRef.current?.setPointerCapture(e.pointerId);
   };
+
   const onNavPointerMove = (e) => {
     if (!navDragRef.current.active || !navRef.current || !navPillRef.current) return;
     const dx = e.clientX - navDragRef.current.startX;
@@ -147,39 +165,52 @@ export default function MobileApp({ ctx }) {
       navDragRef.current.moved = true;
       setIsDraggingNav(true);
     }
-    const tabW = navRef.current.clientWidth / 5;
-    const clampedIdx = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
-    navPillRef.current.style.left       = `${clampedIdx * tabW}px`;
-    navPillRef.current.style.width      = `${tabW}px`;
-    navPillRef.current.style.transition = "none";
+    const tabW        = navRef.current.clientWidth / 5;
+    const clampedIdx  = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
+    const pill        = navPillRef.current;
+    pill.style.left       = `${clampedIdx * tabW + NAV_INSET}px`;
+    pill.style.width      = `${tabW - NAV_INSET * 2}px`;
+    pill.style.transition = "none";
     const snapIdx = Math.round(clampedIdx);
     navRef.current.querySelectorAll(".mob-nav-btn").forEach((btn, i) => {
       btn.style.color = i === snapIdx ? "var(--accent)" : "";
     });
   };
+
   const onNavPointerUp = (e) => {
     if (!navDragRef.current.active) return;
     const { moved, startX, startIdx } = navDragRef.current;
     navDragRef.current.active = false;
+
+    // Restore button label colours in all cases
+    navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
+
     if (moved) {
-      if (navPillRef.current) { navPillRef.current.style.left = ""; navPillRef.current.style.width = ""; navPillRef.current.style.transition = ""; }
-      navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
       setIsDraggingNav(false);
       if (navRef.current) {
-        const tabW = navRef.current.clientWidth / 5;
+        const tabW    = navRef.current.clientWidth / 5;
         const snapped = Math.max(0, Math.min(4, Math.round(startIdx + (e.clientX - startX) / tabW)));
         setMobileView(VIEWS_NAV[snapped]);
+        // useLayoutEffect will reposition pill with spring after the state update
       }
       setTimeout(() => { navDragRef.current.moved = false; }, 0);
     } else {
+      // Tap: pointer capture may have absorbed the click event, so navigate here directly
       navDragRef.current.moved = false;
+      if (navRef.current) {
+        const rect    = navRef.current.getBoundingClientRect();
+        const tabW    = rect.width / 5;
+        const tappedIdx = Math.max(0, Math.min(4, Math.floor((e.clientX - rect.left) / tabW)));
+        setMobileView(VIEWS_NAV[tappedIdx]);
+      }
     }
   };
+
   const onNavPointerCancel = () => {
-    if (navPillRef.current) { navPillRef.current.style.left = ""; navPillRef.current.style.width = ""; navPillRef.current.style.transition = ""; }
     navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
     navDragRef.current = { active: false, startX: 0, startIdx: 0, moved: false };
     setIsDraggingNav(false);
+    // useLayoutEffect will snap pill back to current navIdx position
   };
 
   return (
@@ -221,7 +252,7 @@ export default function MobileApp({ ctx }) {
         ].map(([v, l, icon]) => (
           <button key={v}
             className={`mob-nav-btn${mobileView === v ? " mob-nav-active" : ""}`}
-            onClick={() => { if (!navDragRef.current.moved) setMobileView(v); }}>
+            onClick={() => setMobileView(v)}>
             <span className="mob-nav-icon">{icon}</span>
             <span className="mob-nav-label">{l}</span>
           </button>
