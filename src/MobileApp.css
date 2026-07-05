@@ -93,9 +93,32 @@
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: 1px solid var(--border);
-  /* iOS home indicator clearance */
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
+  /* relative for pill positioning */
+  position: fixed;
 }
+
+/* ── Sliding nav pill ──────────────────────────────────────── */
+.mob-nav-pill {
+  position: absolute;
+  top: 6px; bottom: calc(6px + max(env(safe-area-inset-bottom, 0px), 4px));
+  width: 20%;
+  border-radius: 16px;
+  background: rgba(124,58,237,0.13);
+  pointer-events: none;
+  z-index: 0;
+  transition: left 0.34s cubic-bezier(0.34, 1.28, 0.64, 1),
+              width 0.22s ease;
+}
+.dark .mob-nav-pill {
+  background: rgba(124,58,237,0.20);
+}
+.mob-nav-pill-0 { left: 0%; }
+.mob-nav-pill-1 { left: 20%; }
+.mob-nav-pill-2 { left: 40%; }
+.mob-nav-pill-3 { left: 60%; }
+.mob-nav-pill-4 { left: 80%; }
+
 .mob-nav-btn {
   flex: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -104,16 +127,42 @@
   border: none; background: transparent; cursor: pointer;
   color: var(--text-muted);
   font-size: 10px; font-weight: 600; letter-spacing: .01em;
-  transition: color .12s;
-  min-height: 49px;               /* iOS HIG minimum tap target */
+  min-height: 49px;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  position: relative; z-index: 1;
+  transition: color 0.20s ease;
 }
-.mob-nav-btn:active { opacity: .6; }
+.mob-nav-dragging .mob-nav-btn { cursor: grabbing; pointer-events: none; }
+.mob-nav-btn:active { opacity: .7; }
+
 .mob-nav-btn.mob-nav-active { color: var(--accent); }
-/* Active icon gets a subtle scale pop — iOS-style */
-.mob-nav-btn.mob-nav-active svg { transform: scale(1.08); }
-.mob-nav-btn span { letter-spacing: .01em; }
+
+/* Icon wrapper — animated on activation */
+.mob-nav-icon {
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.28s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+.mob-nav-btn.mob-nav-active .mob-nav-icon {
+  animation: navIconBounce 0.32s cubic-bezier(0.34, 1.5, 0.64, 1) forwards;
+}
+@keyframes navIconBounce {
+  0%   { transform: translateY(0)  scale(1); }
+  45%  { transform: translateY(-5px) scale(1.22); }
+  100% { transform: translateY(-1px) scale(1.10); }
+}
+
+/* Label — fade-slide in on activation */
+.mob-nav-label {
+  letter-spacing: .01em;
+  transition: opacity 0.18s ease, transform 0.20s ease;
+}
+.mob-nav-btn:not(.mob-nav-active) .mob-nav-label {
+  opacity: 0.72;
+}
+.mob-nav-btn.mob-nav-active .mob-nav-label {
+  opacity: 1;
+}
 
 /* ── AI FAB ──────────────────────────────────────────────── */
 .mob-ai-fab {
@@ -2396,10 +2445,7 @@
 .mob-check.checked    { animation: noraPop 0.28s var(--ease-spring) both; }
 .mai-check.checked    { animation: noraPop 0.28s var(--ease-spring) both; }
 
-/* ── Bottom nav active ── */
-.mob-nav-btn.mob-nav-active svg {
-  animation: noraPop 0.22s var(--ease-spring);
-}
+/* ── Bottom nav active — handled by .mob-nav-icon animation ── */
 
 /* ── Touch feedback ── */
 .mob-btn:active          { transform: scale(0.96); transition: transform 0.08s ease; }
@@ -2464,9 +2510,9 @@
   transition: left 0.25s cubic-bezier(0.34, 1.3, 0.64, 1) !important;
 }
 
-/* Bottom tab-bar icon — gentle pop on activation */
-.mob-app .mob-nav-btn.mob-nav-active svg {
-  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+/* Bottom tab-bar — nav pill spring */
+.mob-app .mob-nav-pill {
+  transition: left 0.34s cubic-bezier(0.34, 1.28, 0.64, 1) !important;
 }
 
 /* Disable text selection across the whole mobile UI */
@@ -2551,38 +2597,36 @@
 }
 
 .mob-bottom-nav {
-  left: 10px;
-  right: 10px;
-  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  right: 12px;
+  bottom: max(10px, env(safe-area-inset-bottom, 0px));
   border: 1px solid var(--ios-hairline);
-  border-radius: 26px;
-  padding: 6px 8px;
+  border-radius: 28px;
+  padding: 6px 0;
   background: var(--ios-material);
-  box-shadow: var(--ios-raised-shadow), 0 1px 0 rgba(255,255,255,0.50) inset;
+  box-shadow: 0 8px 32px rgba(46,39,94,0.12), 0 1px 0 rgba(255,255,255,0.50) inset;
   overflow: hidden;
 }
 .dark .mob-bottom-nav {
-  box-shadow: var(--ios-raised-shadow), 0 1px 0 rgba(255,255,255,0.08) inset;
+  background: rgba(18,14,36,0.82);
+  border-color: rgba(255,255,255,0.09);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.06) inset;
+}
+.mob-nav-pill {
+  border-radius: 20px;
 }
 .mob-nav-btn {
-  position: relative;
   min-height: 52px;
   gap: 4px;
   border-radius: 20px;
   font-size: 10px;
   font-weight: 700;
-  transition: color 0.22s var(--ios-ease), transform 0.16s var(--ios-ease), background 0.22s var(--ios-ease);
-}
-.mob-nav-btn.mob-nav-active {
-  color: var(--accent);
-  background: rgba(124, 58, 237, 0.10);
-}
-.dark .mob-nav-btn.mob-nav-active {
-  background: rgba(124, 58, 237, 0.18);
+  background: transparent !important;
+  transition: color 0.20s var(--ios-ease), transform 0.18s var(--ios-ease);
 }
 .mob-nav-btn:active {
   opacity: 1;
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 .mob-ai-fab {
@@ -3183,44 +3227,43 @@
   left: 14px;
   right: 14px;
   bottom: calc(max(env(safe-area-inset-bottom, 0px), 8px) + 2px);
-  min-height: 76px;
-  padding: 8px;
-  border-radius: 999px;
+  min-height: 72px;
+  padding: 6px 0;
+  border-radius: 32px;
   background: var(--ios-material);
   border-color: var(--ios-card-border);
   box-shadow:
-    0 22px 56px rgba(46, 39, 94, 0.16),
+    0 14px 40px rgba(46,39,94,0.13),
     0 1px 0 rgba(255,255,255,0.46) inset;
 }
 
 .mob-app.dark:not(.glass) .mob-bottom-nav {
+  background: rgba(16,12,32,0.88);
+  border-color: rgba(255,255,255,0.08);
   box-shadow:
-    0 24px 70px rgba(0,0,0,0.52),
-    0 1px 0 rgba(255,255,255,0.08) inset;
+    0 14px 40px rgba(0,0,0,0.48),
+    0 1px 0 rgba(255,255,255,0.05) inset;
+}
+
+.mob-app:not(.glass) .mob-nav-pill {
+  background: rgba(124,58,237,0.11);
+  border-radius: 24px;
+}
+.mob-app.dark:not(.glass) .mob-nav-pill {
+  background: rgba(139,92,246,0.18);
 }
 
 .mob-app:not(.glass) .mob-nav-btn {
   min-height: 60px;
-  border-radius: 999px;
-  background: transparent;
+  background: transparent !important;
 }
-
 .mob-app:not(.glass) .mob-nav-btn.mob-nav-active {
   color: var(--accent);
-  background: rgba(124,58,237,0.12);
-  box-shadow: 0 10px 22px rgba(124,58,237,0.12);
 }
-
 .mob-app.dark:not(.glass) .mob-nav-btn.mob-nav-active {
   color: #c4b5fd;
-  background: rgba(124,58,237,0.22);
-  box-shadow: 0 12px 26px rgba(124,58,237,0.16);
-}
-
-.mob-app:not(.glass) .mob-nav-btn.mob-nav-active svg {
-  transform: translateY(-2px) scale(1.06);
 }
 
 .mob-app:not(.glass) .mob-ai-fab {
-  bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
 }

@@ -117,6 +117,12 @@ export default function MobileApp({ ctx }) {
   const [filterComplex, setFilterComplex] = useState(null);
   const hasFilters = filterType || filterGroup || filterComplex;
 
+  // Bottom nav drag/dial — DOM-direct (no re-renders per frame)
+  const navRef     = useRef(null);
+  const navPillRef = useRef(null);
+  const navDragRef = useRef({ active: false, startX: 0, startIdx: 0, moved: false });
+  const [isDraggingNav, setIsDraggingNav] = useState(false);
+
   const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
           rescheduleTask, setRescheduleTask, saveReschedule, groups,
           focusTask, setFocusTask, userPrefs, setUserPrefs, toggleTask,
@@ -125,6 +131,56 @@ export default function MobileApp({ ctx }) {
 
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
+
+  const VIEWS_NAV = ["plan", "tasks", "notes", "status", "settings"];
+  const navIdx    = VIEWS_NAV.indexOf(mobileView);
+
+  const onNavPointerDown = (e) => {
+    navDragRef.current = { active: true, startX: e.clientX, startIdx: VIEWS_NAV.indexOf(mobileView), moved: false };
+    navRef.current?.setPointerCapture(e.pointerId);
+  };
+  const onNavPointerMove = (e) => {
+    if (!navDragRef.current.active || !navRef.current || !navPillRef.current) return;
+    const dx = e.clientX - navDragRef.current.startX;
+    if (Math.abs(dx) <= 8) return;
+    if (!navDragRef.current.moved) {
+      navDragRef.current.moved = true;
+      setIsDraggingNav(true);
+    }
+    const tabW = navRef.current.clientWidth / 5;
+    const clampedIdx = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
+    navPillRef.current.style.left       = `${clampedIdx * tabW}px`;
+    navPillRef.current.style.width      = `${tabW}px`;
+    navPillRef.current.style.transition = "none";
+    const snapIdx = Math.round(clampedIdx);
+    navRef.current.querySelectorAll(".mob-nav-btn").forEach((btn, i) => {
+      btn.style.color = i === snapIdx ? "var(--accent)" : "";
+    });
+  };
+  const onNavPointerUp = (e) => {
+    if (!navDragRef.current.active) return;
+    const { moved, startX, startIdx } = navDragRef.current;
+    navDragRef.current.active = false;
+    if (moved) {
+      if (navPillRef.current) { navPillRef.current.style.left = ""; navPillRef.current.style.width = ""; navPillRef.current.style.transition = ""; }
+      navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
+      setIsDraggingNav(false);
+      if (navRef.current) {
+        const tabW = navRef.current.clientWidth / 5;
+        const snapped = Math.max(0, Math.min(4, Math.round(startIdx + (e.clientX - startX) / tabW)));
+        setMobileView(VIEWS_NAV[snapped]);
+      }
+      setTimeout(() => { navDragRef.current.moved = false; }, 0);
+    } else {
+      navDragRef.current.moved = false;
+    }
+  };
+  const onNavPointerCancel = () => {
+    if (navPillRef.current) { navPillRef.current.style.left = ""; navPillRef.current.style.width = ""; navPillRef.current.style.transition = ""; }
+    navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
+    navDragRef.current = { active: false, startX: 0, startIdx: 0, moved: false };
+    setIsDraggingNav(false);
+  };
 
   return (
     <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
@@ -147,19 +203,27 @@ export default function MobileApp({ ctx }) {
         {mobileView === "settings" && <MobileSettings ctx={ctx} />}
       </main>
 
-      <nav className="mob-bottom-nav">
+      <nav
+        className={`mob-bottom-nav${isDraggingNav ? " mob-nav-dragging" : ""}`}
+        ref={navRef}
+        onPointerDown={onNavPointerDown}
+        onPointerMove={onNavPointerMove}
+        onPointerUp={onNavPointerUp}
+        onPointerCancel={onNavPointerCancel}
+      >
+        <div ref={navPillRef} className={`mob-nav-pill mob-nav-pill-${navIdx}`} />
         {[
-          ["plan",     t("mob.plan"),     <CalendarDays size={21} />],
-          ["tasks",    t("mob.tasks"),    <CheckSquare size={21} />],
-          ["notes",    t("mob.notes"),    <FileText size={21} />],
-          ["status",   t("mob.status"),   <Activity size={21} />],
-          ["settings", t("mob.settings"), <Settings size={21} />],
+          ["plan",     t("mob.plan"),     <CalendarDays size={20} />],
+          ["tasks",    t("mob.tasks"),    <CheckSquare  size={20} />],
+          ["notes",    t("mob.notes"),    <FileText     size={20} />],
+          ["status",   t("mob.status"),   <Activity     size={20} />],
+          ["settings", t("mob.settings"), <Settings     size={20} />],
         ].map(([v, l, icon]) => (
           <button key={v}
             className={`mob-nav-btn${mobileView === v ? " mob-nav-active" : ""}`}
-            onClick={() => setMobileView(v)}>
-            {icon}
-            <span>{l}</span>
+            onClick={() => { if (!navDragRef.current.moved) setMobileView(v); }}>
+            <span className="mob-nav-icon">{icon}</span>
+            <span className="mob-nav-label">{l}</span>
           </button>
         ))}
       </nav>
