@@ -118,9 +118,10 @@ export default function MobileApp({ ctx }) {
   const hasFilters = filterType || filterGroup || filterComplex;
 
   // Bottom nav drag/dial — DOM-direct (no re-renders per frame)
-  const navRef     = useRef(null);
-  const navPillRef = useRef(null);
-  const navDragRef = useRef({ active: false, startX: 0, startIdx: 0, moved: false });
+  const navRef          = useRef(null);
+  const navPillRef      = useRef(null);
+  const navDragRef      = useRef({ active: false, startX: 0, startIdx: 0, moved: false });
+  const navFirstMount   = useRef(true);   // suppress transition on initial paint
   const [isDraggingNav, setIsDraggingNav] = useState(false);
 
   const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
@@ -132,24 +133,28 @@ export default function MobileApp({ ctx }) {
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
 
-  const VIEWS_NAV  = ["plan", "tasks", "notes", "status", "settings"];
-  const navIdx     = VIEWS_NAV.indexOf(mobileView);
-  const NAV_INSET  = 4; // px, pill inset from button bounds
+  const VIEWS_NAV = ["plan", "tasks", "notes", "status", "settings"];
+  const navIdx    = VIEWS_NAV.indexOf(mobileView);
+  const NAV_INSET = 5; // px, pill inset from button bounds for a clean inset look
 
-  // Measure button bounds and position the pill exactly — no CSS percentage guesswork.
-  // Only fires on navIdx change (not during drag), so zero cost while dragging.
+  // Position pill using offsetLeft/offsetWidth (reliable for position:fixed containers).
+  // No transition on first paint (prevents flash from 0,0 to real position).
   useLayoutEffect(() => {
     if (!navRef.current || !navPillRef.current) return;
     const btns = navRef.current.querySelectorAll(".mob-nav-btn");
     if (!btns[navIdx]) return;
-    const navRect = navRef.current.getBoundingClientRect();
-    const bRect   = btns[navIdx].getBoundingClientRect();
-    const pill    = navPillRef.current;
-    pill.style.left       = `${bRect.left - navRect.left + NAV_INSET}px`;
-    pill.style.width      = `${bRect.width - NAV_INSET * 2}px`;
-    pill.style.top        = `${bRect.top  - navRect.top  + NAV_INSET}px`;
-    pill.style.height     = `${bRect.height - NAV_INSET * 2}px`;
-    pill.style.transition = "left 0.36s cubic-bezier(0.34,1.26,0.64,1), width 0.24s ease, top 0.24s ease, height 0.24s ease";
+    const btn  = btns[navIdx];
+    const pill = navPillRef.current;
+    pill.style.left   = `${btn.offsetLeft  + NAV_INSET}px`;
+    pill.style.top    = `${btn.offsetTop   + NAV_INSET}px`;
+    pill.style.width  = `${btn.offsetWidth - NAV_INSET * 2}px`;
+    pill.style.height = `${btn.offsetHeight - NAV_INSET * 2}px`;
+    if (navFirstMount.current) {
+      pill.style.transition = "none";
+      navFirstMount.current = false;
+    } else {
+      pill.style.transition = "left 0.38s cubic-bezier(0.34,1.28,0.64,1), top 0.22s ease, width 0.22s ease, height 0.22s ease";
+    }
   }, [navIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onNavPointerDown = (e) => {
@@ -165,10 +170,12 @@ export default function MobileApp({ ctx }) {
       navDragRef.current.moved = true;
       setIsDraggingNav(true);
     }
-    const tabW        = navRef.current.clientWidth / 5;
-    const clampedIdx  = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
-    const pill        = navPillRef.current;
-    pill.style.left       = `${clampedIdx * tabW + NAV_INSET}px`;
+    // Use first/last button offsetLeft + widths to stay pixel-perfect during drag
+    const btns = navRef.current.querySelectorAll(".mob-nav-btn");
+    const tabW = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
+    const clampedIdx = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
+    const pill = navPillRef.current;
+    pill.style.left       = `${(btns[0]?.offsetLeft ?? 0) + clampedIdx * tabW + NAV_INSET}px`;
     pill.style.width      = `${tabW - NAV_INSET * 2}px`;
     pill.style.transition = "none";
     const snapIdx = Math.round(clampedIdx);
@@ -181,27 +188,27 @@ export default function MobileApp({ ctx }) {
     if (!navDragRef.current.active) return;
     const { moved, startX, startIdx } = navDragRef.current;
     navDragRef.current.active = false;
-
-    // Restore button label colours in all cases
     navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
 
     if (moved) {
       setIsDraggingNav(false);
       if (navRef.current) {
-        const tabW    = navRef.current.clientWidth / 5;
+        const btns  = navRef.current.querySelectorAll(".mob-nav-btn");
+        const tabW  = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
         const snapped = Math.max(0, Math.min(4, Math.round(startIdx + (e.clientX - startX) / tabW)));
         setMobileView(VIEWS_NAV[snapped]);
-        // useLayoutEffect will reposition pill with spring after the state update
+        // useLayoutEffect fires after state update → spring-animates pill to snapped position
       }
       setTimeout(() => { navDragRef.current.moved = false; }, 0);
     } else {
-      // Tap: pointer capture may have absorbed the click event, so navigate here directly
+      // Tap — pointer capture may have swallowed the click; navigate directly from position
       navDragRef.current.moved = false;
       if (navRef.current) {
-        const rect    = navRef.current.getBoundingClientRect();
-        const tabW    = rect.width / 5;
-        const tappedIdx = Math.max(0, Math.min(4, Math.floor((e.clientX - rect.left) / tabW)));
-        setMobileView(VIEWS_NAV[tappedIdx]);
+        const btns    = navRef.current.querySelectorAll(".mob-nav-btn");
+        const tabW    = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
+        const firstX  = btns[0] ? btns[0].getBoundingClientRect().left : navRef.current.getBoundingClientRect().left;
+        const tapped  = Math.max(0, Math.min(4, Math.floor((e.clientX - firstX) / tabW)));
+        setMobileView(VIEWS_NAV[tapped]);
       }
     }
   };
@@ -210,7 +217,7 @@ export default function MobileApp({ ctx }) {
     navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
     navDragRef.current = { active: false, startX: 0, startIdx: 0, moved: false };
     setIsDraggingNav(false);
-    // useLayoutEffect will snap pill back to current navIdx position
+    // useLayoutEffect will spring the pill back to current navIdx
   };
 
   return (
