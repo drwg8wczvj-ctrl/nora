@@ -487,7 +487,7 @@ export default function MobileApp({ ctx }) {
 
 // ── Header ───────────────────────────────────────────────────
 function MobileHeader({ ctx, onLogoClick, onBoardsClick, onIntelClick, intelCount }) {
-  const { today, dark } = ctx;
+  const { today, dark, isOnline } = ctx;
   const d = new Date(today + "T00:00:00");
   const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
   const dateText = `${dayName}, ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]} ${d.getDate()}`;
@@ -499,7 +499,10 @@ function MobileHeader({ ctx, onLogoClick, onBoardsClick, onIntelClick, intelCoun
           className="mob-brand-logo"
           alt="Nora" />
       </button>
-      <span className="mob-header-date">{dateText}</span>
+      <span className="mob-header-date">
+        {dateText}
+        {isOnline === false && <span className="mob-offline-pill">Offline</span>}
+      </span>
       <button
         className="intel-btn"
         onClick={onIntelClick}

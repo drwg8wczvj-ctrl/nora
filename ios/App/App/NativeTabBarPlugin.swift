@@ -18,6 +18,13 @@ public class NativeTabBarPlugin: CAPPlugin {
 
     // MARK: – setup
     @objc func setup(_ call: CAPPluginCall) {
+        // Real Liquid Glass (glassEffect) is iOS 26+. On older OS fall back to the
+        // web CSS tab bar, which uses backdrop-filter and looks better than any
+        // UIKit material fallback we could build.
+        guard #available(iOS 26, *) else {
+            call.reject("nativeGlassUnavailable")
+            return
+        }
         guard let tabsRaw = call.getArray("tabs") as? [[String: Any]] else {
             call.reject("tabs required")
             return

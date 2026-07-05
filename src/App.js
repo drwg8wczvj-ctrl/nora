@@ -873,6 +873,9 @@ export default function App() {
   const syncTimer         = useRef(null);
   // Always-current snapshot of data to save — used by the emergency flush below.
   const latestSyncDataRef = useRef(null);
+  // True when a save failed while offline — flushed automatically on reconnect.
+  const pendingSyncRef    = useRef(false);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
   // ── Notification system ────────────────────────────────
   const {
@@ -978,7 +981,8 @@ export default function App() {
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(() => {
       if (latestSyncDataRef.current) {
-        saveUserData(latestSyncDataRef.current).catch(console.error);
+        if (!navigator.onLine) { pendingSyncRef.current = true; return; }
+        saveUserData(latestSyncDataRef.current).catch(() => { pendingSyncRef.current = true; });
       }
     }, 1000);
   }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile]); // eslint-disable-line
@@ -992,7 +996,8 @@ export default function App() {
     const flushNow = () => {
       clearTimeout(syncTimer.current);
       if (latestSyncDataRef.current) {
-        saveUserData(latestSyncDataRef.current).catch(() => {});
+        if (!navigator.onLine) { pendingSyncRef.current = true; return; }
+        saveUserData(latestSyncDataRef.current).catch(() => { pendingSyncRef.current = true; });
       }
     };
     const onVisibility = () => { if (document.visibilityState === "hidden") flushNow(); };
@@ -1003,6 +1008,26 @@ export default function App() {
       window.removeEventListener("pagehide", flushNow);
     };
   }, [session]); // eslint-disable-line
+
+  // Track online/offline state and flush any pending save when reconnected.
+  useEffect(() => {
+    const goOnline  = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online',  goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online',  goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOnline || !session || !pendingSyncRef.current) return;
+    pendingSyncRef.current = false;
+    if (latestSyncDataRef.current) {
+      saveUserData(latestSyncDataRef.current).catch(() => { pendingSyncRef.current = true; });
+    }
+  }, [isOnline, session]); // eslint-disable-line
 
   // Push a widget-friendly snapshot to the iOS WidgetKit extension whenever
   // tasks or wellbeing dials change.  No-op on web/PWA.
@@ -3321,7 +3346,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       tasks, setTasks, groups, notes, setNotes, session, today, nowObj, dark,
       accountName, setAccountName, energy, setEnergy, relaxation, setRelaxation,
       inAppAlert, setInAppAlert, reminderMins, setReminderMins,
-      setDark, theme, setTheme,
+      setDark, theme, setTheme, isOnline,
       chatOpen, setChatOpen, chatInput, setChatInput, chatLoading, messages, sendChat,
       editingTask, setEditingTask, draft, setDraft,
       todayTasks, deferredTasks, contextMode, aiFocus,
