@@ -145,15 +145,16 @@ export default function MobileApp({ ctx }) {
     if (!btns[navIdx]) return;
     const btn  = btns[navIdx];
     const pill = navPillRef.current;
-    pill.style.left   = `${btn.offsetLeft  + NAV_INSET}px`;
-    pill.style.top    = `${btn.offsetTop   + NAV_INSET}px`;
-    pill.style.width  = `${btn.offsetWidth - NAV_INSET * 2}px`;
-    pill.style.height = `${btn.offsetHeight - NAV_INSET * 2}px`;
+    const diameter = btn.offsetHeight - NAV_INSET * 2;
+    pill.style.width  = `${diameter}px`;
+    pill.style.height = `${diameter}px`;
+    pill.style.left   = `${btn.offsetLeft + (btn.offsetWidth - diameter) / 2}px`;
+    pill.style.top    = `${btn.offsetTop  + NAV_INSET}px`;
     if (navFirstMount.current) {
       pill.style.transition = "none";
       navFirstMount.current = false;
     } else {
-      pill.style.transition = "left 0.38s cubic-bezier(0.34,1.28,0.64,1), top 0.22s ease, width 0.22s ease, height 0.22s ease";
+      pill.style.transition = "left 0.38s cubic-bezier(0.34,1.28,0.64,1), top 0.22s ease";
     }
   }, [navIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -175,8 +176,8 @@ export default function MobileApp({ ctx }) {
     const tabW = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
     const clampedIdx = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
     const pill = navPillRef.current;
-    pill.style.left       = `${(btns[0]?.offsetLeft ?? 0) + clampedIdx * tabW + NAV_INSET}px`;
-    pill.style.width      = `${tabW - NAV_INSET * 2}px`;
+    const diameter = parseFloat(pill.style.height) || (btns[0] ? btns[0].offsetHeight - NAV_INSET * 2 : 42);
+    pill.style.left       = `${(btns[0]?.offsetLeft ?? 0) + clampedIdx * tabW + (tabW - diameter) / 2}px`;
     pill.style.transition = "none";
     const snapIdx = Math.round(clampedIdx);
     navRef.current.querySelectorAll(".mob-nav-btn").forEach((btn, i) => {
@@ -249,7 +250,7 @@ export default function MobileApp({ ctx }) {
         onPointerUp={onNavPointerUp}
         onPointerCancel={onNavPointerCancel}
       >
-        <div ref={navPillRef} className={`mob-nav-pill mob-nav-pill-${navIdx}`} />
+        <div ref={navPillRef} className="mob-nav-pill" />
         {[
           ["plan",     t("mob.plan"),     <CalendarDays size={20} />],
           ["tasks",    t("mob.tasks"),    <CheckSquare  size={20} />],

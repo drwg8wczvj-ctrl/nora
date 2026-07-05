@@ -104,7 +104,7 @@
    ─────────────────────────────────────────────────────────────────────────── */
 .mob-nav-pill {
   position: absolute;
-  border-radius: 18px;
+  border-radius: 50%;
   pointer-events: none;
   z-index: 0;
   /* Default (non-glass) subtle fill */
@@ -139,13 +139,24 @@
     0 1px 0 rgba(255,255,255,0.22) inset;
 }
 
-/* ── Nav buttons — NO background; pill is the only visual indicator ── */
+/* ── Nav buttons — NO background ever; circle pill is the only visual indicator ── */
+.mob-nav-btn,
+.mob-nav-btn.mob-nav-active,
+.glass .mob-nav-btn,
+.glass .mob-nav-btn.mob-nav-active,
+.dark .mob-nav-btn,
+.dark .mob-nav-btn.mob-nav-active {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
 .mob-nav-btn {
   flex: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 3px;
   padding: 10px 0 6px;
-  border: none; background: transparent !important; cursor: pointer;
+  border: none; cursor: pointer;
   color: var(--text-muted);
   font-size: 10px; font-weight: 600; letter-spacing: .01em;
   min-height: 49px;
@@ -3259,15 +3270,17 @@
 /* Non-glass pill: subtle fill, no glass effect */
 .mob-app:not(.glass) .mob-nav-pill {
   background: rgba(124,58,237,0.11);
-  border-radius: 22px;
+  border-radius: 50%;
 }
 .mob-app.dark:not(.glass) .mob-nav-pill {
   background: rgba(139,92,246,0.20);
 }
 
-.mob-app:not(.glass) .mob-nav-btn {
+.mob-app:not(.glass) .mob-nav-btn,
+.mob-app:not(.glass) .mob-nav-btn.mob-nav-active {
   min-height: 60px;
   background: transparent !important;
+  box-shadow: none !important;
 }
 .mob-app:not(.glass) .mob-nav-btn.mob-nav-active { color: var(--accent); }
 .mob-app.dark:not(.glass) .mob-nav-btn.mob-nav-active { color: #c4b5fd; }
