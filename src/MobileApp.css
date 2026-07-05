@@ -98,6 +98,23 @@
   position: fixed;
 }
 
+/* ── Native iOS overlay active: hide web nav, give FAB room ──────────────────
+   .mob-native-nav is set by React when the Capacitor NativeTabBar overlay is
+   running. The native UIView sits above the WebView at OS level, so we simply
+   pull the web elements out of the way.
+   ─────────────────────────────────────────────────────────────────────────── */
+.mob-native-nav .mob-bottom-nav { display: none !important; }
+
+/* FAB moves up so it sits above the native bar (≈76 pt bar + safe area) */
+.mob-native-nav .mob-ai-fab {
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Content padding: same as glass mode (138px covers native bar + safe area) */
+.mob-native-nav .mob-main {
+  padding-bottom: calc(138px + env(safe-area-inset-bottom, 0px));
+}
+
 /* ── Nav indicator — non-glass mode (glass mode overrides live in glass.css) ── */
 .mob-nav-indicator {
   position: absolute;

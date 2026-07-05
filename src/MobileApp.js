@@ -29,6 +29,7 @@ import SavedPlacesManager from "./components/SavedPlacesManager";
 import PricingModal from "./components/PricingModal";
 import "./MobileApp.css";
 import { useTranslation } from "react-i18next";
+import { useNativeTabBar } from "./hooks/useNativeTabBar";
 
 // ── Local helpers ────────────────────────────────────────────
 const uid  = () => Math.random().toString(36).slice(2);
@@ -134,7 +135,18 @@ export default function MobileApp({ ctx }) {
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
 
   const VIEWS_NAV = ["plan", "tasks", "notes", "status", "settings"];
-  const navIdx = VIEWS_NAV.indexOf(mobileView);
+  const navIdx    = VIEWS_NAV.indexOf(mobileView);
+  const isGlass   = theme === "liquid_glass";
+
+  // Native iOS Liquid Glass tab bar — active only in glass mode on native iOS.
+  // On web / PWA / Android / default mode this is a complete no-op.
+  const { usingNative } = useNativeTabBar({
+    activeTab: mobileView,
+    mode:      isGlass ? "glass" : "default",
+    dark:      !!dark,
+    enabled:   isGlass,
+    onTabChange: setMobileView,
+  });
 
   // Snap the indicator to the active tab.
   // Suppress transition on first paint so it doesn't fly in from (0,0).
@@ -221,7 +233,7 @@ export default function MobileApp({ ctx }) {
   };
 
   return (
-    <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
+    <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}${usingNative ? " mob-native-nav" : ""}`}>
 
       <MobileHeader ctx={ctx} onLogoClick={() => {
         setMobileView("plan");

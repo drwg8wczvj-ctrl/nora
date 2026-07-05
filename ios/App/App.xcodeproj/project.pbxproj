@@ -15,6 +15,10 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		F441A8252FFABE5600BE77C3 /* NativeTabBarPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F441A8222FFABE5600BE77C3 /* NativeTabBarPlugin.swift */; };
+		F441A8262FFABE5600BE77C3 /* NoraWidgetBridgePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = F441A8242FFABE5600BE77C3 /* NoraWidgetBridgePlugin.m */; };
+		F441A8272FFABE5600BE77C3 /* NativeTabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F441A8232FFABE5600BE77C3 /* NativeTabBarView.swift */; };
+		F441A8292FFABF0F00BE77C3 /* NativeTabBarPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = F441A8282FFABF0F00BE77C3 /* NativeTabBarPlugin.m */; };
 		F47EBA9C2FF31CC800D9A9A5 /* NoraWidgetBridgePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = F47EBA9A2FF31CC800D9A9A5 /* NoraWidgetBridgePlugin.m */; };
 		F47EBA9D2FF31CC800D9A9A5 /* NoraWidgetBridgePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47EBA9B2FF31CC800D9A9A5 /* NoraWidgetBridgePlugin.swift */; };
 		F47EBAA62FF31D8700D9A9A5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F47EBAA52FF31D8700D9A9A5 /* WidgetKit.framework */; };
@@ -57,6 +61,10 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		F441A8222FFABE5600BE77C3 /* NativeTabBarPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTabBarPlugin.swift; sourceTree = "<group>"; };
+		F441A8232FFABE5600BE77C3 /* NativeTabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTabBarView.swift; sourceTree = "<group>"; };
+		F441A8242FFABE5600BE77C3 /* NoraWidgetBridgePlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NoraWidgetBridgePlugin.m; sourceTree = "<group>"; };
+		F441A8282FFABF0F00BE77C3 /* NativeTabBarPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NativeTabBarPlugin.m; sourceTree = "<group>"; };
 		F47EBA9A2FF31CC800D9A9A5 /* NoraWidgetBridgePlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NoraWidgetBridgePlugin.m; sourceTree = "<group>"; };
 		F47EBA9B2FF31CC800D9A9A5 /* NoraWidgetBridgePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoraWidgetBridgePlugin.swift; sourceTree = "<group>"; };
 		F47EBA9E2FF31CCB00D9A9A5 /* App-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "App-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -126,6 +134,10 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				F441A8282FFABF0F00BE77C3 /* NativeTabBarPlugin.m */,
+				F441A8222FFABE5600BE77C3 /* NativeTabBarPlugin.swift */,
+				F441A8232FFABE5600BE77C3 /* NativeTabBarView.swift */,
+				F441A8242FFABE5600BE77C3 /* NoraWidgetBridgePlugin.m */,
 				F47EBAC22FF321D800D9A9A5 /* App.entitlements */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -270,7 +282,11 @@
 			files = (
 				F47EBA9C2FF31CC800D9A9A5 /* NoraWidgetBridgePlugin.m in Sources */,
 				F47EBA9D2FF31CC800D9A9A5 /* NoraWidgetBridgePlugin.swift in Sources */,
+				F441A8292FFABF0F00BE77C3 /* NativeTabBarPlugin.m in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				F441A8252FFABE5600BE77C3 /* NativeTabBarPlugin.swift in Sources */,
+				F441A8262FFABE5600BE77C3 /* NoraWidgetBridgePlugin.m in Sources */,
+				F441A8272FFABE5600BE77C3 /* NativeTabBarView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
