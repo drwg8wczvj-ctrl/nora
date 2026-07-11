@@ -244,8 +244,6 @@ export default function MobileApp({ ctx }) {
         setPlanSubView("day");
         setPlanDate(ctx.today);
       }} onBoardsClick={() => setMobileView("boards")}
-        onIntelClick={ctx.onIntelClick}
-        intelCount={ctx.intelCount ?? 0}
       />
 
       <main className="mob-main">
@@ -298,10 +296,12 @@ export default function MobileApp({ ctx }) {
       <AIHub
         open={aiHubOpen}
         onClose={() => setAiHubOpen(false)}
+        badges={{ insights: (ctx.intelCount ?? 0) > 0 }}
         onSelect={(id) => {
           setAiHubOpen(false);
           if (id === "assistant") setChatOpen(true);
           else if (id === "messenger") setMessengerOpen(true);
+          else if (id === "insights") ctx.onIntelClick();
         }}
       />
       <MobileToolComingSoon
@@ -511,7 +511,7 @@ export default function MobileApp({ ctx }) {
 }
 
 // ── Header ───────────────────────────────────────────────────
-function MobileHeader({ ctx, onLogoClick, onBoardsClick, onIntelClick, intelCount }) {
+function MobileHeader({ ctx, onLogoClick, onBoardsClick }) {
   const { today, dark, isOnline } = ctx;
   const d = new Date(today + "T00:00:00");
   const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
@@ -528,15 +528,6 @@ function MobileHeader({ ctx, onLogoClick, onBoardsClick, onIntelClick, intelCoun
         {dateText}
         {isOnline === false && <span className="mob-offline-pill">Offline</span>}
       </span>
-      <button
-        className="intel-btn"
-        onClick={onIntelClick}
-        title="NORA Intelligence"
-        aria-label={intelCount > 0 ? `${intelCount} suggestions` : "NORA Intelligence"}
-      >
-        <Sparkles size={17} />
-        {intelCount > 0 && <span className="intel-btn-dot" />}
-      </button>
       {onBoardsClick && (
         <button className="mob-header-boards-btn" onClick={onBoardsClick} aria-label="Whiteboards">
           <Layers size={18} />

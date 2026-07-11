@@ -1,4 +1,4 @@
-import { Sparkles, MessageSquare } from "lucide-react";
+import { Sparkles, MessageSquare, Lightbulb } from "lucide-react";
 
 export const AI_HUB_TOOLS = [
   {
@@ -6,6 +6,13 @@ export const AI_HUB_TOOLS = [
     icon: Sparkles,
     titleKey: "aiHub.assistantTitle",
     descKey: "aiHub.assistantDesc",
+    status: "available",
+  },
+  {
+    id: "insights",
+    icon: Lightbulb,
+    titleKey: "aiHub.insightsTitle",
+    descKey: "aiHub.insightsDesc",
     status: "available",
   },
   {

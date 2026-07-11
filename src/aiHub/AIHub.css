@@ -88,11 +88,19 @@
 .ai-hub-card:active { transform: translateY(0) scale(0.98); }
 
 .ai-hub-card-icon {
+  position: relative;
   flex-shrink: 0;
   width: 40px; height: 40px; border-radius: 12px;
   background: var(--grad); color: #fff;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 4px 14px rgba(124,58,237,0.35);
+}
+.ai-hub-card-dot {
+  position: absolute; top: -2px; right: -2px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--modal-bg);
+  animation: intel-pulse-dot 2.4s ease-in-out infinite;
 }
 
 .ai-hub-card-body { min-width: 0; }

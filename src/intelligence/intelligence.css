@@ -377,7 +377,7 @@
 }
 @media (min-width: 600px) {
   .proactive-sheet {
-    bottom: auto; top: 50%; left: 50%;
+    bottom: auto; top: 50%; left: 50%; right: auto; margin: 0;
     transform: translate(-50%, -50%);
     border: 1px solid var(--border);
     border-radius: 24px;

@@ -75,6 +75,8 @@
   "aiHub.title": "KI-Hub",
   "aiHub.assistantTitle": "KI-Assistent",
   "aiHub.assistantDesc": "Allgemeine Gespräche, Planung und intelligente Hilfe.",
+  "aiHub.insightsTitle": "KI-Insights",
+  "aiHub.insightsDesc": "Durchsucht Telegram und Gmail nach Terminen, Fristen und Reservierungen.",
   "aiHub.messengerTitle": "KI-Messenger",
   "aiHub.messengerDesc": "Nachrichten schreiben, zusammenfassen und verwalten.",
   "aiHub.comingSoon": "Demnächst verfügbar",

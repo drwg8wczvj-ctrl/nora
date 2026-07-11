@@ -3595,15 +3595,6 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </div>
           <div className="header-right">
             <span className="header-date">{view === "day" ? prettyDate(selectedDate) : view === "month" ? monthLabel : view === "notes" ? "Notes" : "All Tasks"}</span>
-            <button
-              className="intel-btn"
-              onClick={() => intel.setCenterOpen(true)}
-              title="NORA Intelligence"
-              aria-label={intel.pendingCount > 0 ? `${intel.pendingCount} suggestions` : "NORA Intelligence"}
-            >
-              <Sparkles size={17} />
-              {intel.pendingCount > 0 && <span className="intel-btn-dot" />}
-            </button>
           </div>
         </header>
 
@@ -5022,10 +5013,12 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       <AIHub
         open={aiHubOpen}
         onClose={() => setAiHubOpen(false)}
+        badges={{ insights: intel.pendingCount > 0 }}
         onSelect={(id) => {
           setAiHubOpen(false);
           if (id === "assistant") setChatOpen(true);
           else if (id === "messenger") setMessengerOpen(true);
+          else if (id === "insights") intel.setCenterOpen(true);
         }}
       />
       <DesktopToolComingSoon
