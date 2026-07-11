@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { savePushSubscription, scheduleServerAlarm, cancelServerAlarm } from "../lib/noraApi";
+import { Capacitor } from "@capacitor/core";
+import { LocalNotifications } from "@capacitor/local-notifications";
+import { PushNotifications } from "@capacitor/push-notifications";
+import { savePushSubscription, scheduleServerAlarm, cancelServerAlarm, saveApnsToken } from "../lib/noraApi";
 
 const SETTINGS_KEY = "nora_notif_settings_v1";
+const IS_NATIVE = Capacitor.isNativePlatform();
 
 const DEFAULT_SETTINGS = {
   enabled: false,
@@ -15,8 +19,35 @@ const DEFAULT_SETTINGS = {
   bannerShownCount: 0,
 };
 
+// cyrb53 — fast, well-distributed 53-bit string hash (public domain, bryc).
+function cyrb53(str, seed = 0) {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) {
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+// Deterministic map from an arbitrary alarm id string to a stable positive
+// 32-bit int, required by @capacitor/local-notifications' numeric `id` field.
+// XOR-folds the 53-bit hash's high/low halves (rather than a plain modulo)
+// to preserve entropy from both halves. Never returns 0.
+function tagToNotificationId(tag) {
+  const h = cyrb53(String(tag));
+  const lo = h & 0x7fffffff;
+  const hi = Math.floor(h / 0x80000000) & 0x7fffffff;
+  return ((lo ^ hi) >>> 0) || 1;
+}
+
 export function useNotifications() {
   const [permission, setPermission] = useState(() => {
+    if (IS_NATIVE) return "default"; // resolved async below via checkPermissions()
     if (typeof Notification === "undefined") return "denied";
     return Notification.permission;
   });
@@ -54,8 +85,47 @@ export function useNotifications() {
   // itself has empty deps (to avoid re-registering timers on every render).
   const showNotifRef = useRef(null);
 
-  // ── Service worker setup ───────────────────────────────────────────────────
+  // ── Native: resolve current permission state on mount ───────────────────────
   useEffect(() => {
+    if (!IS_NATIVE) return;
+    LocalNotifications.checkPermissions().then(({ display }) => {
+      setPermission(display === "granted" ? "granted" : display === "denied" ? "denied" : "default");
+    }).catch(() => {});
+  }, []);
+
+  // ── Native: APNs push registration (server/cross-device-triggered pushes) ───
+  // Separate concern from local alarm scheduling below — this is a one-time
+  // registration flow, not tied to any particular scheduleAlarm call site.
+  useEffect(() => {
+    if (!IS_NATIVE) return;
+    let regHandle, errHandle;
+
+    PushNotifications.addListener("registration", (token) => {
+      saveApnsToken(token.value).catch(() => {});
+    }).then((h) => { regHandle = h; });
+
+    PushNotifications.addListener("registrationError", (err) => {
+      console.warn("[PushNotifications] registration error", err);
+    }).then((h) => { errHandle = h; });
+
+    return () => { regHandle?.remove(); errHandle?.remove(); };
+  }, []);
+
+  // ── Native: route notification taps into the same click event web uses ──────
+  useEffect(() => {
+    if (!IS_NATIVE) return;
+    let handle;
+    LocalNotifications.addListener("localNotificationActionPerformed", (event) => {
+      window.dispatchEvent(
+        new CustomEvent("nora:notification-click", { detail: event.notification.extra })
+      );
+    }).then((h) => { handle = h; });
+    return () => handle?.remove();
+  }, []);
+
+  // ── Service worker setup (web only) ──────────────────────────────────────────
+  useEffect(() => {
+    if (IS_NATIVE) return;
     if (!("serviceWorker" in navigator)) return;
 
     // Helper to send CONFIGURE to whichever SW is currently controlling the page
@@ -178,6 +248,7 @@ export function useNotifications() {
 
   // Listen for SW messages (notification clicks, alarm count replies)
   useEffect(() => {
+    if (IS_NATIVE) return;
     if (!("serviceWorker" in navigator)) return;
     const handleMessage = (event) => {
       if (event.data?.type === "NOTIFICATION_CLICK") {
@@ -198,8 +269,9 @@ export function useNotifications() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
   }, [settings]);
 
-  // ── Subscribe to Web Push (VAPID) ──────────────────────────────────────────
+  // ── Subscribe to Web Push (VAPID) — web only, meaningless without a SW ──────
   const subscribeToPush = useCallback(async () => {
+    if (IS_NATIVE) return false;
     const reg = swRegRef.current;
     if (!reg?.pushManager) return false;
 
@@ -249,8 +321,9 @@ export function useNotifications() {
     }
   }, []);
 
-  // ── Register periodic background sync (Android Chrome) ─────────────────────
+  // ── Register periodic background sync (Android Chrome) — web only ──────────
   const registerPeriodicSync = useCallback(async () => {
+    if (IS_NATIVE) return false;
     const reg = swRegRef.current;
     if (!reg || !("periodicSync" in reg)) return false;
     try {
@@ -268,6 +341,23 @@ export function useNotifications() {
 
   // ── Permission request ──────────────────────────────────────────────────────
   const requestPermission = useCallback(async () => {
+    if (IS_NATIVE) {
+      try {
+        // PushNotifications.requestPermissions() authorizes the same underlying
+        // UNUserNotificationCenter grant that LocalNotifications needs, so a
+        // single request covers both — no second/duplicate permission prompt.
+        const { receive } = await PushNotifications.requestPermissions();
+        const granted = receive === "granted";
+        setPermission(granted ? "granted" : "denied");
+        if (granted) {
+          setSettings((s) => ({ ...s, enabled: true, bannerDismissed: true }));
+          PushNotifications.register();
+        }
+        return granted ? "granted" : "denied";
+      } catch {
+        return "denied";
+      }
+    }
     if (typeof Notification === "undefined") return "denied";
     try {
       const p = await Notification.requestPermission();
@@ -283,8 +373,24 @@ export function useNotifications() {
     }
   }, [registerPeriodicSync, subscribeToPush]);
 
-  // ── Store an alarm in SW IndexedDB + Supabase (survives app close) ──────────
+  // ── Schedule an alarm — native: OS-level local notification (survives app  ──
+  // close entirely on its own). Web: 3-layer SW/server/setTimeout design.
   const scheduleAlarm = useCallback((id, scheduledFor, title, body, data = {}, tag) => {
+    if (IS_NATIVE) {
+      const notifId = tagToNotificationId(id);
+      LocalNotifications.schedule({
+        notifications: [{
+          id: notifId,
+          title,
+          body,
+          schedule: { at: new Date(scheduledFor) },
+          extra: { ...data, tag: tag || id },
+        }],
+      }).catch((e) => console.warn("[LocalNotifications] schedule failed", e));
+      setHealth((h) => ({ ...h, alarmCount: h.alarmCount + 1 }));
+      return;
+    }
+
     const alarm = { id, scheduledFor, title, body, tag: tag || id, data };
 
     // Layer 1: SW IndexedDB — checked on every SW wake-up (same device)
@@ -294,24 +400,32 @@ export function useNotifications() {
       setHealth((h) => ({ ...h, alarmCount: h.alarmCount + 1 }));
     }
 
-    // Layer 2: Supabase server alarm — sent via Web Push by pg_cron (cross-device, iOS)
+    // Layer 2: Supabase server alarm — sent via Web Push by pg_cron (cross-device)
     scheduleServerAlarm(alarm).catch(() => {});
 
     // Layer 3: React setTimeout — fires exactly on time when app is open.
     // Uses showNotifRef so the callback always sees the CURRENT permission and
     // settings.enabled, not the stale values captured when scheduleAlarm was
-    // first created (which would have settings.enabled=false from defaults).
+    // first created. Tag falls back to id (matching alarm.tag above) so this
+    // layer dedupes identically to the other two instead of generating its
+    // own random tag when a caller omits one.
     const delay = scheduledFor - Date.now();
     if (delay > 0) {
       clearTimeout(reactTimers.current[id]);
       reactTimers.current[id] = setTimeout(() => {
-        showNotifRef.current?.(title, body, { tag, data });
+        showNotifRef.current?.(title, body, { tag: tag || id, data });
       }, delay);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Cancel a scheduled alarm ────────────────────────────────────────────────
   const cancelAlarm = useCallback((id) => {
+    if (IS_NATIVE) {
+      const notifId = tagToNotificationId(id);
+      LocalNotifications.cancel({ notifications: [{ id: notifId }] }).catch(() => {});
+      setHealth((h) => ({ ...h, alarmCount: Math.max(0, h.alarmCount - 1) }));
+      return;
+    }
     clearTimeout(reactTimers.current[id]);
     delete reactTimers.current[id];
     const controller = navigator.serviceWorker?.controller;
@@ -322,10 +436,26 @@ export function useNotifications() {
     cancelServerAlarm(id).catch(() => {});
   }, []);
 
-  // ── Display a notification (SW-first, Notification API fallback) ────────────
+  // ── Display a notification (native: immediate local notification;          ──
+  // web: SW-first, Notification API fallback) ─────────────────────────────────
   const showNotification = useCallback(
     async (title, body, opts = {}) => {
       if (permission !== "granted" || !settings.enabled) return false;
+      if (IS_NATIVE) {
+        try {
+          await LocalNotifications.schedule({
+            notifications: [{
+              id: tagToNotificationId(opts.tag || `nora-${Date.now()}`),
+              title,
+              body,
+              extra: opts.data || {},
+            }],
+          });
+          return true;
+        } catch {
+          return false;
+        }
+      }
       const options = {
         body,
         icon: "/icon-192.png",
@@ -359,28 +489,43 @@ export function useNotifications() {
     // Temporarily enable if needed for the test
     const wasEnabled = settings.enabled;
     if (!wasEnabled) setSettings((s) => ({ ...s, enabled: true }));
-    const reg = swRegRef.current;
+
     let ok = false;
-    if (reg) {
+    if (IS_NATIVE) {
       try {
-        await reg.showNotification("✅ Nora · Notifications Active", {
-          body:  "You'll get reminders even when the app is closed.",
-          icon:  "/icon-192.png",
-          badge: "/icon-192.png",
-          tag:   "nora-test",
-          data:  { action: "test" },
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: tagToNotificationId("nora-test"),
+            title: "✅ Notifications on",
+            body: "You'll get reminders, even when it's closed.",
+            extra: { action: "test" },
+          }],
         });
         ok = true;
       } catch {}
-    }
-    if (!ok) {
-      try {
-        new Notification("✅ Nora · Notifications Active", {
-          body: "You'll get reminders even when the app is closed.",
-          icon: "/icon-192.png",
-        });
-        ok = true;
-      } catch {}
+    } else {
+      const reg = swRegRef.current;
+      if (reg) {
+        try {
+          await reg.showNotification("✅ Notifications on", {
+            body:  "You'll get reminders, even when it's closed.",
+            icon:  "/icon-192.png",
+            badge: "/icon-192.png",
+            tag:   "nora-test",
+            data:  { action: "test" },
+          });
+          ok = true;
+        } catch {}
+      }
+      if (!ok) {
+        try {
+          new Notification("✅ Notifications on", {
+            body: "You'll get reminders, even when it's closed.",
+            icon: "/icon-192.png",
+          });
+          ok = true;
+        } catch {}
+      }
     }
     if (!wasEnabled) setSettings((s) => ({ ...s, enabled: false }));
     return ok;
@@ -406,6 +551,7 @@ export function useNotifications() {
   }, []);
 
   const forceResubscribe = useCallback(async () => {
+    if (IS_NATIVE) return false; // no subscription concept for local notifications
     const reg = swRegRef.current;
     if (!reg?.pushManager) return false;
     try {

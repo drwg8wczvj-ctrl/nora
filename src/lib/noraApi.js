@@ -25,6 +25,7 @@ export const savePushSubscription  = (subscription) => edgeCall("save_subscripti
 export const scheduleServerAlarm   = (alarm)        => edgeCall("schedule_alarm",    { alarm });
 export const cancelServerAlarm     = (id)           => edgeCall("cancel_alarm",      { id });
 export const testServerPush        = ()             => edgeCall("test_server_push");
+export const saveApnsToken         = (token)        => edgeCall("save_apns_token",   { token });
 
 // ── Auth ─────────────────────────────────────────────────────
 

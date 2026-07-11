@@ -2043,12 +2043,11 @@ export default function App() {
 
       // OS notification — persisted in SW IndexedDB, fires even when app is closed
       if (categoryEnabled && notifSettings.enabled && notifPermission === "granted") {
-        const timeStr = fmtTime(task.startHour, task.startMinute ?? 0);
         const isDeadline = type === "deadline";
-        const title = isDeadline ? "🔴 Nora · Deadline" : "⏰ Nora · Reminder";
+        const title = isDeadline ? "🔴 Deadline" : "⏰ Reminder";
         const body  = offset === 0
-          ? `${task.title} starts now`
-          : `${task.title} · ${timeStr} (in ${offset} min)`;
+          ? `${task.title} is starting`
+          : `${task.title} in ${offset} min`;
         scheduleAlarm(
           `task-reminder-${task.id}`,
           fireAt,
@@ -2077,8 +2076,8 @@ export default function App() {
     scheduleAlarm(
       ALARM_ID,
       trigger.getTime(),
-      "☀️ Nora · Morning Check-Up",
-      "Good morning! Time to set your focus for the day.",
+      "☀️ Morning check-in",
+      "Ready to plan today?",
       { action: "open_checkup", url: "/" },
       "morning-checkup"
     );
@@ -2097,7 +2096,7 @@ export default function App() {
     const message = adaptiveRecs[0] || predictiveSignals[0]?.message;
     if (!message) return;
     localStorage.setItem("nora_coaching_date", today); // prevent re-scheduling
-    scheduleAlarm(ALARM_ID, trigger.getTime(), "💡 Nora · Daily Insight", message, {
+    scheduleAlarm(ALARM_ID, trigger.getTime(), "💡 Today's insight", message, {
       action: "open_status", url: "/",
     }, "ai-coaching");
     return () => cancelAlarm(ALARM_ID);
@@ -2113,14 +2112,13 @@ export default function App() {
     trigger.setHours(9, 0, 0, 0);
     if (trigger.getTime() <= Date.now()) return;
     const alarmId = `deadline-tomorrow-${today}`;
-    const titles = tomorrowDeadlines.map((t) => t.title).join(", ");
     scheduleAlarm(
       alarmId,
       trigger.getTime(),
-      "⚠️ Nora · Deadline Tomorrow",
+      "⚠️ Due tomorrow",
       tomorrowDeadlines.length === 1
-        ? `"${tomorrowDeadlines[0].title}" is due tomorrow`
-        : `${tomorrowDeadlines.length} deadlines due tomorrow: ${titles}`,
+        ? `${tomorrowDeadlines[0].title} is due tomorrow`
+        : `${tomorrowDeadlines.length} deadlines due tomorrow`,
       { action: "open_task", taskId: tomorrowDeadlines[0].id, url: "/" },
       "deadline-tomorrow"
     );
@@ -5041,7 +5039,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           <Bell size={18} className="notif-toast-icon" />
           <div className="notif-toast-text">
             <div className="notif-toast-title">{inAppAlert.title}</div>
-            <div className="notif-toast-body">Starting in {inAppAlert.offset} min · {inAppAlert.timeStr}</div>
+            <div className="notif-toast-body">In {inAppAlert.offset} min · {inAppAlert.timeStr}</div>
           </div>
           <button className="notif-toast-close" onClick={() => setInAppAlert(null)}><X size={14} /></button>
         </div>
@@ -5079,6 +5077,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           dark={dark}
           userPrefs={userPrefs}
           setUserPrefs={setUserPrefs}
+          notifSettings={notifSettings}
+          showNotification={showNotification}
           onClose={(action) => {
             setFocusTask(null);
             if (action === "reschedule") setRescheduleTask(focusTask);

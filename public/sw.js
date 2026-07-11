@@ -94,7 +94,7 @@ async function checkAndFireAlarms() {
           badge:    '/icon-192.png',
           tag:      alarm.tag   || 'nora-alarm',
           data:     alarm.data  || {},
-          renotify: true,
+          renotify: !!alarm.tag,
         });
       } catch (_) {}
       await removeAlarm(alarm.id);

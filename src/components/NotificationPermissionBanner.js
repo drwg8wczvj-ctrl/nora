@@ -20,7 +20,7 @@ export default function NotificationPermissionBanner({ onAllow, onLater, onNever
       <div className="npb-content">
         <div className="npb-title">Stay on top of your day</div>
         <div className="npb-body">
-          Let Nora remind you about upcoming tasks and morning check-ups.
+          Get nudged about tasks and morning check-ins.
         </div>
         <div className="npb-actions">
           <button className="npb-allow" onClick={onAllow}>Allow notifications</button>

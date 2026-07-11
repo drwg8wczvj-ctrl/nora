@@ -60,21 +60,9 @@ CREATE POLICY "push_alarms_user" ON public.push_alarms
 CREATE POLICY "push_alarms_service" ON public.push_alarms
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
--- ── 3. pg_cron job — fires every minute ──────────────────────────────────────
--- Replace YOUR_PROJECT_REF and YOUR_SERVICE_ROLE_KEY before running.
--- Find these in: Supabase Dashboard → Project Settings → API
-
-SELECT cron.schedule(
-  'nora-fire-push-alarms',
-  '* * * * *',
-  $$
-    SELECT extensions.http_post(
-      url    := 'https://zbdrguzefqxcukotrodg.supabase.co/functions/v1/nora-push',
-      headers := jsonb_build_object(
-        'Content-Type',  'application/json',
-        'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpiZHJndXplZnF4Y3Vrb3Ryb2RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTA0MDcyMiwiZXhwIjoyMDk0NjE2NzIyfQ.u0kwEfRsOrEdh5avJshTuMzlbWIJgymjKdvvHzEXu88'
-      ),
-      body := '{"action":"fire_due_alarms"}'
-    );
-  $$
-);
+-- ── 3. pg_cron job ────────────────────────────────────────────────────────────
+-- SUPERSEDED by rotate_cron_secret.sql — do not run the block that used to be
+-- here. It hardcoded a live service-role JWT directly in committed SQL (a real
+-- leaked secret). See rotate_cron_secret.sql for the Vault-based replacement,
+-- and rotate the actual service-role key in the Supabase dashboard first —
+-- that's what neutralizes the old leaked value, not deleting this text.

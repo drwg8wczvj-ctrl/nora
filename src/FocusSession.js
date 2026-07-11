@@ -86,7 +86,7 @@ const computeFocusInsights = () => {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function FocusSession({ task, dark, onClose, onComplete, userPrefs, setUserPrefs }) {
+export default function FocusSession({ task, dark, onClose, onComplete, userPrefs, setUserPrefs, notifSettings, showNotification }) {
   const today = new Date().toISOString().slice(0, 10);
   const daysDeferred = (task?.date && task.date < today)
     ? Math.floor((new Date(today) - new Date(task.date + "T00:00:00")) / 86400000) : 0;
@@ -169,15 +169,24 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
         if (t === null || t <= 1) {
           clearInterval(intervalRef.current);
           setRunning(false);
-          if (phaseRef.current === "break") setPhase("prepare");
-          else                              setPhase("completed");
+          if (phaseRef.current === "break") {
+            setPhase("prepare");
+            if (notifSettings?.focusSessions) {
+              showNotification?.("☕ Break's over", "Ready to focus again?", { tag: `focus-break-${task?.id}` });
+            }
+          } else {
+            setPhase("completed");
+            if (notifSettings?.focusSessions) {
+              showNotification?.("🎯 Focus session complete", "Nice work. Ready for what's next?", { tag: `focus-done-${task?.id}` });
+            }
+          }
           return 0;
         }
         return t - 1;
       });
     }, 1000);
     return () => clearInterval(intervalRef.current);
-  }, [running]);
+  }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Log + save insights when session completes
   useEffect(() => {

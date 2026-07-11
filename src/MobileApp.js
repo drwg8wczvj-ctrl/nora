@@ -349,6 +349,8 @@ export default function MobileApp({ ctx }) {
           dark={dark}
           userPrefs={userPrefs}
           setUserPrefs={setUserPrefs}
+          notifSettings={ctx.notifSettings}
+          showNotification={ctx.showNotification}
           onClose={(action) => {
             setFocusTask(null);
             if (action === "reschedule") setRescheduleTask(focusTask);

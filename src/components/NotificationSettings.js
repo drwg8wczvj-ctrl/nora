@@ -38,7 +38,7 @@ const CATEGORIES = [
     key: "focusSessions",
     icon: <Clock size={14} />,
     label: "Focus sessions",
-    desc: "When session is about to start",
+    desc: "When a session or break ends",
   },
   {
     key: "aiCoaching",
