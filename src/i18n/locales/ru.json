@@ -74,6 +74,13 @@
   "intel.connectPrompt": "Подключите Telegram или Gmail, чтобы NORA автоматически определяла события, дедлайны и бронирования.",
   "intel.connectSource": "Подключить источник",
 
+  "aiHub.title": "ИИ-хаб",
+  "aiHub.assistantTitle": "ИИ-ассистент",
+  "aiHub.assistantDesc": "Общение, планирование и умная помощь.",
+  "aiHub.messengerTitle": "ИИ-мессенджер",
+  "aiHub.messengerDesc": "Пишите, суммируйте и управляйте сообщениями.",
+  "aiHub.comingSoon": "Скоро",
+
   "ob.meetTitle": "Знакомьтесь: NORA Интеллект",
   "ob.meetDesc": "Подключите почту и мессенджеры. NORA автоматически определит встречи, дедлайны и бронирования — и спросит разрешения перед добавлением.",
   "ob.feat.appointmentTitle": "Распознавание встреч",

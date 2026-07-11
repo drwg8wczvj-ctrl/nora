@@ -72,6 +72,13 @@
   "intel.connectPrompt": "Verbinde Telegram oder Gmail damit NORA automatisch Ereignisse, Fristen und Reservierungen erkennen kann.",
   "intel.connectSource": "Quelle verbinden",
 
+  "aiHub.title": "KI-Hub",
+  "aiHub.assistantTitle": "KI-Assistent",
+  "aiHub.assistantDesc": "Allgemeine Gespräche, Planung und intelligente Hilfe.",
+  "aiHub.messengerTitle": "KI-Messenger",
+  "aiHub.messengerDesc": "Nachrichten schreiben, zusammenfassen und verwalten.",
+  "aiHub.comingSoon": "Demnächst verfügbar",
+
   "ob.meetTitle": "Hallo, NORA Intelligenz",
   "ob.meetDesc": "Verbinde deinen Posteingang und Messaging-Apps. NORA erkennt automatisch Termine, Fristen und Reservierungen – und fragt dich, bevor etwas hinzugefügt wird.",
   "ob.feat.appointmentTitle": "Terminerkennung",

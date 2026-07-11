@@ -1,0 +1,128 @@
+/* ── AI Hub launcher panel ────────────────────────────────────────────────── */
+/* Mobile: bottom-anchored picker sheet, dimmed backdrop, spring slide-up.      */
+/* Desktop (>=700px): anchored popover near the FAB, transparent click-catcher */
+/* instead of a dimming scrim — this is a launcher, not a fullscreen dialog.    */
+
+.ai-hub-catcher {
+  position: fixed; inset: 0; z-index: 209;
+  background: rgba(0,0,0,0.35);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-spring);
+}
+.ai-hub-catcher-visible { opacity: 1; pointer-events: all; }
+
+.ai-hub-panel {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 210;
+  max-width: 480px; margin: 0 auto;
+  background: var(--modal-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border);
+  border-bottom: none; border-radius: 24px 24px 0 0;
+  box-shadow: var(--shadow);
+  /* extra bottom padding on mobile keeps card content clear of the AI FAB,   */
+  /* which stays visible (and on top, z-index 211) so it can close the sheet */
+  padding: 12px 20px max(140px, calc(env(safe-area-inset-bottom) + 132px));
+  display: flex; flex-direction: column;
+  transform: translateY(16px) scale(0.99); opacity: 0; pointer-events: none;
+  transition: transform var(--dur-base) var(--ease-spring), opacity var(--dur-fast) ease;
+}
+.ai-hub-panel.open { transform: translateY(0) scale(1); opacity: 1; pointer-events: all; }
+
+.ai-hub-handle {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--border);
+  margin: 0 auto 14px;
+}
+
+@media (min-width: 700px) {
+  .ai-hub-catcher { background: transparent; }
+
+  .ai-hub-panel {
+    bottom: 90px; right: 24px; left: auto; margin: 0;
+    width: min(380px, calc(100vw - 48px));
+    max-height: min(520px, 70vh);
+    border-radius: 20px; border-bottom: 1px solid var(--border);
+    box-shadow: 0 0 50px rgba(124,58,237,0.15), 0 20px 60px rgba(0,0,0,.15);
+    padding: 18px;
+    overflow-y: auto;
+    transform: translateY(14px) scale(0.97);
+  }
+  .ai-hub-panel.open { transform: translateY(0) scale(1); }
+  .ai-hub-handle { display: none; }
+}
+
+.ai-hub-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.ai-hub-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.ai-hub-close {
+  width: 28px; height: 28px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background var(--tr), color var(--tr);
+}
+.ai-hub-close:hover { background: var(--accent-light); color: var(--accent); }
+
+.ai-hub-list {
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.ai-hub-card {
+  display: flex; align-items: flex-start; gap: 12px;
+  width: 100%; text-align: left;
+  padding: 14px; border-radius: 16px;
+  border: 1px solid var(--border); background: var(--surface);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-spring),
+              box-shadow var(--dur-fast) ease,
+              background var(--dur-fast) ease,
+              border-color var(--dur-fast) ease;
+}
+.ai-hub-card:hover {
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-2px);
+}
+.ai-hub-card:active { transform: translateY(0) scale(0.98); }
+
+.ai-hub-card-icon {
+  flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 12px;
+  background: var(--grad); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 14px rgba(124,58,237,0.35);
+}
+
+.ai-hub-card-body { min-width: 0; }
+.ai-hub-card-title {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 3px;
+}
+.ai-hub-card-desc {
+  font-size: 12.5px; line-height: 1.4; color: var(--text-muted);
+}
+.ai-hub-card-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-light);
+  padding: 2px 7px; border-radius: 6px;
+}
+.ai-hub-card-soon { opacity: 0.88; }
+
+/* ── Generic "coming soon" tool workspace body (used inside the reused        */
+/* .chat-panel / .mob-chat chrome) ─────────────────────────────────────────── */
+.ai-tool-coming-soon-body {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 32px 24px; text-align: center;
+}
+.ai-tool-coming-soon-icon {
+  width: 56px; height: 56px; border-radius: 18px;
+  background: var(--grad); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(124,58,237,0.35);
+  margin-bottom: 4px;
+}
+.ai-tool-coming-soon-title { font-size: 17px; font-weight: 700; color: var(--text); }
+.ai-tool-coming-soon-sub { font-size: 13px; color: var(--text-muted); max-width: 280px; line-height: 1.5; }

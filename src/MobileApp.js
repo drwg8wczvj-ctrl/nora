@@ -27,6 +27,9 @@ import { MapPin } from "lucide-react";
 import LocationField from "./components/LocationField";
 import SavedPlacesManager from "./components/SavedPlacesManager";
 import PricingModal from "./components/PricingModal";
+import AIHub from "./aiHub/AIHub";
+import { MobileToolComingSoon } from "./aiHub/AIToolComingSoon";
+import { AI_HUB_TOOLS } from "./aiHub/aiToolsRegistry";
 import "./MobileApp.css";
 import { useTranslation } from "react-i18next";
 import { useNativeTabBar } from "./hooks/useNativeTabBar";
@@ -125,7 +128,8 @@ export default function MobileApp({ ctx }) {
   const navFirstMount    = useRef(true);
   const [isDraggingNav, setIsDraggingNav] = useState(false);
 
-  const { dark, theme, chatOpen, setChatOpen, editingTask, draft, inAppAlert, setInAppAlert,
+  const { dark, theme, chatOpen, setChatOpen, aiHubOpen, setAiHubOpen,
+          messengerOpen, setMessengerOpen, editingTask, draft, inAppAlert, setInAppAlert,
           rescheduleTask, setRescheduleTask, saveReschedule, groups,
           focusTask, setFocusTask, userPrefs, setUserPrefs, toggleTask,
           notifBannerVisible, dismissNotifBanner, requestNotifPermission,
@@ -279,12 +283,33 @@ export default function MobileApp({ ctx }) {
       </nav>
 
       <button
-        className={`mob-ai-fab${chatOpen ? " fab-open" : ""}`}
-        onClick={() => setChatOpen((o) => !o)}>
-        {chatOpen ? <X size={22} /> : <Sparkles size={22} />}
+        className={`mob-ai-fab${(aiHubOpen || chatOpen || messengerOpen) ? " fab-open" : ""}`}
+        onClick={() => {
+          if (aiHubOpen || chatOpen || messengerOpen) {
+            setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false);
+          } else {
+            setAiHubOpen(true);
+          }
+        }}>
+        {(aiHubOpen || chatOpen || messengerOpen) ? <X size={22} /> : <Sparkles size={22} />}
       </button>
 
       <MobileChat ctx={ctx} />
+      <AIHub
+        open={aiHubOpen}
+        onClose={() => setAiHubOpen(false)}
+        onSelect={(id) => {
+          setAiHubOpen(false);
+          if (id === "assistant") setChatOpen(true);
+          else if (id === "messenger") setMessengerOpen(true);
+        }}
+      />
+      <MobileToolComingSoon
+        open={messengerOpen}
+        onClose={() => setMessengerOpen(false)}
+        tool={AI_HUB_TOOLS.find((t) => t.id === "messenger")}
+        dark={dark}
+      />
       {editingTask && draft && <MobileEditModal ctx={ctx} />}
       {/* Long-Term Insights overlay */}
       {ctx.showLongTermInsights && (

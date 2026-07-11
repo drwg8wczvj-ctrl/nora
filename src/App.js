@@ -58,6 +58,10 @@ import ProactiveOverlay from "./intelligence/ProactiveOverlay";
 import SuggestionCenter from "./intelligence/SuggestionCenter";
 import IntelligenceOnboarding from "./intelligence/IntelligenceOnboarding";
 import "./intelligence/intelligence.css";
+import AIHub from "./aiHub/AIHub";
+import { DesktopToolComingSoon } from "./aiHub/AIToolComingSoon";
+import { AI_HUB_TOOLS } from "./aiHub/aiToolsRegistry";
+import "./aiHub/AIHub.css";
 
 // ── Constants ──────────────────────────────────────────
 const COMPLEXITY = {
@@ -778,6 +782,8 @@ export default function App() {
   const [newGroupName,   setNewGroupName]   = useState("");
   const [newGroupColor,  setNewGroupColor]  = useState("#10b981");
   const [chatOpen,       setChatOpen]       = useState(false);
+  const [aiHubOpen,      setAiHubOpen]      = useState(false);
+  const [messengerOpen,  setMessengerOpen]  = useState(false);
   const [chatInput,      setChatInput]      = useState("");
   const [chatLoading,    setChatLoading]    = useState(false);
   const [microStartMode,  setMicroStartMode]  = useState(false);
@@ -3347,7 +3353,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       accountName, setAccountName, energy, setEnergy, relaxation, setRelaxation,
       inAppAlert, setInAppAlert, reminderMins, setReminderMins,
       setDark, theme, setTheme, isOnline,
-      chatOpen, setChatOpen, chatInput, setChatInput, chatLoading, messages, sendChat,
+      chatOpen, setChatOpen, aiHubOpen, setAiHubOpen, messengerOpen, setMessengerOpen,
+      chatInput, setChatInput, chatLoading, messages, sendChat,
       editingTask, setEditingTask, draft, setDraft,
       todayTasks, deferredTasks, contextMode, aiFocus,
       momentum, recoveryState, workloadForecast, weekData, weekTrend,
@@ -4878,9 +4885,18 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         />
       )}
 
-      {/* Chat FAB */}
-      <button className={`chat-fab${chatOpen ? " active" : ""}`} onClick={() => setChatOpen((o) => !o)}>
-        {chatOpen ? <X size={22} /> : <MessageSquare size={22} />}
+      {/* AI FAB — opens the AI Hub launcher; closes whichever AI surface is open */}
+      <button
+        className={`chat-fab${(aiHubOpen || chatOpen || messengerOpen) ? " active" : ""}`}
+        onClick={() => {
+          if (aiHubOpen || chatOpen || messengerOpen) {
+            setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false);
+          } else {
+            setAiHubOpen(true);
+          }
+        }}
+      >
+        {(aiHubOpen || chatOpen || messengerOpen) ? <X size={22} /> : <Sparkles size={22} />}
       </button>
 
       <div className={`chat-panel${chatOpen ? " open" : ""}`}>
@@ -5002,6 +5018,22 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           </button>
         </div>
       </div>
+
+      <AIHub
+        open={aiHubOpen}
+        onClose={() => setAiHubOpen(false)}
+        onSelect={(id) => {
+          setAiHubOpen(false);
+          if (id === "assistant") setChatOpen(true);
+          else if (id === "messenger") setMessengerOpen(true);
+        }}
+      />
+      <DesktopToolComingSoon
+        open={messengerOpen}
+        onClose={() => setMessengerOpen(false)}
+        tool={AI_HUB_TOOLS.find((t) => t.id === "messenger")}
+        dark={dark}
+      />
 
       {inAppAlert && (
         <div className="notif-toast" role="alert">

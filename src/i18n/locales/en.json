@@ -72,6 +72,13 @@
   "intel.connectPrompt": "Connect Telegram or Gmail so NORA can automatically detect events, deadlines, and reservations.",
   "intel.connectSource": "Connect a source",
 
+  "aiHub.title": "AI Hub",
+  "aiHub.assistantTitle": "AI Assistant",
+  "aiHub.assistantDesc": "General conversations, planning and intelligent help.",
+  "aiHub.messengerTitle": "AI Messenger",
+  "aiHub.messengerDesc": "Write, summarize and manage messages.",
+  "aiHub.comingSoon": "Coming soon",
+
   "ob.meetTitle": "Meet NORA Intelligence",
   "ob.meetDesc": "Connect your inbox and messaging apps. NORA will automatically detect appointments, deadlines, and reservations — and ask before adding anything to your planner.",
   "ob.feat.appointmentTitle": "Appointment detection",

@@ -1,5 +1,4 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
 
 const TYPE_ICONS = {
   event:       "📅",
@@ -31,7 +30,7 @@ export default function ProactiveOverlay({ suggestions, onReview, onDismiss }) {
       <div className="proactive-sheet" role="dialog" aria-modal="true" aria-label="NORA suggestions">
 
         <div className="proactive-sparkle">
-          <Sparkles size={20} />
+          <img src="/icon-192.png" alt="Nora" />
         </div>
 
         <div className="proactive-greeting">{greeting()}</div>

@@ -391,10 +391,13 @@
 }
 .proactive-sparkle {
   width: 48px; height: 48px; border-radius: 15px;
-  background: var(--grad);
+  overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 16px; color: #fff;
+  margin: 0 auto 16px;
   box-shadow: 0 4px 16px rgba(124,58,237,0.4);
+}
+.proactive-sparkle img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .proactive-greeting {
   font-size: 20px; font-weight: 700; letter-spacing: -0.4px;
@@ -648,9 +651,13 @@
 }
 
 /* Proactive sheet + onboarding — Level 3 glass (modal treatment) */
+/* NOTE: .proactive-sheet must keep the position:fixed set by its base rule   */
+/* (and the desktop top:50%/left:50% centering transform) — position:relative */
+/* here would silently break both the mobile anchor and desktop centering.    */
+.glass .intel-onboarding-modal { position: relative; }
 .glass .proactive-sheet,
 .glass .intel-onboarding-modal {
-  position: relative; overflow: hidden;
+  overflow: hidden;
   backdrop-filter: blur(56px) saturate(2.0);
   -webkit-backdrop-filter: blur(56px) saturate(2.0);
   border: 1px solid var(--border);
