@@ -2319,7 +2319,15 @@ export default function App() {
       }
       setTimeout(() => { tabDragRef.current.moved = false; }, 0);
     } else {
+      // Tap — pointer capture may have swallowed the click; navigate directly from position
       tabDragRef.current.moved = false;
+      if (tabsRef.current) {
+        const btns   = tabsRef.current.querySelectorAll(".tab-btn");
+        const tabW   = btns[0] ? btns[0].getBoundingClientRect().width : tabsRef.current.clientWidth / 3;
+        const firstX = btns[0] ? btns[0].getBoundingClientRect().left : tabsRef.current.getBoundingClientRect().left;
+        const tapped = Math.max(0, Math.min(2, Math.floor((e.clientX - firstX) / tabW)));
+        navigateTo(VIEWS_DIAL[tapped]);
+      }
     }
   };
 
