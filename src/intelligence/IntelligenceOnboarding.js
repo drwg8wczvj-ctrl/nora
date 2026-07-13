@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { createPortal } from "react-dom";
 import { X, CheckCircle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -84,7 +83,7 @@ export default function IntelligenceOnboarding({
     }
   };
 
-  return createPortal(
+  return (
     <>
       <div className="intel-overlay-mask" onClick={onClose} />
       <div className="intel-onboarding-wrap" onClick={(e) => e.stopPropagation()}>
@@ -301,7 +300,6 @@ export default function IntelligenceOnboarding({
           )}
         </div>
       </div>
-    </>,
-    document.body
+    </>
   );
 }

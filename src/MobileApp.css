@@ -113,14 +113,14 @@
    ─────────────────────────────────────────────────────────────────────────── */
 .mob-native-nav .mob-bottom-nav { display: none !important; }
 
-/* FAB moves up so it sits above the native bar (≈76 pt bar + safe area) */
+/* FAB moves up so it clears the native floating tab bar. */
 .mob-native-nav .mob-ai-fab {
-  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(132px + env(safe-area-inset-bottom, 0px));
 }
 
-/* Content padding: same as glass mode (138px covers native bar + safe area) */
+/* Content padding covers the taller native iOS Liquid Glass bar + safe area. */
 .mob-native-nav .mob-main {
-  padding-bottom: calc(138px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Nav indicator — non-glass mode (glass mode overrides live in glass.css) ── */
@@ -182,20 +182,27 @@
 .mob-nav-btn.mob-nav-active .mob-nav-label       { opacity: 1; }
 
 /* ── AI FAB ──────────────────────────────────────────────── */
+/* Squircle, not a circle — echoes the app icon's own shape and the AI Hub's
+   tool tiles (border-radius ~30% of size), so the FAB reads as "one of these
+   tiles, elevated" rather than a generic round chat button. */
 .mob-ai-fab {
   position: fixed;
   right: 20px;
   bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   z-index: 45;
-  width: 56px; height: 56px; border-radius: 50%;
+  width: 56px; height: 56px; border-radius: 20px;
   border: none; cursor: pointer;
   background: var(--grad);
   color: #fff;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 6px 24px rgba(124,58,237,.4);
-  transition: transform .2s, box-shadow .2s;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.30) inset,
+    0 -8px 12px -8px rgba(0,0,0,0.28) inset,
+    0 6px 24px rgba(124,58,237,.4);
+  transition: transform .2s, box-shadow .2s, border-radius .2s;
 }
-.mob-ai-fab:hover  { transform: scale(1.07); }
+.mob-ai-fab:hover  { transform: scale(1.05); border-radius: 17px; }
+.mob-ai-fab:active { transform: scale(0.93); border-radius: 17px; }
 .mob-ai-fab.fab-open {
   background: var(--surface-2);
   color: var(--text-muted);
@@ -2221,7 +2228,7 @@
   transition: box-shadow .15s, border-color .15s;
 }
 .mob-group-color-dot.active {
-  border-color: var(--bg);
+  border-color: var(--surface-solid);
   box-shadow: 0 0 0 2px var(--dot-color, currentColor);
 }
 .mob-group-input-row { display: flex; gap: 8px; }
@@ -2557,7 +2564,8 @@
   --ios-raised-shadow: 0 22px 60px rgba(37, 31, 79, 0.18), 0 4px 14px rgba(37, 31, 79, 0.10);
   --ios-press-shadow: 0 8px 22px rgba(37, 31, 79, 0.10);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(247,248,255,0.92) 42%, var(--bg) 100%);
+    linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(247,248,255,0.92) 42%, transparent 100%),
+    var(--bg);
 }
 
 .mob-app.dark {
@@ -2568,7 +2576,8 @@
   --ios-raised-shadow: 0 24px 70px rgba(0, 0, 0, 0.48), 0 0 32px rgba(124, 58, 237, 0.12);
   --ios-press-shadow: 0 9px 24px rgba(0, 0, 0, 0.28);
   background:
-    linear-gradient(180deg, rgba(31,28,58,0.92) 0%, rgba(15,14,31,0.96) 46%, var(--bg) 100%);
+    linear-gradient(180deg, rgba(31,28,58,0.92) 0%, rgba(15,14,31,0.96) 46%, transparent 100%),
+    var(--bg);
 }
 
 .mob-header {

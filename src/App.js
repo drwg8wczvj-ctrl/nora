@@ -38,7 +38,7 @@ import {
   Activity, Zap, Wind, TrendingUp, TrendingDown, Minus,
   ZoomIn, ZoomOut,
   Brain, Target, Lightbulb, BarChart2, AlertTriangle,
-  Pencil, SkipForward, Sparkles, Moon, Sunrise,
+  Pencil, SkipForward, Sparkles, Sparkle, Moon, Sunrise,
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
   MapPin, Navigation, Car, Bus, Bike, PersonStanding,
 } from "lucide-react";
@@ -3397,6 +3397,12 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       // Intelligence
       onIntelClick: () => intel.setCenterOpen(true),
       intelCount: intel.pendingCount,
+      // These three render as full-screen overlays as *siblings* of <MobileApp>
+      // (see the mobile branch return below), not inside it — MobileApp has no
+      // other visibility into them. Exposed here so it can hide the native tab
+      // bar (a separate native layer the web dim-mask can't cover) while any
+      // of them is showing.
+      intelOverlayOpen: intel.proactiveVisible || intel.centerOpen || intel.onboardingOpen,
       // Location / Travel
       savedPlaces, setSavedPlaces, transportProfile, setTransportProfile,
       // Pricing
@@ -4893,7 +4899,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           }
         }}
       >
-        {(aiHubOpen || chatOpen || messengerOpen) ? <X size={22} /> : <Sparkles size={22} />}
+        {(aiHubOpen || chatOpen || messengerOpen) ? <X size={22} /> : <Sparkle size={24} strokeWidth={0} fill="currentColor" />}
       </button>
 
       <div className={`chat-panel${chatOpen ? " open" : ""}`}>

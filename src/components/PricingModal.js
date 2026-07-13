@@ -212,6 +212,11 @@ export default function PricingModal({ onClose, currentPlan, userId, userEmail }
         </div>
       </div>
     </div>,
-    document.body
+    // Portal into the themed root (.app carries the dark/glass CSS custom
+    // properties) rather than document.body directly — a plain document.body
+    // portal escapes that theme context entirely and silently falls back to
+    // light-mode variable defaults, which is exactly what caused the "white
+    // background in dark mode" bug in IntelligenceOnboarding.js.
+    document.querySelector(".app") ?? document.body
   );
 }

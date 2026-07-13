@@ -4,7 +4,7 @@ import {
   FileText, Trash2, User, RotateCcw, CalendarDays,
   Flag, Coffee, Bell, Activity, Wind, TrendingUp,
   TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
-  SkipForward, Sparkles, Plus, Settings,
+  SkipForward, Sparkles, Sparkle, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
   Share2, Users, Search, KeyRound,
 } from "lucide-react";
@@ -142,6 +142,23 @@ export default function MobileApp({ ctx }) {
   const navIdx    = VIEWS_NAV.indexOf(mobileView);
   const isGlass   = theme === "liquid_glass";
 
+  // The native tab bar renders in its own UIKit layer on top of the WebView,
+  // so no web mechanism (z-index, dim masks, position:fixed) can cover it —
+  // it has to be told to hide explicitly whenever a full-screen overlay/sheet
+  // is showing, or it bleeds through on top of everything. This aggregates
+  // every such surface reachable from here, plus ctx.intelOverlayOpen for the
+  // three (Proactive/SuggestionCenter/Onboarding) that render as siblings of
+  // <MobileApp> rather than inside it.
+  const anyOverlayOpen = !!(
+    ctx.showMorningCheckup || ctx.showLongTermInsights ||
+    (editingTask && draft) || rescheduleTask ||
+    chatOpen || aiHubOpen || messengerOpen ||
+    sharingTask || ctx.showJoinCode || ctx.showOnboarding ||
+    ctx.showProfileModal || ctx.pricingOpen || focusTask ||
+    showFilters || mobileView === "boards" ||
+    ctx.intelOverlayOpen
+  );
+
   // Native iOS Liquid Glass tab bar — active only in glass mode on native iOS.
   // On web / PWA / Android / default mode this is a complete no-op.
   const { usingNative } = useNativeTabBar({
@@ -149,6 +166,7 @@ export default function MobileApp({ ctx }) {
     mode:      isGlass ? "glass" : "default",
     dark:      !!dark,
     enabled:   isGlass,
+    visible:   !anyOverlayOpen,
     onTabChange: setMobileView,
   });
 
@@ -289,7 +307,7 @@ export default function MobileApp({ ctx }) {
             setAiHubOpen(true);
           }
         }}>
-        {(aiHubOpen || chatOpen || messengerOpen) ? <X size={22} /> : <Sparkles size={22} />}
+        {(aiHubOpen || chatOpen || messengerOpen) ? <X size={22} /> : <Sparkle size={24} strokeWidth={0} fill="currentColor" />}
       </button>
 
       <MobileChat ctx={ctx} />

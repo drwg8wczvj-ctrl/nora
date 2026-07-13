@@ -915,17 +915,31 @@
 .theme-toggle.on::after { transform: translateX(18px); }
 
 /* ── AI Chat ───────────────────────────────────────────── */
+/* Squircle, not a circle — echoes the app icon's own shape and the AI Hub's
+   tool tiles (border-radius ~30% of size), so the FAB reads as "one of these
+   tiles, elevated" rather than a generic round chat button. */
 .chat-fab {
-  position: fixed; bottom: 24px; right: 24px;
-  width: 54px; height: 54px; border-radius: 27px;
+  position: fixed;
+  bottom: 24px; right: 24px;
+  width: 56px; height: 56px; border-radius: 20px;
   background: var(--grad);
   border: none; color: #fff; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 28px rgba(124,58,237,0.5), 0 4px 20px rgba(0,0,0,.2);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.30) inset,
+    0 -10px 14px -9px rgba(0,0,0,0.28) inset,
+    0 0 22px rgba(124,58,237,0.42), 0 4px 20px rgba(0,0,0,.2);
   z-index: 211;
-  transition: transform var(--tr), box-shadow var(--tr);
+  transition: transform var(--tr), box-shadow var(--tr), border-radius var(--tr);
 }
-.chat-fab:hover  { transform: scale(1.08); box-shadow: 0 0 40px rgba(124,58,237,0.65), 0 6px 24px rgba(0,0,0,.2); }
+.chat-fab:hover  {
+  transform: scale(1.05);
+  border-radius: 17px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.30) inset,
+    0 -10px 14px -9px rgba(0,0,0,0.28) inset,
+    0 0 30px rgba(124,58,237,0.55), 0 4px 20px rgba(0,0,0,.2);
+}
 .chat-fab.active { background: var(--surface-2); box-shadow: var(--shadow); }
 
 .chat-panel {
@@ -1383,7 +1397,7 @@
   transition: transform var(--tr), box-shadow var(--tr);
 }
 .color-swatch:hover { transform: scale(1.15); }
-.color-swatch.sel   { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--sw-color, var(--text)); }
+.color-swatch.sel   { box-shadow: 0 0 0 2px var(--surface-solid), 0 0 0 3.5px var(--sw-color, var(--text)); }
 .color-custom {
   width: 28px; height: 28px; border-radius: 50%;
   border: 1.5px solid var(--border); cursor: pointer; padding: 0; overflow: hidden; background: none;
@@ -3956,10 +3970,13 @@ button:not(:disabled):active {
   .app:not(.mob-app) .chat-fab {
     width: 58px;
     height: 58px;
-    border-radius: 999px;
+    border-radius: 20px;
     background: linear-gradient(145deg, #8b5cf6 0%, #2563eb 62%, #06b6d4 100%);
     border: 1px solid rgba(255,255,255,0.30);
     box-shadow: 0 18px 42px rgba(37,99,235,0.30), 0 8px 20px rgba(124,58,237,0.22), 0 1px 0 rgba(255,255,255,0.40) inset;
+  }
+  .app:not(.mob-app) .chat-fab:hover {
+    border-radius: 16px;
   }
 
   .app:not(.mob-app) .chat-panel {

@@ -29,7 +29,7 @@
   border: 1px solid var(--border); cursor: pointer;
   transition: background .15s;
 }
-.wb-btn-ghost:hover { background: var(--surface2); }
+.wb-btn-ghost:hover { background: var(--surface-2); }
 
 .wb-modal-close {
   background: transparent; border: none; cursor: pointer;
@@ -103,7 +103,7 @@
   border-color: var(--accent);
 }
 .wb-card-preview {
-  background: color-mix(in srgb, var(--accent) 5%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-solid));
   border-bottom: 1px solid var(--border);
   padding: 18px 18px 14px;
   min-height: 76px;
@@ -186,7 +186,7 @@
 .wb-tpl-card {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   padding: 18px 12px; border-radius: 12px;
-  background: var(--surface2, var(--bg)); border: 1.5px solid var(--border);
+  background: var(--surface-2, var(--bg)); border: 1.5px solid var(--border);
   cursor: pointer; transition: border-color .15s, transform .15s, background .15s;
 }
 .wb-tpl-card:hover { border-color: var(--accent); transform: translateY(-2px); background: color-mix(in srgb,var(--accent) 6%,transparent); }
@@ -220,12 +220,12 @@
   color: var(--text-muted); display: flex; align-items: center;
   padding: 4px; border-radius: 6px; transition: color .15s, background .15s;
 }
-.wb-back:hover { color: var(--text); background: var(--surface2); }
+.wb-back:hover { color: var(--text); background: var(--surface-2); }
 .wb-board-title { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wb-health-row { display: flex; gap: 6px; align-items: center; }
 .wb-hpill {
   font-size: 11px; font-weight: 600; padding: 3px 9px;
-  border-radius: 20px; background: var(--surface2,var(--bg));
+  border-radius: 20px; background: var(--surface-2,var(--bg));
   border: 1px solid var(--border); color: var(--text-muted);
 }
 .wb-hpill-prog { color: var(--accent); border-color: var(--accent); }
@@ -268,7 +268,7 @@
   cursor: pointer; color: var(--text-muted);
   transition: background .12s, color .12s;
 }
-.wb-tool-icon:hover { background: var(--surface2); color: var(--text); }
+.wb-tool-icon:hover { background: var(--surface-2); color: var(--text); }
 
 /* Canvas wrapper */
 .wb-canvas-wrap {
@@ -373,7 +373,7 @@
 }
 .wb-blk-act {
   flex: 1; height: 26px; border-radius: 6px;
-  background: var(--surface2, var(--bg));
+  background: var(--surface-2, var(--bg));
   border: 1px solid var(--border); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   color: var(--text-muted); transition: background .12s, color .12s;
@@ -478,7 +478,7 @@
 }
 .wb-edit-title:focus { border-bottom-color: var(--accent); }
 .wb-edit-content {
-  width: 100%; background: var(--surface2,var(--bg));
+  width: 100%; background: var(--surface-2,var(--bg));
   border: 1px solid var(--border); border-radius: 8px;
   outline: none; resize: vertical;
   font-size: 13px; font-family: inherit; color: var(--text);
@@ -489,7 +489,7 @@
 .wb-edit-date-row { display: flex; align-items: center; gap: 10px; }
 .wb-edit-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .wb-edit-date {
-  background: var(--surface2,var(--bg)); border: 1px solid var(--border);
+  background: var(--surface-2,var(--bg)); border: 1px solid var(--border);
   border-radius: 8px; padding: 6px 10px; color: var(--text);
   font-size: 13px; outline: none;
 }
@@ -542,7 +542,7 @@
 .wb-ai-chips { display: flex; flex-direction: column; gap: 8px; }
 .wb-ai-chip {
   text-align: left; padding: 10px 13px; border-radius: 10px;
-  background: var(--surface2, var(--bg));
+  background: var(--surface-2, var(--bg));
   border: 1px solid var(--border);
   color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer;
   transition: background .12s, border-color .12s, color .12s;

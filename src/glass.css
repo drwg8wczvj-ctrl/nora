@@ -19,7 +19,7 @@
   --border:        rgba(255,255,255,0.70);
   --border-glow:   rgba(124,58,237,0.55);
   --text:          #18123e;
-  --text-muted:    rgba(24,18,62,0.58);
+  --text-muted:    rgba(24,18,62,0.78);
 
   /* Shadow system: drop + inner specular */
   --shadow:
@@ -558,22 +558,27 @@
 
 /* ── 18. MOBILE GLASS ────────────────────────────────────────── */
 
-/* Re-enable orbs for mobile */
+/* Re-enable orbs for mobile — sized much smaller than desktop's 1000px/860px.
+   Those were only ever subtle corner accents on a wide viewport; at anywhere
+   near that size on a ~390-430pt phone screen the blur radius alone covers
+   most of the visible area, reading as a big wash of light rather than an
+   accent. Sized here as a fraction of a typical phone width instead of a
+   fixed desktop-scale pixel value. */
 .glass.mob-app::before {
   display: block;
-  width: 750px; height: 750px;
-  top: -200px; left: -140px;
+  width: 200px; height: 200px;
+  top: -70px; left: -60px;
   background: var(--orb-1);
-  opacity: 1; filter: blur(100px);
+  opacity: 0.55; filter: blur(46px);
   animation: glassOrb1 18s ease-in-out infinite;
   z-index: 0;
 }
 .glass.mob-app::after {
   display: block;
-  width: 620px; height: 620px;
-  bottom: -140px; right: -120px;
+  width: 170px; height: 170px;
+  bottom: -50px; right: -50px;
   background: var(--orb-2);
-  opacity: 1; filter: blur(100px);
+  opacity: 0.55; filter: blur(46px);
   animation: glassOrb2 22s ease-in-out infinite;
   z-index: 0;
 }
