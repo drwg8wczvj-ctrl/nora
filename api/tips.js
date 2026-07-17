@@ -1,4 +1,7 @@
+const { applyCors } = require("./_cors");
+
 export default async function handler(req, res) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).end();
 
   const apiKey = process.env.OPENAI_API_KEY;

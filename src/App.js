@@ -17,6 +17,7 @@ import PWABanners from "./PWABanners";
 import { useMobile } from "./hooks/useMobile";
 import { useNotifications } from "./hooks/useNotifications";
 import { useAssistantMode } from "./hooks/useAssistantMode";
+import { apiUrl } from "./lib/apiBase";
 import { buildWellbeingStateBlock } from "./lib/wellbeingPromptBlock";
 import { DesktopAtlasChat } from "./aiHub/AtlasChat";
 import "./AtlasChat.css";
@@ -1477,7 +1478,7 @@ export default function App() {
     if (!chatOpen || !desktopSuggestionsVisible || aiChatSugFetchedRef.current) return;
     aiChatSugFetchedRef.current = true;
     setAiChatSugLoading(true);
-    fetch("/api/tips", {
+    fetch(apiUrl("/api/tips"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2757,7 +2758,7 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
       let finalText = "";
 
       for (let iter = 0; iter < 10; iter++) {
-        const res = await fetch("/api/chat", {
+        const res = await fetch(apiUrl("/api/chat"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: apiMsgs, tools: AI_TOOLS }),
@@ -2928,7 +2929,7 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
       let finalText = "";
 
       for (let iter = 0; iter < 6; iter++) {
-        const res = await fetch("/api/chat", {
+        const res = await fetch(apiUrl("/api/chat"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: apiMsgs, tools: ATLAS_TOOLS, includeResearchTool: false }),
@@ -4563,6 +4564,8 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
         setChatInput={setAtlasChatInput}
         chatLoading={atlasChatLoading}
         onSend={sendAtlasChat}
+        introSeen={assistantSettings.atlasIntroSeen}
+        onIntroSeen={() => updateAssistantSettings({ atlasIntroSeen: true })}
       />
       <DesktopToolComingSoon
         open={messengerOpen}

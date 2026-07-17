@@ -4,6 +4,7 @@ import {
   Music2, SkipForward, Zap, HelpCircle, Clock,
 } from "lucide-react";
 import { saveUserPreferences } from "./lib/noraApi";
+import { apiUrl } from "./lib/apiBase";
 import "./FocusSession.css";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   useEffect(() => {
     if (phase !== "prepare" || tipFetchedRef.current) return;
     tipFetchedRef.current = true;
-    fetch("/api/tips", {
+    fetch(apiUrl("/api/tips"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -136,7 +137,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   // Fetch AI completion note when session ends
   useEffect(() => {
     if (phase !== "completed") return;
-    fetch("/api/tips", {
+    fetch(apiUrl("/api/tips"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -35,6 +35,7 @@ import StatusPage from "./status/StatusPage";
 import "./MobileApp.css";
 import { useTranslation } from "react-i18next";
 import { useNativeTabBar } from "./hooks/useNativeTabBar";
+import { apiUrl } from "./lib/apiBase";
 
 // ── Local helpers ────────────────────────────────────────────
 const uid  = () => Math.random().toString(36).slice(2);
@@ -277,7 +278,8 @@ export default function MobileApp({ ctx }) {
           notifBannerVisible, dismissNotifBanner, requestNotifPermission,
           sharingTask, setSharingTask, session,
           atlasOpen, setAtlasOpen, atlasMessages, atlasChatInput, setAtlasChatInput,
-          atlasChatLoading, sendAtlasChat, visibleAiTools } = ctx;
+          atlasChatLoading, sendAtlasChat, visibleAiTools,
+          assistantSettings, updateAssistantSettings } = ctx;
 
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
@@ -296,7 +298,7 @@ export default function MobileApp({ ctx }) {
   const anyOverlayOpen = !!(
     ctx.showMorningCheckup || ctx.showLongTermInsights ||
     (editingTask && draft) || rescheduleTask ||
-    chatOpen || aiHubOpen || messengerOpen ||
+    chatOpen || aiHubOpen || messengerOpen || atlasOpen ||
     sharingTask || ctx.showJoinCode || ctx.showOnboarding ||
     ctx.showProfileModal || ctx.pricingOpen || focusTask ||
     showFilters || mobileView === "boards" ||
@@ -463,6 +465,8 @@ export default function MobileApp({ ctx }) {
         setChatInput={setAtlasChatInput}
         chatLoading={atlasChatLoading}
         onSend={sendAtlasChat}
+        introSeen={assistantSettings.atlasIntroSeen}
+        onIntroSeen={() => updateAssistantSettings({ atlasIntroSeen: true })}
       />
       <AIHub
         open={aiHubOpen}
@@ -2280,7 +2284,7 @@ function MobileChat({ ctx }) {
     if (!chatOpen || !suggestionsVisible || aiChatSugFetchedRef.current) return;
     aiChatSugFetchedRef.current = true;
     setAiChatSugLoading(true);
-    fetch("/api/tips", {
+    fetch(apiUrl("/api/tips"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

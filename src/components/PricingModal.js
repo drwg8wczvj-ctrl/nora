@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Check } from "lucide-react";
+import { apiUrl } from "../lib/apiBase";
 import "./PricingModal.css";
 
 const PLANS = [
@@ -129,7 +130,7 @@ export default function PricingModal({ onClose, currentPlan, userId, userEmail }
     setLoading(planKey);
     setError(null);
     try {
-      const res = await fetch("/api/stripe-checkout", {
+      const res = await fetch(apiUrl("/api/stripe-checkout"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planKey, yearly, userId, email: userEmail }),

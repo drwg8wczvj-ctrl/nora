@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+const { applyCors } = require("./_cors");
 
 const PRICE_IDS = {
   plus_monthly:  process.env.STRIPE_PRICE_PLUS_MONTHLY,
@@ -10,6 +11,7 @@ const PRICE_IDS = {
 };
 
 export default async function handler(req, res) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const secretKey = process.env.STRIPE_SECRET_KEY;

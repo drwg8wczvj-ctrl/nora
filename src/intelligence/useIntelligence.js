@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import { apiUrl } from "../lib/apiBase";
 
 const INTEL_ONBOARDING_KEY = "nora_intel_onboarded_v1";
 
@@ -126,7 +127,7 @@ export function useIntelligence({ session, onAddTask }) {
     if (!session?.user?.id || !text?.trim()) return 0;
     setExtracting(true);
     try {
-      const res = await fetch("/api/intelligence-extract", {
+      const res = await fetch(apiUrl("/api/intelligence-extract"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -150,7 +151,7 @@ export function useIntelligence({ session, onAddTask }) {
     if (!session?.user?.id) return;
     setSyncing(true);
     try {
-      const res = await fetch("/api/gmail-sync", {
+      const res = await fetch(apiUrl("/api/gmail-sync"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: session.user.id }),
@@ -193,7 +194,7 @@ export function useIntelligence({ session, onAddTask }) {
   const connectTelegramPhone = useCallback(async (phone) => {
     if (!session?.user?.id) return { ok: false, error: "Not logged in" };
     try {
-      const res = await fetch("/api/telegram-auth-phone", {
+      const res = await fetch(apiUrl("/api/telegram-auth-phone"), {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ phone, userId: session.user.id }),
@@ -209,7 +210,7 @@ export function useIntelligence({ session, onAddTask }) {
   const verifyTelegramCode = useCallback(async (code, password) => {
     if (!session?.user?.id) return { ok: false, error: "Not logged in" };
     try {
-      const res = await fetch("/api/telegram-auth-code", {
+      const res = await fetch(apiUrl("/api/telegram-auth-code"), {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ code, password, userId: session.user.id }),
@@ -231,7 +232,7 @@ export function useIntelligence({ session, onAddTask }) {
     setSyncing(true);
     setSyncError(null);
     try {
-      const res = await fetch("/api/telegram-sync", {
+      const res = await fetch(apiUrl("/api/telegram-sync"), {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ userId: session.user.id }),

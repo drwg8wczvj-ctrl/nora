@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { X, ChevronLeft, ChevronRight, Sunrise, Zap, Brain } from "lucide-react";
+import { apiUrl } from "./lib/apiBase";
 
 // ── Readiness computation (NaN-safe) ───────────────────────────
 export function computeReadiness({ sleepQuality, restedScore, energyScore, clarityScore, sleepDuration } = {}) {
@@ -157,7 +158,7 @@ export default function MorningCheckup({
     if (step < TOTAL_STEPS || tipsRequestedRef.current) return;
     tipsRequestedRef.current = true;
     setTipsLoading(true);
-    fetch("/api/tips", {
+    fetch(apiUrl("/api/tips"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

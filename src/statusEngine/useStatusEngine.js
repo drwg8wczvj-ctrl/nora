@@ -12,6 +12,7 @@ import {
 import { minePatternsFromHistory, computeBestFocusWindow, computeEmotionalDrift } from "./patterns";
 import { getMicroStart, generateInterpretation, generateCoachHeadline } from "./interpretations";
 import { buildImplementationIntention } from "./intentions";
+import { apiUrl } from "../lib/apiBase";
 
 // Mirrors the shape of src/intelligence/useIntelligence.js: a plain hook that
 // wires pure calculator functions to React state and returns one flat object.
@@ -482,7 +483,7 @@ export function useStatusEngine({
     }
 
     setAiInterpretations(null); // clear stale AI text from a prior signature while this fetches
-    fetch("/api/tips", {
+    fetch(apiUrl("/api/tips"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

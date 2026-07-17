@@ -7,6 +7,7 @@
 const { TelegramClient } = require("telegram");
 const { StringSession }  = require("telegram/sessions");
 const { createClient }   = require("@supabase/supabase-js");
+const { applyCors }      = require("./_cors");
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
@@ -14,6 +15,7 @@ const supabase = createClient(
 );
 
 module.exports = async function handler(req, res) {
+  if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).end();
 
   const { phone, userId } = req.body ?? {};
