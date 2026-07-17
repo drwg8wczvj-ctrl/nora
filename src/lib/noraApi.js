@@ -184,6 +184,43 @@ export async function deleteOldChatMessages() {
     .lt("created_at", cutoff);
 }
 
+// ── Atlas chat history — separate table, same shape/TTL as Planner's
+// chat_messages, kept deliberately independent so persona histories never
+// interleave (see supabase_migrations.sql for the atlas_chat_messages table).
+export async function saveAtlasChatMessage(role, message) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase
+    .from("atlas_chat_messages")
+    .insert({ user_id: user.id, role, message });
+  if (error) console.warn("saveAtlasChatMessage:", error.message);
+}
+
+export async function loadRecentAtlasChatMessages() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const cutoff = new Date(Date.now() - CHAT_TTL_MS).toISOString();
+  const { data, error } = await supabase
+    .from("atlas_chat_messages")
+    .select("role, message")
+    .eq("user_id", user.id)
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: true });
+  if (error) { console.warn("loadRecentAtlasChatMessages:", error.message); return []; }
+  return (data ?? []).map(r => ({ role: r.role, content: r.message }));
+}
+
+export async function deleteOldAtlasChatMessages() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const cutoff = new Date(Date.now() - CHAT_TTL_MS).toISOString();
+  await supabase
+    .from("atlas_chat_messages")
+    .delete()
+    .eq("user_id", user.id)
+    .lt("created_at", cutoff);
+}
+
 // ── Morning Check-Up ──────────────────────────────────────────
 
 export async function saveMorningCheckup(checkup) {

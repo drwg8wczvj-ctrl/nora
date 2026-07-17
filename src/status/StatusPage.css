@@ -1,0 +1,642 @@
+/* ──────────────────────────────────────────────────────────────────────
+   Status page — unified, responsive component tree.
+
+   This is the ONLY stylesheet for src/status/*. It relies entirely on the
+   design tokens already defined in src/App.css (:root / .dark) and the
+   Liquid Glass overrides in src/glass.css (.glass). No new colors or
+   spacing tokens are introduced here.
+
+   `.status-card` is NOT redefined here — it already exists in App.css
+   (background/border/radius/padding/shadow) and glass.css (specular sweep,
+   iridescent edge, hover lift). Every card root below carries that class
+   so it inherits both treatments for free.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* ── Root layout ─────────────────────────────────────────────────────
+   No horizontal margin/padding of its own — outer gutter is the caller's
+   job (App.js / MobileApp.js wrap <StatusPage> in their own padded
+   container). `container-type: inline-size` turns this element into a
+   query container so descendants can respond to ITS rendered width
+   rather than the viewport — necessary because this same component tree
+   gets mounted inside two structurally different ancestors (a capped-
+   width desktop column vs. a full-bleed mobile column), so @media on the
+   viewport would not track the actual space available to the component. */
+.status-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  container-type: inline-size;
+  container-name: status;
+}
+
+/* ── Entrance stagger (reuses the existing noraEnter keyframe) ──────
+   Selectors are deliberately more specific than the plain `.status-card`
+   rule in App.css (which already applies the same un-delayed animation)
+   so the staggered `animation-delay` always wins regardless of CSS
+   import order between App.css and this file. */
+.status-page > * {
+  animation: noraEnter var(--dur-base) var(--ease-spring) both;
+}
+.status-page > *:nth-child(1) { animation-delay: 0s; }
+.status-page > *:nth-child(2) { animation-delay: .05s; }
+.status-page > *:nth-child(3) { animation-delay: .10s; }
+.status-page > *:nth-child(4) { animation-delay: .15s; }
+.status-page > *:nth-child(5) { animation-delay: .20s; }
+
+/* Card-as-<button> reset — some cards (MetricCard when it has an expand
+   affordance, the QuickCheckIn summary row, tappable pattern rows, action
+   chips/ghost cards) render as real <button> elements so they inherit the
+   app-wide `button:not(:disabled):active { transform: scale(.96) }` tap
+   feedback for free. This just undoes UA button defaults that `.status-card`
+   doesn't already cover (background/border/padding/radius/shadow are all
+   already set by `.status-card` and win over UA defaults automatically). */
+button.status-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Shared section heading, used by Patterns + Action Center */
+.status-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.status-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .01em;
+}
+
+/* ── Shared ghost button (e.g. "Ask Nora") ──────────────────────────── */
+.status-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--tr), color var(--tr), background var(--tr);
+}
+.status-ghost-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+/* ── Shared expand/collapse technique (grid-template-rows 0fr → 1fr) ──
+   Driven by a `data-expanded` attribute on the card root rather than a
+   class, so toggling from JS is a single attribute flip. No JS height
+   measurement needed — the grid track animates its own intrinsic size. */
+.status-detail-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-base) var(--ease-spring);
+}
+.status-detail-wrap > div {
+  overflow: hidden;
+  min-height: 0;
+}
+[data-expanded="true"] .status-detail-wrap {
+  grid-template-rows: 1fr;
+}
+
+/* ── Shimmer skeleton utility ────────────────────────────────────────── */
+.status-skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: statusShimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+  color: transparent;
+}
+@keyframes statusShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   AI Coach Card
+   ══════════════════════════════════════════════════════════════════ */
+.status-coach-card {
+  border-top: 3px solid var(--accent);
+}
+.status-coach-card[data-tone="urgent"],
+.status-coach-card[data-tone="warning"] {
+  border-top-color: var(--danger);
+}
+.status-coach-card[data-tone="positive"] {
+  border-top-color: var(--success);
+}
+
+.status-coach-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.status-coach-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.status-coach-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-coach-state-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-coach-confidence {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: .04em;
+}
+.status-conf-high     { background: rgba(34,197,94,.12);  color: var(--success); }
+.status-conf-building { background: rgba(245,158,11,.12); color: #f59e0b; }
+.status-conf-strained { background: rgba(239,68,68,.12);  color: var(--danger); }
+
+.status-coach-body { display: flex; flex-direction: column; gap: 12px; }
+
+.status-coach-message {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.status-coach-signals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.status-coach-signal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.status-coach-signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.status-coach-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.status-skeleton-message { display: block; height: 22px; width: 85%; margin-bottom: 10px; }
+.status-skeleton-line     { display: block; height: 13px; width: 55%; }
+
+/* Narrow container: stack the header so state + confidence pill never
+   collide/truncate. auto-fit/minmax can't express "stack this internal
+   row" — that's exactly what @container is for here. */
+@container status (max-width: 420px) {
+  .status-coach-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Quick Check-In
+   ══════════════════════════════════════════════════════════════════ */
+.status-checkin-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.status-checkin-summary-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.status-checkin-summary-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.status-checkin-summary-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.status-checkin-preview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.status-checkin-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--dur-base) var(--ease-spring);
+}
+[data-expanded="true"] .status-checkin-chevron {
+  transform: rotate(180deg);
+}
+
+.status-checkin-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 20px;
+}
+.status-checkin-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.status-checkin-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.status-checkin-icon { display: flex; align-items: center; flex-shrink: 0; }
+.status-checkin-label { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+.status-checkin-current { font-size: 12px; font-weight: 600; }
+.status-checkin-meta-chip {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--success);
+  background: rgba(34,197,94,.12);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.status-checkin-levels { display: flex; gap: 5px; }
+.status-level-btn {
+  flex: 1;
+  padding: 6px 3px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--dur-fast) ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-level-btn:hover { border-color: rgba(124,58,237,.3); }
+
+.status-checkin-sleep-levels { display: flex; gap: 8px; }
+.status-sleep-btn {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--dur-fast) ease;
+}
+.status-sleep-btn:hover { border-color: var(--accent); color: var(--accent); }
+.status-sleep-poor.active { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.35); color: var(--danger); }
+.status-sleep-okay.active { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.35); color: #f59e0b; }
+.status-sleep-good.active { background: rgba(34,197,94,.12);  border-color: rgba(34,197,94,.35);  color: var(--success); }
+
+/* ══════════════════════════════════════════════════════════════════
+   Metrics grid + MetricCard
+   ══════════════════════════════════════════════════════════════════ */
+/* Primary responsive mechanism for the whole page: auto-fit measures its
+   own track width continuously, so this alone yields 1 column at ~320px,
+   2 columns from ~536px, 3 columns from ~812px, etc. — no fixed
+   `@media (min-width: …)` breakpoints needed. */
+.status-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.status-metrics-grid > .status-metric-card {
+  animation: noraEnter var(--dur-fast) var(--ease-spring) both;
+}
+.status-metrics-grid > .status-metric-card:nth-child(1) { animation-delay: 0s; }
+.status-metrics-grid > .status-metric-card:nth-child(2) { animation-delay: .04s; }
+.status-metrics-grid > .status-metric-card:nth-child(3) { animation-delay: .08s; }
+.status-metrics-grid > .status-metric-card:nth-child(4) { animation-delay: .12s; }
+.status-metrics-grid > .status-metric-card:nth-child(5) { animation-delay: .16s; }
+.status-metrics-grid > .status-metric-card:nth-child(6) { animation-delay: .20s; }
+.status-metrics-grid > .status-metric-card:nth-child(7) { animation-delay: .24s; }
+.status-metrics-grid > .status-metric-card:nth-child(8) { animation-delay: .28s; }
+
+.status-metric-card {
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.status-metric-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.status-metric-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.status-metric-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--dur-base) var(--ease-spring);
+}
+[data-expanded="true"] .status-metric-chevron {
+  transform: rotate(180deg);
+}
+
+.status-metric-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.status-metric-value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.status-metric-unit {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.status-metric-trend {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+}
+.status-trend-up   { color: var(--success); }
+.status-trend-down { color: var(--danger); }
+.status-trend-flat { color: var(--text-muted); }
+
+.status-metric-explain {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.status-metric-interpretation {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.status-metric-detail-line {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.status-metric-detail-line:last-child { margin-bottom: 0; }
+.status-detail-label {
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 4px;
+}
+.status-detail-wrap > div > .status-metric-interpretation,
+.status-detail-wrap > div > .status-metric-detail-line:first-child {
+  margin-top: 14px;
+}
+
+/* Gated ("locked") state — no value, no expand affordance, just a muted
+   nudge toward what unlocks it. */
+.status-metric-card.is-gated {
+  border-style: dashed;
+  opacity: .82;
+}
+.status-metric-lock { color: var(--text-muted); flex-shrink: 0; }
+.status-metric-gated-message {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.status-metric-skeleton .status-skeleton-label { display: block; height: 12px; width: 55%; margin-bottom: 12px; }
+.status-metric-skeleton .status-skeleton-value { display: block; height: 30px; width: 40%; margin-bottom: 10px; }
+.status-metric-skeleton .status-skeleton-line   { display: block; height: 12px; width: 90%; }
+
+/* ══════════════════════════════════════════════════════════════════
+   Patterns Section
+   ══════════════════════════════════════════════════════════════════ */
+.status-patterns-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.status-pattern-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.status-pattern-row.is-tappable {
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background var(--dur-fast) ease;
+}
+.status-pattern-row.is-tappable:hover {
+  background: var(--accent-light);
+}
+.status-pattern-bullet {
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.status-pattern-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Action Center
+   ══════════════════════════════════════════════════════════════════ */
+.status-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.status-actions-row:last-child { margin-bottom: 0; }
+
+.status-action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--dur-fast) ease;
+}
+.status-action-chip:hover { border-color: var(--accent); color: var(--accent); }
+.status-action-chip:disabled { opacity: .5; cursor: not-allowed; }
+.status-action-primary {
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+}
+.status-action-primary:hover { color: #fff; opacity: .92; }
+.status-action-warning {
+  background: rgba(239,68,68,.1);
+  border-color: rgba(239,68,68,.3);
+  color: var(--danger);
+}
+.status-action-chip-meta {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: .8;
+}
+
+.status-actions-secondary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.status-action-ghost-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--dur-fast) ease;
+}
+.status-action-ghost-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.status-action-ghost-card:disabled { opacity: .5; cursor: not-allowed; }
+.status-action-ghost-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.status-action-ghost-icon { display: flex; align-items: center; flex-shrink: 0; color: var(--accent); }
+.status-action-ghost-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.status-action-ghost-arrow { color: var(--text-muted); flex-shrink: 0; }
+.status-action-ghost-preview {
+  margin: 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.status-action-ghost-meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Narrow container: chip row becomes a horizontal scroller with snap
+   points instead of wrapping to multiple lines — again something
+   auto-fit/minmax (built for grids, not inline flex rows) can't express,
+   and something that must react to this component's own width rather
+   than the viewport for the same reason as above. */
+@container status (max-width: 480px) {
+  .status-actions-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+    margin-bottom: 14px;
+  }
+  .status-action-chip {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+}

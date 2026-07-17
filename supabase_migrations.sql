@@ -24,6 +24,29 @@ CREATE INDEX IF NOT EXISTS chat_messages_user_created
   ON chat_messages (user_id, created_at DESC);
 
 
+-- 1b. Atlas (Psychologist persona) chat messages — mirrors chat_messages
+-- exactly but kept as its own table so Planner's and Atlas's histories
+-- never interleave (loadRecentChatMessages has no persona filter).
+CREATE TABLE IF NOT EXISTS atlas_chat_messages (
+  id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id    uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role       text        NOT NULL CHECK (role IN ('user', 'assistant')),
+  message    text        NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE atlas_chat_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can manage own atlas chat messages" ON atlas_chat_messages;
+CREATE POLICY "Users can manage own atlas chat messages"
+  ON atlas_chat_messages FOR ALL
+  USING  (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS atlas_chat_messages_user_created
+  ON atlas_chat_messages (user_id, created_at DESC);
+
+
 -- 2. Persistent user preferences (never deleted)
 CREATE TABLE IF NOT EXISTS user_preferences (
   user_id     uuid        PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -81,5 +104,10 @@ CREATE POLICY "user_profile_update"
 --   'delete-old-chat-messages',
 --   '0 * * * *',
 --   $$ DELETE FROM chat_messages WHERE created_at < now() - interval '24 hours'; $$
+-- );
+-- SELECT cron.schedule(
+--   'delete-old-atlas-chat-messages',
+--   '0 * * * *',
+--   $$ DELETE FROM atlas_chat_messages WHERE created_at < now() - interval '24 hours'; $$
 -- );
 -- ─────────────────────────────────────────────────────────────

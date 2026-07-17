@@ -956,6 +956,12 @@
 /* ══════════════════════════════════════════════════════════ */
 .mob-tasks { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 
+/* ══════════════════════════════════════════════════════════ */
+/*  STATUS VIEW — gutter only; layout itself lives in          */
+/*  src/status/StatusPage.css, shared verbatim with desktop.   */
+/* ══════════════════════════════════════════════════════════ */
+.status-page-mobile-gutter { padding: 14px 14px calc(16px + env(safe-area-inset-bottom, 0px)); }
+
 .mob-tasks-section { margin-bottom: 4px; }
 
 .mob-task-row {
@@ -1115,155 +1121,6 @@
   color: var(--accent);
 }
 
-/* ══════════════════════════════════════════════════════════ */
-/*  STATUS VIEW                                              */
-/* ══════════════════════════════════════════════════════════ */
-.mob-status { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-
-.mob-status-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 18px;
-  display: flex; flex-direction: column; gap: 12px;
-}
-.mob-status-card-title {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 800; letter-spacing: -.01em;
-  color: var(--text);
-}
-.mob-status-card-top {
-  display: flex; align-items: center; justify-content: space-between;
-}
-.mob-status-desc {
-  font-size: 13px; color: var(--text-muted); line-height: 1.55; margin: 0;
-}
-
-/* Wellness sliders */
-.mob-wellness-row { display: flex; flex-direction: column; gap: 6px; }
-.mob-wellness-top { display: flex; align-items: center; justify-content: space-between; }
-.mob-wellness-lbl { font-size: 13px; font-weight: 600; color: var(--text); }
-.mob-wellness-val { font-size: 20px; font-weight: 800; color: var(--accent); }
-.mob-wellness-denom { font-size: 13px; font-weight: 500; color: var(--text-muted); }
-.mob-slider {
-  -webkit-appearance: none; width: 100%; height: 6px;
-  border-radius: 4px; background: var(--surface-2); outline: none;
-}
-.mob-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--accent);
-  cursor: pointer; box-shadow: 0 2px 8px rgba(124,58,237,.4);
-}
-.mob-slider-relax::-webkit-slider-thumb { background: #8b5cf6; }
-.mob-slider-energy::-webkit-slider-thumb { background: #f59e0b; }
-.mob-slider-ends {
-  display: flex; justify-content: space-between;
-  font-size: 10.5px; color: var(--text-muted);
-}
-
-/* Momentum */
-.mob-momentum-row { display: flex; align-items: center; gap: 8px; }
-.mob-momentum-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.mob-momentum-label { font-size: 15px; font-weight: 700; }
-.mob-momentum-bar-wrap {
-  height: 5px; border-radius: 4px;
-  background: var(--surface-2); overflow: hidden;
-}
-.mob-momentum-fill { height: 100%; border-radius: 4px; transition: width .4s; }
-
-/* Recovery */
-.mob-recovery-card { border-color: rgba(239,68,68,.2); }
-.mob-recovery-advice {
-  font-size: 12.5px; color: var(--text-muted);
-  background: var(--surface-2); border-radius: 10px; padding: 10px 12px;
-  line-height: 1.5; margin: 0;
-}
-
-/* Progress stats */
-.mob-progress-stats { display: flex; align-items: baseline; gap: 8px; }
-.mob-progress-big { font-size: 28px; font-weight: 800; color: var(--text); }
-.mob-progress-pct { font-size: 14px; color: var(--text-muted); }
-
-/* Workload */
-.mob-workload-row { display: flex; align-items: flex-end; gap: 6px; }
-.mob-wl-day {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
-}
-.mob-wl-bar-wrap { height: 56px; display: flex; align-items: flex-end; }
-.mob-wl-bar { width: 100%; border-radius: 6px 6px 0 0; min-height: 4px; }
-.mob-wl-free     { background: var(--surface-2); }
-.mob-wl-light    { background: #22c55e; }
-.mob-wl-moderate { background: #f59e0b; }
-.mob-wl-heavy    { background: #ef4444; }
-.mob-wl-today .mob-wl-bar { box-shadow: 0 0 0 2px var(--accent); }
-.mob-wl-label { font-size: 10.5px; color: var(--text-muted); font-weight: 600; }
-.mob-wl-today .mob-wl-label { color: var(--accent); }
-
-/* Sparkline */
-.mob-sparkline { display: flex; gap: 4px; align-items: flex-end; padding-top: 10px; }
-.mob-spark-col  { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.mob-spark-bar-wrap { height: 48px; display: flex; align-items: flex-end; width: 100%; }
-.mob-spark-bar  {
-  width: 100%; border-radius: 4px 4px 0 0;
-  background: var(--accent); opacity: .6;
-}
-.mob-spark-bar.empty { background: var(--surface-2); opacity: 1; }
-.mob-spark-bar.today { opacity: 1; box-shadow: 0 0 0 1.5px var(--accent); }
-.mob-spark-lbl  { font-size: 9.5px; color: var(--text-muted); font-weight: 600; }
-.mob-spark-lbl.today { color: var(--accent); font-weight: 800; }
-
-/* Trend badge */
-.mob-trend-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 9px; border-radius: 10px;
-  font-size: 11px; font-weight: 700;
-  background: var(--surface-2); color: var(--text-muted);
-}
-.mob-trend-improving { background: rgba(34,197,94,.12); color: #16a34a; }
-.mob-trend-declining { background: rgba(239,68,68,.1); color: #dc2626; }
-
-/* Deferred */
-.mob-deferred-card { border-color: rgba(245,158,11,.22); }
-.mob-deferred-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border-radius: 10px;
-  background: var(--surface-2); border: 1px solid var(--border);
-}
-.mob-def-low    { border-left: 3px solid #6ee7b7; }
-.mob-def-medium { border-left: 3px solid #f59e0b; }
-.mob-def-high   { border-left: 3px solid #ef4444; }
-.mob-def-info   { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.mob-def-name   { font-size: 13.5px; font-weight: 600; color: var(--text); }
-.mob-def-age    { font-size: 11px; color: var(--text-muted); }
-.mob-def-btn {
-  width: 32px; height: 32px; border-radius: 9px;
-  border: 1px solid var(--border);
-  background: transparent; cursor: pointer; color: var(--text-muted);
-  display: flex; align-items: center; justify-content: center;
-}
-.mob-rebalance-btn {
-  padding: 9px 14px; border-radius: 10px;
-  border: 1px solid rgba(245,158,11,.35);
-  background: rgba(245,158,11,.07);
-  color: #b45309; font-size: 12.5px; font-weight: 700; cursor: pointer;
-  width: 100%; text-align: center;
-}
-.dark .mob-rebalance-btn { color: #fbbf24; }
-
-/* Recommendations */
-.mob-reco-list { display: flex; flex-direction: column; gap: 8px; list-style: none; }
-.mob-reco-item {
-  font-size: 13px; color: var(--text-muted); line-height: 1.55;
-  padding-left: 14px; position: relative;
-}
-.mob-reco-item::before {
-  content: "•"; position: absolute; left: 0; color: var(--accent);
-}
-
-/* Account */
-.mob-account-card { gap: 8px; }
-.mob-account-email { font-size: 13px; color: var(--text-muted); word-break: break-all; }
 .mob-signout-btn {
   padding: 10px 14px; border-radius: 10px;
   border: 1px solid rgba(220,38,38,.25);
@@ -2016,6 +1873,7 @@
 }
 .mob-sett-row-label { font-size: 14px; font-weight: 500; color: var(--text); }
 .mob-sett-divider { height: 1px; background: var(--border); margin: 12px 0; }
+.mob-sett-hint { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
 
 /* Toggle switch */
 .mob-toggle {
@@ -2063,82 +1921,11 @@
   font-size: 13px; color: var(--text-muted); margin-bottom: 12px;
 }
 
-/* ── NORA State card in Status ─────────────────────────────────── */
-.mob-nora-card {
-  border-top-width: 3px !important;
-  border-top-style: solid !important;
-}
-.mob-state-conf {
-  margin-left: auto;
-  font-size: 10px; font-weight: 700;
-  color: var(--text-muted);
-  background: var(--surface-2);
-  padding: 2px 7px; border-radius: 6px;
-  letter-spacing: .06em;
-}
-
-/* ── Long-Term Insights (mobile status card) ─────────────── */
-.mob-lti-card { border-left: 3px solid #22c55e !important; }
-.mob-lti-preview { display: flex; flex-direction: column; gap: 10px; }
-.mob-lti-signal { font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
-
-/* ── Morning Check-Up card (mobile status) ───────────────── */
-.mob-checkup-card { border-left: 3px solid #818cf8 !important; }
-.mob-checkup-done { display: flex; flex-direction: column; gap: 8px; }
-.mob-checkup-done-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
-.mob-checkup-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: rgba(34,197,94,.12); color: #22c55e; }
-.mob-checkup-summary { font-size: 12px; color: var(--text-muted); font-style: italic; line-height: 1.5; border-left: 3px solid #818cf8; padding-left: 10px; margin: 0; }
-.mob-checkup-cta { display: flex; flex-direction: column; gap: 10px; }
-.mob-checkup-cta-text { font-size: 13px; color: var(--text-muted); margin: 0; }
-.mob-checkup-btn {
-  align-self: flex-start; padding: 10px 20px; border-radius: 22px;
-  background: var(--grad); color: #fff; border: none;
-  font-size: 13px; font-weight: 700; cursor: pointer;
-  box-shadow: 0 4px 14px rgba(124,58,237,0.35);
-}
-
 /* Morning Check-Up — mobile handled via media query in App.css */
 .mcu-modal {
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--modal-bg); border-top: 1px solid var(--border);
   box-shadow: 0 -8px 40px rgba(0,0,0,0.30);
-}
-
-/* ── Sleep & Recovery card (mobile) ─────────────────────── */
-.mob-sleep-card { border-left: 3px solid #818cf8 !important; }
-.mob-sleep-body { display: flex; flex-direction: column; gap: 12px; }
-
-.mob-sleep-checkin { display: flex; flex-direction: column; gap: 8px; }
-.mob-sleep-checkin-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.mob-sleep-checkin-lbl { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-.mob-sleep-from-checkup { font-size: 10px; font-weight: 700; color: #22c55e; background: rgba(34,197,94,.12); padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
-.mob-sleep-q-row { display: flex; gap: 8px; }
-.mob-sleep-q-btn {
-  flex: 1; padding: 8px 6px; border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--surface-2); color: var(--text-muted);
-  font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: all .15s;
-}
-.mob-sq-poor.active  { background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.35);  color: #ef4444; }
-.mob-sq-okay.active  { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.35); color: #f59e0b; }
-.mob-sq-good.active  { background: rgba(34,197,94,.12);  border-color: rgba(34,197,94,.35);  color: #22c55e; }
-
-.mob-sleep-signals { display: flex; flex-direction: column; gap: 8px; }
-.mob-sleep-signal-row {
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: 13px; color: var(--text-muted);
-}
-.mob-sleep-badge {
-  font-size: 11px; font-weight: 700;
-  padding: 3px 11px; border-radius: 20px;
-}
-.mob-sleep-suggestion {
-  font-size: 12px; line-height: 1.55; color: var(--text-muted);
-  padding: 9px 12px; border-radius: 10px;
-  background: rgba(129,140,248,.08);
-  border-left: 3px solid #818cf8;
-  margin-top: 4px;
 }
 
 /* ── Mobile reschedule modal ─────────────────────────────── */
@@ -2287,124 +2074,6 @@
   display: flex; align-items: center; justify-content: center;
 }
 
-
-/* ═══════════════════════════════════════════════════════
-   STATUS v2 — mobile
-   ═══════════════════════════════════════════════════════ */
-
-.mob-status-v2 {
-  padding: 14px 14px 16px;
-  display: flex; flex-direction: column; gap: 12px;
-}
-.mob-sv2-card {
-  background: var(--surface);
-  border-radius: 18px;
-  border: 1px solid var(--border);
-  padding: 16px;
-  box-shadow: var(--shadow);
-}
-
-/* Assessment */
-.mob-assessment { border-top-width: 3px; border-top-style: solid; }
-.mob-assess-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.mob-assess-state { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
-.mob-assess-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.mob-assess-conf {
-  font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; letter-spacing: .04em;
-}
-.mob-conf-high     { background: rgba(34,197,94,.12);  color: #16a34a; }
-.mob-conf-building { background: rgba(245,158,11,.12); color: #d97706; }
-.mob-conf-strained { background: rgba(239,68,68,.12);  color: #dc2626; }
-.mob-assess-summary { font-size: 13px; line-height: 1.55; color: var(--text); margin-bottom: 10px; }
-.mob-assess-signals { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
-.mob-signal { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); }
-.mob-signal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-.mob-assess-rec {
-  background: var(--accent-light); border-left: 3px solid var(--accent);
-  border-radius: 0 8px 8px 0; padding: 9px 12px;
-  font-size: 12px; color: var(--text);
-}
-.mob-assess-rec-lbl { font-weight: 700; color: var(--accent); margin-right: 4px; }
-
-/* Check-in */
-.mob-checkin-list { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
-.mob-check-row { display: flex; flex-direction: column; gap: 7px; }
-.mob-check-meta {
-  display: flex; align-items: center; gap: 7px;
-}
-.mob-check-icon-wrap { display: flex; align-items: center; flex-shrink: 0; }
-.mob-check-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
-.mob-check-curr { font-size: 12px; font-weight: 600; }
-.mob-check-levels { display: flex; gap: 5px; }
-.mob-check-lvl {
-  flex: 1;
-  padding: 7px 2px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: 10px; font-weight: 600;
-  text-align: center;
-  cursor: pointer; transition: all .15s;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-/* Today's Reality */
-.mob-reality-row { display: flex; gap: 0; margin-bottom: 12px; }
-.mob-rstat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0; border-right: 1px solid var(--border); }
-.mob-rstat:last-child { border-right: none; }
-.mob-rstat-val { font-size: 20px; font-weight: 800; line-height: 1; }
-.mob-rstat-lbl { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-
-/* Needs attention */
-.mob-attn-recovery {
-  border-left: 3px solid var(--accent); padding: 9px 12px;
-  border-radius: 0 10px 10px 0; background: var(--surface-2); margin-bottom: 8px;
-}
-.mob-attn-rec-name { font-size: 13px; font-weight: 700; }
-.mob-attn-rec-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-.mob-psignal {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 12px; color: var(--accent); background: var(--accent-light);
-  border-radius: 8px; padding: 7px 10px; margin-bottom: 8px;
-}
-.mob-attn-item {
-  display: flex; flex-wrap: wrap; gap: 5px;
-  padding: 9px 11px; background: var(--surface-2);
-  border-radius: 10px; margin-bottom: 7px;
-}
-.mob-attn-info { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
-.mob-attn-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mob-attn-age  { font-size: 11px; color: var(--text-muted); }
-.mob-attn-note { font-size: 11px; color: var(--text-muted); font-style: italic; width: 100%; }
-.mob-attn-btns { display: flex; gap: 6px; width: 100%; }
-.mob-attn-btn  {
-  display: flex; align-items: center; gap: 4px; padding: 5px 10px;
-  border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
-  color: var(--text-muted); font-size: 11px; font-weight: 600; cursor: pointer;
-}
-.mob-attn-micro { border-color: rgba(234,179,8,.3); color: #d97706; }
-.mob-all-clear { font-size: 13px; color: #22c55e; padding: 6px 0; }
-
-/* How You Work Best */
-.mob-pattern-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.mob-pstat { display: flex; flex-direction: column; gap: 2px; }
-.mob-pstat-lbl { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-.mob-pstat-val { font-size: 14px; font-weight: 700; color: var(--text); }
-
-/* Recommendations */
-.mob-recs-card { }
-.mob-rec-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
-.mob-rec-item:last-child { margin-bottom: 0; }
-.mob-rec-num {
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--accent-light); color: var(--accent);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; flex-shrink: 0;
-}
-.mob-rec-text { font-size: 13px; color: var(--text); line-height: 1.5; padding-top: 2px; }
-.mob-reflect-note { font-size: 12px; color: var(--text-muted); font-style: italic; margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
-
 /* ═══════════════════════════════════════════════════════════════
    NORA MOBILE MOTION
    ═══════════════════════════════════════════════════════════════ */
@@ -2418,23 +2087,9 @@
 
 /* ── Page / view transitions ── */
 .mob-home, .mob-tasks, .mob-notes-v2,
-.mob-status-v2, .mob-settings, .mob-month-view {
+.mob-settings, .mob-month-view {
   animation: noraEnter 0.26s var(--ease-spring) both;
 }
-
-/* ── Card entrances ── */
-.mob-sv2-card, .mob-status-card {
-  animation: noraEnter var(--dur-base) var(--ease-spring) both;
-}
-
-/* Status page stagger */
-.mob-status-v2 > .mob-sv2-card:nth-child(1) { animation-delay: 0.00s; }
-.mob-status-v2 > .mob-sv2-card:nth-child(2) { animation-delay: 0.04s; }
-.mob-status-v2 > .mob-sv2-card:nth-child(3) { animation-delay: 0.08s; }
-.mob-status-v2 > .mob-sv2-card:nth-child(4) { animation-delay: 0.12s; }
-.mob-status-v2 > .mob-sv2-card:nth-child(5) { animation-delay: 0.16s; }
-.mob-status-v2 > .mob-sv2-card:nth-child(6) { animation-delay: 0.20s; }
-.mob-status-v2 > .mob-sv2-card:nth-child(7) { animation-delay: 0.24s; }
 
 /* Agenda items (legacy + v2) */
 .mob-agenda  { animation: noraEnter 0.24s var(--ease-spring) both; }
@@ -2676,12 +2331,9 @@
 .mai2,
 .mob-gc,
 .mob-task-row,
-.mob-status-card,
-.mob-sv2-card,
 .mob-notes-newbar,
 .mob-notes-search-bar,
-.mob-notes-v2 .nc,
-.mob-deferred-row {
+.mob-notes-v2 .nc {
   background: var(--ios-material-strong);
   border-color: var(--ios-hairline);
   box-shadow: var(--ios-card-shadow), 0 1px 0 rgba(255,255,255,0.52) inset;
@@ -2695,12 +2347,9 @@
 .dark .mai2,
 .dark .mob-gc,
 .dark .mob-task-row,
-.dark .mob-status-card,
-.dark .mob-sv2-card,
 .dark .mob-notes-newbar,
 .dark .mob-notes-search-bar,
-.dark .mob-notes-v2 .nc,
-.dark .mob-deferred-row {
+.dark .mob-notes-v2 .nc {
   box-shadow: var(--ios-card-shadow), 0 1px 0 rgba(255,255,255,0.07) inset;
 }
 
@@ -2719,20 +2368,17 @@
 .mob-ctx-badge,
 .mob-done-pill,
 .mai2-badge,
-.mob-ds-wl,
-.mob-trend-badge {
+.mob-ds-wl {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 .mob-progress-track,
-.mob-ds-bar,
-.mob-momentum-bar-wrap {
+.mob-ds-bar {
   height: 6px;
   background: rgba(120, 120, 140, 0.13);
 }
 .mob-progress-fill,
-.mob-ds-bar-fill,
-.mob-momentum-fill {
+.mob-ds-bar-fill {
   background-image: linear-gradient(90deg, currentColor, rgba(37,99,235,0.9));
   box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
 }
@@ -2986,10 +2632,6 @@
   border-radius: 18px;
   overflow: hidden;
 }
-.mob-status-card {
-  border-radius: 22px;
-}
-
 .mob-timetable,
 .mob-grid-scroll {
   background:
@@ -3010,8 +2652,6 @@
 .mob-home,
 .mob-tasks,
 .mob-notes-v2,
-.mob-status-v2,
-.mob-status,
 .mob-settings,
 .mob-month-view,
 .mob-plan {
@@ -3030,8 +2670,6 @@
 .swipe-row,
 .mob-gc,
 .mob-task-row,
-.mob-status-card,
-.mob-sv2-card,
 .mob-notes-newbar,
 .mob-notes-masonry-item {
   animation-name: noraPremiumCardIn;
@@ -3152,12 +2790,9 @@
 .mob-app:not(.glass) .mai2,
 .mob-app:not(.glass) .mob-gc,
 .mob-app:not(.glass) .mob-task-row,
-.mob-app:not(.glass) .mob-status-card,
-.mob-app:not(.glass) .mob-sv2-card,
 .mob-app:not(.glass) .mob-notes-newbar,
 .mob-app:not(.glass) .mob-notes-search-bar,
-.mob-app:not(.glass) .mob-notes-v2 .nc,
-.mob-app:not(.glass) .mob-deferred-row {
+.mob-app:not(.glass) .mob-notes-v2 .nc {
   background: var(--ios-card-bg);
   border-color: var(--ios-card-border);
   box-shadow: var(--ios-soft-shadow), 0 1px 0 rgba(255,255,255,0.42) inset;
@@ -3170,12 +2805,9 @@
 .mob-app.dark:not(.glass) .mai2,
 .mob-app.dark:not(.glass) .mob-gc,
 .mob-app.dark:not(.glass) .mob-task-row,
-.mob-app.dark:not(.glass) .mob-status-card,
-.mob-app.dark:not(.glass) .mob-sv2-card,
 .mob-app.dark:not(.glass) .mob-notes-newbar,
 .mob-app.dark:not(.glass) .mob-notes-search-bar,
-.mob-app.dark:not(.glass) .mob-notes-v2 .nc,
-.mob-app.dark:not(.glass) .mob-deferred-row {
+.mob-app.dark:not(.glass) .mob-notes-v2 .nc {
   box-shadow: var(--ios-soft-shadow), 0 1px 0 rgba(255,255,255,0.08) inset;
 }
 
@@ -3234,8 +2866,7 @@
 }
 
 .mob-app:not(.glass) .mob-focus-card,
-.mob-app:not(.glass) .mai2,
-.mob-app:not(.glass) .mob-status-card {
+.mob-app:not(.glass) .mai2 {
   border-radius: 28px;
 }
 

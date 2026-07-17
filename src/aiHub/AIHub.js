@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { AI_HUB_TOOLS } from "./aiToolsRegistry";
 
-export default function AIHub({ open, onClose, onSelect, badges }) {
+export default function AIHub({ open, onClose, onSelect, badges, tools = AI_HUB_TOOLS }) {
   const { t } = useTranslation();
 
   return (
@@ -19,7 +19,7 @@ export default function AIHub({ open, onClose, onSelect, badges }) {
           <button className="ai-hub-close" onClick={onClose}><X size={16} /></button>
         </div>
         <div className="ai-hub-list">
-          {AI_HUB_TOOLS.map((tool) => {
+          {tools.map((tool) => {
             const Icon = tool.icon;
             const comingSoon = tool.status === "comingSoon";
             return (

@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "OPENAI_API_KEY is not set in environment variables" });
   }
 
-  const { messages, tools } = req.body;
+  const { messages, tools, includeResearchTool = true } = req.body;
 
   const researchTool = {
     type: "function",
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     },
   };
 
-  const allTools = [...(tools || []), researchTool];
+  const allTools = includeResearchTool === false ? (tools || []) : [...(tools || []), researchTool];
   let apiMsgs = [...messages];
 
   try {

@@ -25,6 +25,15 @@ async function login(page) {
   // Short pause for React to mount
   await page.waitForTimeout(800);
 
+  // First-time-visit marketing splash (gated by localStorage "nora_visited") —
+  // shows before the login form on any fresh browser context. Dismiss it if present.
+  const landingCta = page.locator('button:has-text("Start Planning")').first();
+  if (await landingCta.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    console.log("[QA] Landing splash detected — dismissing");
+    await landingCta.click();
+    await page.waitForTimeout(400);
+  }
+
   const emailInput = page.locator(LOGIN_SELECTOR).first();
   const onLoginPage = await emailInput.isVisible().catch(() => false);
 
@@ -40,9 +49,16 @@ async function login(page) {
   await emailInput.fill(EMAIL);
   await page.locator('input[type="password"]').first().fill(PASSWORD);
 
-  const submitBtn = page.locator(
-    'button[type="submit"], button:has-text("Sign in"), button:has-text("Log in")'
-  ).first();
+  // `button[type="submit"]` alone is unambiguous — use it first. The OR'd
+  // text fallback below is only for apps with no real type=submit button;
+  // combining it into one locator is a trap: `.first()` picks matches in DOM
+  // order, not selector priority, so a mode-toggle button with matching text
+  // (e.g. a "Sign in" tab that sits before the real submit button) would win
+  // and get silently no-op clicked instead of the form actually submitting.
+  let submitBtn = page.locator('button[type="submit"]').first();
+  if ((await submitBtn.count()) === 0) {
+    submitBtn = page.locator('button:has-text("Sign in"), button:has-text("Log in")').first();
+  }
   await submitBtn.click();
 
   // Wait for the authenticated app (auth-wrap disappears)

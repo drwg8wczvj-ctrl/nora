@@ -20,6 +20,8 @@
   "settings.liquidGlass": "✦ Liquid Glass",
   "settings.notifications": "Notifications",
   "settings.language": "Language",
+  "settings.twoAssistantMode": "Try the new two-assistant experience",
+  "settings.twoAssistantModeDesc": "Adds Atlas, a companion for stress, motivation and reflection, alongside Nora. Find it in the AI Hub.",
 
   "account.account": "Account",
   "account.profile": "Profile",
@@ -75,6 +77,8 @@
   "aiHub.title": "AI Hub",
   "aiHub.assistantTitle": "AI Assistant",
   "aiHub.assistantDesc": "General conversations, planning and intelligent help.",
+  "aiHub.atlasTitle": "Atlas",
+  "aiHub.atlasDesc": "A space for stress, motivation and self-reflection.",
   "aiHub.insightsTitle": "AI Insights",
   "aiHub.insightsDesc": "Scans Telegram and Gmail for events, deadlines and reservations.",
   "aiHub.messengerTitle": "AI Messenger",

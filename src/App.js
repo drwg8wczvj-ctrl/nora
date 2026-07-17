@@ -3,6 +3,7 @@ import { supabase } from "./lib/supabase";
 import {
   loadUserData, saveUserData,
   saveChatMessage, loadRecentChatMessages, deleteOldChatMessages,
+  saveAtlasChatMessage, loadRecentAtlasChatMessages, deleteOldAtlasChatMessages,
   getUserPreferences, saveUserPreferences,
   saveMorningCheckup, loadTodayCheckup, testServerPush,
 } from "./lib/noraApi";
@@ -15,6 +16,10 @@ import Whiteboard from "./Whiteboard";
 import PWABanners from "./PWABanners";
 import { useMobile } from "./hooks/useMobile";
 import { useNotifications } from "./hooks/useNotifications";
+import { useAssistantMode } from "./hooks/useAssistantMode";
+import { buildWellbeingStateBlock } from "./lib/wellbeingPromptBlock";
+import { DesktopAtlasChat } from "./aiHub/AtlasChat";
+import "./AtlasChat.css";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
@@ -35,9 +40,9 @@ import {
   Clock, MessageSquare, X, Send, FileText, Trash2,
   Menu, Settings, User, ChevronDown, RotateCcw, List, Layers,
   Flag, Coffee, Bell,
-  Activity, Zap, Wind, TrendingUp, TrendingDown, Minus,
+  Activity, Zap, Wind, TrendingUp,
   ZoomIn, ZoomOut,
-  Brain, Target, Lightbulb, BarChart2, AlertTriangle,
+  Brain, Target, AlertTriangle,
   Pencil, SkipForward, Sparkles, Sparkle, Moon, Sunrise,
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
   MapPin, Navigation, Car, Bus, Bike, PersonStanding,
@@ -45,7 +50,6 @@ import {
 import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, fetchTravelMinutes, getModeLabel, findNearbyPlace } from "./location";
 import LocationField from "./components/LocationField";
 import SavedPlacesManager from "./components/SavedPlacesManager";
-import { calculateTaskWeight } from "./utils/taskUtils";
 import { extractJoinInviteCode } from "./utils/sharingIntent";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
@@ -62,6 +66,9 @@ import AIHub from "./aiHub/AIHub";
 import { DesktopToolComingSoon } from "./aiHub/AIToolComingSoon";
 import { AI_HUB_TOOLS } from "./aiHub/aiToolsRegistry";
 import "./aiHub/AIHub.css";
+import { useStatusEngine } from "./statusEngine/useStatusEngine";
+import StatusPage from "./status/StatusPage";
+import "./status/StatusPage.css";
 
 // ── Constants ──────────────────────────────────────────
 const COMPLEXITY = {
@@ -560,6 +567,29 @@ const AI_TOOLS = [
   },
 ];
 
+// ── Atlas (Psychologist persona) tools — deliberately minimal, no task/
+// note/whiteboard mutation. Atlas talks and signals; Planner executes. ──
+const FLAG_WELLBEING_SIGNAL_TOOL = {
+  type: "function",
+  function: {
+    name: "flag_wellbeing_signal",
+    description: "Flag the user's current wellbeing state for Planner to see. Call this when the conversation reveals meaningful exhaustion, stress, overwhelm, or burnout risk that should influence today's schedule. Do not call this for routine or mild check-ins — only when it should actually change how Planner plans the day.",
+    parameters: {
+      type: "object",
+      properties: {
+        level: { type: "string", enum: ["mild", "moderate", "high", "severe"], description: "How strongly this should affect today's plan." },
+        note:  { type: "string", description: "One short sentence, in third person, for Planner's prompt — e.g. 'User is mentally exhausted after a difficult week and needs a lighter day.'" },
+        suggestedAction: { type: "string", enum: ["lighten_today", "add_recovery_block", "none"], description: "What Planner should consider doing." },
+      },
+      required: ["level", "note", "suggestedAction"],
+    },
+  },
+};
+const ATLAS_TOOLS = [
+  AI_TOOLS.find((t) => t.function.name === "save_insight"),
+  FLAG_WELLBEING_SIGNAL_TOOL,
+];
+
 // ── localStorage hook ──────────────────────────────────
 function useLocalStorage(key, initial) {
   const [val, setVal] = useState(() => {
@@ -680,8 +710,10 @@ export default function App() {
     if (!session) return;
     (async () => {
       await deleteOldChatMessages();
-      const [history, prefs] = await Promise.all([
+      await deleteOldAtlasChatMessages();
+      const [history, atlasHistory, prefs] = await Promise.all([
         loadRecentChatMessages(),
+        loadRecentAtlasChatMessages(),
         getUserPreferences(),
       ]);
       // Only restore from Supabase if localStorage has no recent history
@@ -691,6 +723,13 @@ export default function App() {
         const hasLocalHistory = lsRaw && JSON.parse(lsRaw)?.msgs?.length > 1;
         if (!hasLocalHistory) {
           setMessages([{ role: "assistant", content: NORA_GREETING }, ...history]);
+        }
+      }
+      if (atlasHistory.length > 0) {
+        const lsRaw = localStorage.getItem(ATLAS_CHAT_STORE_KEY);
+        const hasLocalHistory = lsRaw && JSON.parse(lsRaw)?.msgs?.length > 1;
+        if (!hasLocalHistory) {
+          setAtlasMessages([{ role: "assistant", content: ATLAS_GREETING }, ...atlasHistory]);
         }
       }
       setUserPrefs(prefs);
@@ -845,6 +884,34 @@ export default function App() {
   const chatMsgRef   = useRef(null);
   const chatInputRef = useRef(null);
   const [chatAtBottom, setChatAtBottom] = useState(true);
+
+  // ── Atlas chat (Psychologist persona) — independent state/history from
+  // Planner's, same localStorage-TTL + Supabase-fallback pattern. ────────
+  const ATLAS_GREETING = "Hi, I'm Atlas. This is a space to think out loud — about stress, motivation, or whatever's on your mind. What's going on for you today?";
+  const ATLAS_CHAT_STORE_KEY = "nora_atlas_chat_v1";
+
+  const [atlasOpen,        setAtlasOpen]        = useState(false);
+  const [atlasChatInput,   setAtlasChatInput]   = useState("");
+  const [atlasChatLoading, setAtlasChatLoading] = useState(false);
+  const [atlasMessages, setAtlasMessages] = useState(() => {
+    try {
+      const raw = localStorage.getItem(ATLAS_CHAT_STORE_KEY);
+      if (!raw) return [{ role: "assistant", content: ATLAS_GREETING }];
+      const { msgs, savedAt } = JSON.parse(raw);
+      if (!msgs || Date.now() - savedAt > CHAT_TTL_MS_LOCAL) {
+        localStorage.removeItem(ATLAS_CHAT_STORE_KEY);
+        return [{ role: "assistant", content: ATLAS_GREETING }];
+      }
+      return msgs.length > 0 ? msgs : [{ role: "assistant", content: ATLAS_GREETING }];
+    } catch {
+      return [{ role: "assistant", content: ATLAS_GREETING }];
+    }
+  });
+
+  // ── Assistant mode (Planner/Atlas feature flag, OFF by default) ───────
+  const { settings: assistantSettings, updateSettings: updateAssistantSettings } = useAssistantMode();
+  // Atlas tile is entirely hidden from the AI Hub until a user opts in.
+  const visibleAiTools = AI_HUB_TOOLS.filter((t) => t.id !== "atlas" || assistantSettings.twoAssistantMode);
 
   const [showLanding,    setShowLanding]    = useState(() => !localStorage.getItem("nora_visited"));
   const [notes,          setNotes]          = useLocalStorage("nora_notes", []);
@@ -1086,212 +1153,25 @@ export default function App() {
   const doneToday  = progressTasks.filter((t) => t.completed).length;
   const pct        = totalToday > 0 ? Math.round((doneToday / totalToday) * 100) : 0;
 
-  const weekData = useMemo(() => Array.from({ length: 7 }, (_, i) => {
-    const d = fmtDate(addDays(today, i - 6));
-    const dayTasks = tasks.filter((t) => t.date === d);
-    const done  = dayTasks.filter((t) => t.completed).length;
-    const total = dayTasks.length;
-    return { date: d, done, total, rate: total > 0 ? done / total : null };
-  }), [tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const weekTrend = useMemo(() => {
-    const rated = weekData.filter((d) => d.rate !== null);
-    if (rated.length < 4) return "new";
-    const recent = rated.slice(-3);
-    const prior  = rated.slice(0, rated.length - 3);
-    const avg    = (arr) => arr.reduce((s, d) => s + d.rate, 0) / arr.length;
-    const diff   = avg(recent) - avg(prior);
-    return diff > 0.1 ? "improving" : diff < -0.1 ? "declining" : "steady";
-  }, [weekData]);
-
-  // ── Behavioral intelligence ─────────────────────────────────────
-
-  // ── Cognitive load weights ──────────────────────────────────────
-  const taskWeights = useMemo(() => {
-    const map = {};
-    tasks.forEach((t) => { map[t.id] = calculateTaskWeight(t, today); });
-    return map;
-  }, [tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── User load baseline — rolling 14-day calibration ────────────
-  const userLoadBaseline = useMemo(() => {
-    const saved = userPrefs.load_baseline ?? null;
-    const days14 = Array.from({ length: 14 }, (_, i) => {
-      const date = fmtDate(addDays(today, i - 13));
-      const dayT = tasks.filter((t) => t.date === date && t.type !== "break");
-      const totalW = dayT.reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-      const doneW  = dayT.filter((t) => t.completed).reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-      return { totalW, doneW, hasData: dayT.length > 0 };
-    }).filter((d) => d.hasData);
-
-    // Not enough history — use saved baseline or sensible defaults
-    if (days14.length < 3) {
-      return saved ?? {
-        avgDailyWeight: 12, avgCompletionWeight: 9,
-        maxSustainableWeight: 15, overloadThreshold: 19, heavyDayThreshold: 15,
-      };
-    }
-
-    const avgDailyWeight      = days14.reduce((s, d) => s + d.totalW, 0) / days14.length;
-    const avgCompletionWeight = days14.reduce((s, d) => s + d.doneW,  0) / days14.length;
-    return {
-      avgDailyWeight:       Math.round(avgDailyWeight),
-      avgCompletionWeight:  Math.round(avgCompletionWeight),
-      maxSustainableWeight: Math.round(avgDailyWeight * 1.25),
-      overloadThreshold:    Math.round(avgDailyWeight * 1.6),
-      heavyDayThreshold:    Math.round(avgDailyWeight * 1.25),
-    };
-  }, [tasks, today, taskWeights, userPrefs.load_baseline]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Momentum — weighted completion rate ─────────────────────────
-  const momentum = useMemo(() => {
-    const days = Array.from({ length: 14 }, (_, i) => {
-      const date   = fmtDate(addDays(today, i - 13));
-      const dayT   = tasks.filter((t) => t.date === date && t.type !== "break");
-      const totalW = dayT.reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-      const doneW  = dayT.filter((t) => t.completed).reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-      return { date, total: dayT.length, totalW, doneW, rate: totalW > 0 ? doneW / totalW : null };
-    });
-    const rated = days.filter((d) => d.rate !== null);
-    if (rated.length < 2) return { state: "new", label: "Just Starting", desc: "Build a few days of history and Nora will start recognising patterns.", color: "var(--accent)", score: null };
-    const recent = rated.slice(-Math.min(3, rated.length));
-    const prior  = rated.slice(0, rated.length - recent.length);
-    const avg    = (arr) => arr.length > 0 ? arr.reduce((s, d) => s + d.rate, 0) / arr.length : null;
-    const rAvg   = avg(recent);
-    const pAvg   = avg(prior) ?? rAvg;
-    const trend  = rAvg - pAvg;
-    const avgWeightedLoad = recent.reduce((s, d) => s + d.totalW, 0) / recent.length;
-    const overloadThresh  = userLoadBaseline.overloadThreshold;
-    if (rAvg < 0.40 && avgWeightedLoad > overloadThresh) return { state: "overloaded", label: "Overloaded",      desc: "Cognitive load exceeds your current capacity. Remove or defer tasks — consistency beats volume.", color: "#ef4444", score: rAvg };
-    if (rAvg >= 0.65 && trend >  0.08) return { state: "rising",    label: "Rising",         desc: "Momentum is building. Protect this energy and keep sessions predictable.",               color: "#22c55e", score: rAvg };
-    if (rAvg >= 0.55 && Math.abs(trend) <= 0.12) return { state: "stable", label: "Stable", desc: "Consistent and reliable. Steady momentum is more sustainable than burst performance.",  color: "#3b82f6", score: rAvg };
-    if (trend < -0.20 && pAvg > 0.55) return { state: "recovery",  label: "Recovery Phase",  desc: "You slipped after a strong stretch — that's natural. A lighter day resets the system.", color: "#f59e0b", score: rAvg };
-    if (trend >  0.12)                 return { state: "rising",    label: "Recovering",      desc: "Turning around. Each completed task rebuilds the pattern.",                             color: "#22c55e", score: rAvg };
-    return { state: "unstable", label: "Unstable", desc: "Inconsistent pattern. Fewer, smaller, well-timed tasks work better than an ambitious list.", color: "#f59e0b", score: rAvg };
-  }, [tasks, today, taskWeights, userLoadBaseline]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const workloadForecast = useMemo(() => Array.from({ length: 7 }, (_, i) => {
-    const date         = fmtDate(addDays(today, i));
-    const dayT         = tasks.filter((t) => t.date === date && t.type !== "break");
-    const mins         = dayT.filter((t) => t.duration).reduce((s, t) => s + t.duration, 0);
-    const load         = dayT.length;
-    const weightedLoad = dayT.reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-    const d            = new Date(date + "T00:00:00");
-    const heavyT  = userLoadBaseline.overloadThreshold;
-    const modT    = userLoadBaseline.heavyDayThreshold;
-    const level   = weightedLoad >= heavyT ? "heavy"
-      : weightedLoad >= modT ? "moderate"
-      : weightedLoad > 0     ? "light" : "free";
-    return {
-      date, load, mins, weightedLoad, level,
-      label:   i === 0 ? "Today" : i === 1 ? "Tmr" : ["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()],
-      isToday: i === 0,
-    };
-  }), [tasks, today, taskWeights, userLoadBaseline]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const focusPatterns = useMemo(() => {
-    const doneT = tasks.filter((t) => t.completed && t.startHour != null && t.type !== "break");
-    if (doneT.length < 4) return null;
-    const bands = [
-      { key: "morning",   label: "Morning",   range: "6–11 AM", hours: [6,7,8,9,10,11],       count: 0 },
-      { key: "afternoon", label: "Afternoon", range: "12–5 PM", hours: [12,13,14,15,16,17],    count: 0 },
-      { key: "evening",   label: "Evening",   range: "6–10 PM", hours: [18,19,20,21,22],       count: 0 },
-    ];
-    doneT.forEach((t) => { const b = bands.find((b) => b.hours.includes(t.startHour)); if (b) b.count++; });
-    const total = bands.reduce((s, b) => s + b.count, 0);
-    if (total === 0) return null;
-    const peak = [...bands].sort((a, b) => b.count - a.count)[0];
-    return { bands, peak, peakPct: Math.round((peak.count / total) * 100), total };
-  }, [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const mostAvoided = useMemo(() => {
-    const overdue = tasks.filter((t) => !t.completed && t.date < today && t.type === "task");
-    if (!overdue.length) return null;
-    const task = [...overdue].sort((a, b) => a.date.localeCompare(b.date))[0];
-    const daysOverdue = Math.floor((new Date(today + "T00:00:00") - new Date(task.date + "T00:00:00")) / 86400000);
-    const tl = task.title.toLowerCase();
-    const microStarts =
-      /read|study|learn|review/.test(tl)         ? ["Open the material and read just 1 page.", "Set a 5-min timer and start anywhere.", "Write down 3 key things you need to understand."] :
-      /write|essay|report|draft/.test(tl)        ? ["Open a blank doc and type one sentence.", "Bullet your 3 main ideas — nothing else.", "Write only the title and intro paragraph."] :
-      /code|build|implement|fix|debug/.test(tl)  ? ["Open the file and just read it once.", "Write a comment describing what needs to happen.", "Make one small change and run it."] :
-      /email|message|call|reply/.test(tl)        ? ["Open it and read it — don't respond yet.", "Type just the first line of a reply.", "Draft a 2-sentence response and save it."] :
-      [`Spend 5 minutes on "${task.title}" — that's it.`, "Set a timer and begin. Anything counts.", "Do the smallest possible piece right now."];
-    return { task, daysOverdue, microStarts, count: overdue.length };
-  }, [tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const adaptiveRecs = useMemo(() => {
-    const recs = [];
-    if (momentum.state === "overloaded")                         recs.push("Cut your task list by ~30% this week — volume is the problem, not effort.");
-    if (focusPatterns?.peakPct >= 35)                            recs.push(`${focusPatterns.peakPct}% of completions happen in the ${focusPatterns.peak.label.toLowerCase()} (${focusPatterns.peak.range}). Guard that window.`);
-    const heavyDays = workloadForecast.filter((d) => d.level === "heavy");
-    if (heavyDays.length > 0)                                    recs.push(`${heavyDays.map((d) => d.label).join(", ")} ${heavyDays.length === 1 ? "looks" : "look"} overloaded — move some tasks to lighter days.`);
-    if (mostAvoided?.daysOverdue >= 3)                           recs.push(`"${mostAvoided.task.title}" has been waiting ${mostAvoided.daysOverdue} days. A 5-minute start breaks the avoidance loop.`);
-    if (momentum.state === "stable")                             recs.push("Consistent rhythm detected. Don't add tasks on already-full days — protect what's working.");
-    if (energy <= 3)                                             recs.push("Low energy: 25-min focused blocks beat long exhausted sessions every single time.");
-    if (relaxation <= 3)                                         recs.push("Stress is elevated. One completed task restores more calm than five half-started ones.");
-    return recs.slice(0, 3);
-  }, [momentum, focusPatterns, workloadForecast, mostAvoided, energy, relaxation]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Recovery intelligence — weighted signals ────────────────────
-  const recoveryState = useMemo(() => {
-    const last7 = Array.from({ length: 7 }, (_, i) => {
-      const date   = fmtDate(addDays(today, i - 6));
-      const dayT   = tasks.filter((t) => t.date === date && t.type !== "break");
-      const totalW = dayT.reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-      const doneW  = dayT.filter((t) => t.completed).reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-      return { totalW, doneW, rate: totalW > 0 ? doneW / totalW : null };
-    });
-    const overdueTasks     = tasks.filter((t) => !t.completed && t.date < today && t.type !== "break");
-    const overdueWeight    = overdueTasks.reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-    const recentRated      = last7.filter((d) => d.rate !== null);
-    const recentAvg        = recentRated.length > 0 ? recentRated.reduce((s, d) => s + d.rate, 0) / recentRated.length : 1;
-    const avgWeightedLoad  = last7.reduce((s, d) => s + d.totalW, 0) / 7;
-    const lateNight        = tasks.filter((t) => t.completed && t.startHour != null && t.startHour >= 21).length;
-    const avoidWeightRatio = overdueWeight / Math.max(tasks.reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0), 1);
-    const overloadT        = userLoadBaseline.overloadThreshold;
-
-    let score = 100;
-    if (recentRated.length > 0) score -= (1 - recentAvg) * 40;
-    score -= Math.min(28, (overdueWeight / 3) * 2.5);   // weighted overdue (normalized to ~task count)
-    score -= Math.min(18, avoidWeightRatio * 36);
-    if (lateNight >= 3)              score -= 10;
-    if (avgWeightedLoad > overloadT) score -= 10;        // sustained weighted overload penalty
-
-    if (score >= 78) return { level: "stable",   label: "Stable",             color: "#22c55e", desc: "Output and recovery are balanced. You're in a sustainable rhythm.",                                                   advice: null };
-    if (score >= 58) return { level: "mild",     label: "Mild Overload",       color: "#f59e0b", desc: "A few signals suggest the pace is slightly unsustainable.",                                                          advice: "Trim 1–2 tasks this week and protect at least one longer break." };
-    if (score >= 38) return { level: "high",     label: "High Cognitive Load", color: "#f97316", desc: "Your schedule has consistently exceeded comfortable capacity.",                                                       advice: "Reduce daily cognitive load by ~30%. Focus only on what genuinely moves things forward." };
-    if (score >= 18) return { level: "recovery", label: "Recovery Needed",     color: "#ef4444", desc: "Sustained pressure is reducing effectiveness. Recovery actively improves long-term output.",                         advice: "Protect the next day as near-rest. One essential task only." };
-    return              { level: "burnout",  label: "Burnout Risk",        color: "#dc2626", desc: "Patterns suggest significant cumulative exhaustion. Rest is more productive than pushing through.",                  advice: "Pause non-essential tasks entirely. Rest today. Rebuild from a lighter baseline tomorrow." };
-  }, [tasks, today, taskWeights, userLoadBaseline]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Adaptive plan data — learns from completion history ─────────
-  const adaptivePlanData = useMemo(() => {
-    const doneT = tasks.filter((t) => t.completed && t.startHour != null && t.type !== "break");
-    if (doneT.length < 5) return null;
-
-    const hourBuckets = {};
-    doneT.forEach((t) => { hourBuckets[t.startHour] = (hourBuckets[t.startHour] || 0) + 1; });
-    const topHours = Object.entries(hourBuckets).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([h]) => parseInt(h));
-
-    const withDur = doneT.filter((t) => t.duration);
-    const avgDur  = withDur.length > 0 ? Math.round(withDur.reduce((s, t) => s + t.duration, 0) / withDur.length) : null;
-
-    const byDay = {};
-    doneT.forEach((t) => { const day = new Date(t.date + "T00:00:00").getDay(); byDay[day] = (byDay[day] || 0) + 1; });
-    const bestDayEntry = Object.entries(byDay).sort((a, b) => b[1] - a[1])[0];
-    const dayNames     = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const bestDayName  = bestDayEntry ? dayNames[parseInt(bestDayEntry[0])] : null;
-
-    const hardTotal    = tasks.filter((t) => t.complexity === "hard" && t.type !== "break").length;
-    const hardDone     = tasks.filter((t) => t.complexity === "hard" && t.completed).length;
-    const hardRate     = hardTotal >= 3 ? Math.round((hardDone / hardTotal) * 100) : null;
-
-    const longFail = tasks.filter((t) => !t.completed && t.duration && t.duration > 90 && t.type !== "break").length;
-    const longAll  = tasks.filter((t) => t.duration && t.duration > 90 && t.type !== "break").length;
-    const longTasksFail = longAll >= 4 && (longFail / longAll) > 0.5;
-
-    return { topHours, avgDur, bestDayName, hardRate, longTasksFail, sampleSize: doneT.length };
-  }, [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Status engine — metrics, momentum, recovery, patterns, AI coach ────
+  // All of the Status page's computed intelligence (previously ~480 lines of
+  // inline useMemo chains) now lives in one shared hook, consumed identically
+  // by this component and MobileApp.js's status view.
+  const statusEngine = useStatusEngine({
+    tasks, today, session,
+    energy, relaxation, focus, motivation,
+    morningCheckup, dailyMetrics, userPrefs,
+    todaySleepQuality,
+  });
+  const {
+    userLoadBaseline, momentum, recoveryState, workloadForecast,
+    focusPatterns, mostAvoided, adaptiveRecs, deferredTasks, weeklyReflection,
+    sleepState, userConfidence, assessmentSummary, keySignals, noraState,
+    behaviorProfile, predictiveSignals, adaptivePlanData, weekData, weekTrend,
+    metrics, interpretations, patterns, emotionalDrift, flowPrediction,
+    aiCoach, actionCenter, implementationIntention,
+  } = statusEngine;
+  const contextMode = noraState; // UI alias — keeps all existing JSX working
 
   // Auto-save inferred preferences when behavioral data is ready
   useEffect(() => {
@@ -1309,237 +1189,6 @@ export default function App() {
     });
   }, [session, focusPatterns, adaptivePlanData]); // eslint-disable-line
 
-  // ── Weekly reflection — interprets what happened this week ──────
-  const weeklyReflection = useMemo(() => {
-    const last7 = Array.from({ length: 7 }, (_, i) => {
-      const date  = fmtDate(addDays(today, i - 6));
-      const d     = new Date(date + "T00:00:00");
-      const dayT  = tasks.filter((t) => t.date === date && t.type !== "break");
-      const done  = dayT.filter((t) => t.completed).length;
-      return { date, name: ["Sun","Mo","Tue","Wed","Thu","Fri","Sat"][d.getDay()], done, total: dayT.length, rate: dayT.length > 0 ? done / dayT.length : null };
-    });
-    const rated = last7.filter((d) => d.rate !== null);
-    if (rated.length < 3) return null;
-
-    const avgRate = rated.reduce((s, d) => s + d.rate, 0) / rated.length;
-    const best    = [...rated].sort((a, b) => b.rate - a.rate)[0];
-    const worst   = [...rated].sort((a, b) => a.rate - b.rate)[0];
-    const heavy   = rated.filter((d) => d.total > 5 && d.rate < 0.5);
-    const insights = [];
-
-    if (avgRate >= 0.7)       insights.push(`Strong week — ${Math.round(avgRate * 100)}% of planned work completed.`);
-    else if (avgRate >= 0.45) insights.push(`Decent week at ${Math.round(avgRate * 100)}% completion. A solid foundation to build from.`);
-    else                      insights.push(`Completion was ${Math.round(avgRate * 100)}% this week — worth reflecting on what created friction.`);
-
-    if (best && best.rate >= 0.75 && best.total > 1)
-      insights.push(`${best.name} was your strongest day (${best.done}/${best.total}) — notice what conditions made it flow.`);
-
-    if (heavy.length > 0)
-      insights.push(`Heavy-schedule days (${heavy.map((d) => d.name).join(", ")}) had lower output. Dense lists reduce completion, not improve it.`);
-
-    if (worst && worst.rate < 0.3 && worst.total > 1) {
-      const recovered = rated.find((d) => d.date > worst.date && d.rate > 0.5);
-      insights.push(recovered
-        ? `You bounced back after ${worst.name}'s difficult session — that resilience counts.`
-        : `${worst.name} was a rough day. Identifying the trigger helps design next week better.`);
-    }
-
-    return { insights: insights.slice(0, 4), avgRate };
-  }, [tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const deferredTasks = useMemo(() => {
-    const past = tasks.filter((t) => !t.completed && t.date < today && (t.type ?? "task") !== "break");
-    return past
-      .map((t) => {
-        const daysDeferred = Math.round(
-          (new Date(today + "T00:00:00") - new Date(t.date + "T00:00:00")) / 86400000
-        );
-        const urgency = daysDeferred >= 7 ? "high" : daysDeferred >= 3 ? "medium" : "low";
-        return { ...t, daysDeferred, urgency };
-      })
-      .sort((a, b) => b.daysDeferred - a.daysDeferred);
-  }, [tasks, today]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Sleep Intelligence ─────────────────────────────────────────
-  const sleepState = useMemo(() => {
-    // Tonight's tasks (after 20:00, not completed)
-    const tonightTasks = tasks.filter(
-      (t) => t.date === today && t.startHour != null && t.startHour >= 20 && !t.completed
-    );
-    const tonightLoad  = tonightTasks.reduce((s, t) => s + (t.duration ?? 60), 0);
-    const hasLateTasks = tonightTasks.length > 0;
-    const hasVeryLate  = tonightTasks.some((t) => t.startHour >= 22);
-
-    // Late-work pattern: count past 7 days with tasks after 20:00
-    const lateNights = Array.from({ length: 7 }, (_, i) => {
-      const d = fmtDate(addDays(today, -(i + 1)));
-      return tasks.some((t) => t.date === d && (t.startHour ?? 0) >= 20);
-    }).filter(Boolean).length;
-    const hasLatePattern = lateNights >= 3;
-
-    // Sleep pressure score
-    let score = 0;
-    if (energy <= 3)                                    score += 3;
-    else if (energy <= 5)                               score += 1;
-    if (relaxation <= 3)                                score += 2;
-    else if (relaxation <= 5)                           score += 1;
-    if (recoveryState.level === "burnout")              score += 3;
-    else if (recoveryState.level === "recovery")        score += 2;
-    else if (recoveryState.level === "high")            score += 1;
-    if (todaySleepQuality === "poor")                   score += 2;
-    else if (todaySleepQuality === "okay")              score += 1;
-
-    const pressure      = score >= 5 ? "High" : score >= 3 ? "Moderate" : "Low";
-    const pressureColor = pressure === "High" ? "#ef4444" : pressure === "Moderate" ? "#f59e0b" : "#22c55e";
-
-    // Tonight's risk
-    let tonightRisk  = "Calm";
-    let riskLevel    = "calm";
-    if (hasVeryLate || (hasLateTasks && tonightLoad > 90)) { tonightRisk = "Late Work Risk"; riskLevel = "high"; }
-    else if (hasLateTasks || workloadForecast[0]?.level === "heavy") { tonightRisk = "Loaded"; riskLevel = "moderate"; }
-
-    const riskColor = riskLevel === "high" ? "#ef4444" : riskLevel === "moderate" ? "#f59e0b" : "#22c55e";
-
-    // Contextual suggestion
-    let suggestion = null;
-    if (pressure === "High" && hasVeryLate)
-      suggestion = "Tonight needs protecting. Move the late tasks to tomorrow — your recovery matters more right now.";
-    else if (pressure === "High" && hasLateTasks)
-      suggestion = "Keep only the essential tonight and defer the rest. Recovery first.";
-    else if (hasVeryLate)
-      suggestion = "Move tasks after 22:00 to tomorrow morning — late cognitive work cuts into recovery.";
-    else if (hasLatePattern)
-      suggestion = "Late work is becoming a pattern. One early evening this week would help a lot.";
-    else if (hasLateTasks && pressure === "Moderate")
-      suggestion = "Tonight has some late work. Keep it to essentials if possible.";
-    else if (pressure === "Moderate")
-      suggestion = "Decent balance. Aim to wind down by 22:00 if you can.";
-    else if (riskLevel === "calm" && !hasLatePattern)
-      suggestion = "Recovery looks protected tonight. Good position.";
-
-    return { pressure, pressureColor, tonightRisk, riskLevel, riskColor, suggestion, hasLateTasks, hasVeryLate, hasLatePattern, tonightTasks, lateNights };
-  }, [tasks, today, energy, relaxation, recoveryState, todaySleepQuality, workloadForecast]); // eslint-disable-line
-
-  // ── User Confidence (composite metric) ─────────────────────────
-  const userConfidence = useMemo(() => {
-    let score = 0.50;
-    if (momentum.score != null)          score += (momentum.score - 0.5) * 0.30;
-    if (momentum.state === "rising")     score += 0.08;
-    if (weekTrend === "improving")       score += 0.10;
-    else if (weekTrend === "declining")  score -= 0.10;
-    const avoidRatio = deferredTasks.length / Math.max(1, tasks.filter((t) => !t.completed).length);
-    score -= avoidRatio * 0.15;
-    score = Math.min(1, Math.max(0, score));
-    if (score >= 0.62) return { label: "High Confidence",      color: "#22c55e", level: "high" };
-    if (score >= 0.38) return { label: "Building Confidence",  color: "#f59e0b", level: "building" };
-    return               { label: "Confidence Strained",       color: "#ef4444", level: "strained" };
-  }, [momentum, weekTrend, deferredTasks, tasks]); // eslint-disable-line
-
-  // ── Assessment summary text ─────────────────────────────────────
-  const assessmentSummary = useMemo(() => {
-    if (recoveryState.level === "burnout")
-      return "You've been pushing hard for a sustained period. The priority right now is recovery, not more tasks.";
-    if (recoveryState.level === "recovery")
-      return "Your system is signalling a need to slow down. A lighter approach today will pay off more than pushing through.";
-    if (momentum.state === "overloaded")
-      return "Your workload has exceeded your baseline for several days. Some redistribution would relieve the pressure.";
-    if (momentum.state === "rising" && weekTrend === "improving")
-      return "Momentum is building and the week is trending up — you're in a solid rhythm. Keep the pace without overloading.";
-    if (momentum.state === "rising")
-      return "Things are clicking. Completion is improving and consistency is building.";
-    if (weekTrend === "declining" && deferredTasks.length > 2)
-      return `${deferredTasks.length} tasks have slipped and the week is trending down. Rebalancing would help.`;
-    if (weekTrend === "declining")
-      return "The week has been rough, but there's still time to recover. Small consistent actions outperform big catch-up sessions.";
-    if (weekTrend === "improving")
-      return "You're recovering well from any recent pressure. Steady, balanced progress looks good ahead.";
-    if (momentum.state === "stable")
-      return "You're in a consistent rhythm. A reliable week ahead with no major red flags.";
-    return "Nora is still building your profile. Keep logging completions — patterns emerge quickly.";
-  }, [recoveryState, momentum, weekTrend, deferredTasks]); // eslint-disable-line
-
-  // ── 3 key signals for assessment card ──────────────────────────
-  const keySignals = useMemo(() => {
-    const s = [];
-    if (energy >= 7)          s.push("Energy is high");
-    else if (energy <= 3)     s.push("Energy is low — protect your rest");
-    else                      s.push("Energy is moderate");
-    if (recoveryState.level === "stable") s.push("No burnout risk detected");
-    else if (recoveryState.level === "burnout" || recoveryState.level === "recovery")
-      s.push("Recovery needed — workload has been unsustainably high");
-    else s.push("Mild overload signs — watch the next few days");
-    const peak = workloadForecast.reduce((a, b) => (a.load > b.load ? a : b), workloadForecast[0]);
-    if (peak && peak.level !== "free" && peak.level !== "light")
-      s.push(`${peak.label} currently has the highest workload`);
-    else if (deferredTasks.length > 0)
-      s.push(`${deferredTasks.length} deferred task${deferredTasks.length > 1 ? "s" : ""} still waiting`);
-    else s.push("Schedule is well-balanced this week");
-    return s.slice(0, 3);
-  }, [energy, recoveryState, workloadForecast, deferredTasks]); // eslint-disable-line
-
-  const noraState = useMemo(() => {
-    const todayForecast   = workloadForecast[0];
-    const heavyForecast   = workloadForecast.some((d) => d.level === "heavy");
-    const overdueWeight   = tasks
-      .filter((t) => !t.completed && t.date < today && t.type !== "break")
-      .reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-    const highOverdueCogLoad = overdueWeight >= userLoadBaseline.heavyDayThreshold;
-
-    if (recoveryState.level === "burnout" || recoveryState.level === "recovery")
-      return { key: "recovery_day",      label: "Recovery Day",      color: "#ef4444", confidence: "HIGH" };
-    if (momentum.state === "overloaded" || highOverdueCogLoad)
-      return { key: "high_load",         label: "High Load",         color: "#f97316",
-               confidence: (heavyForecast || highOverdueCogLoad) ? "HIGH" : "MEDIUM" };
-    if (energy >= 7 && relaxation >= 7 && todayForecast?.level !== "heavy")
-      return { key: "peak_focus",        label: "Peak Focus",        color: "#22c55e", confidence: "HIGH" };
-    if (momentum.state === "rising")
-      return { key: "building_momentum", label: "Building Momentum", color: "#3b82f6", confidence: "MEDIUM" };
-    if (momentum.state === "stable")
-      return { key: "steady_flow",       label: "Steady Flow",       color: "#8b5cf6", confidence: "HIGH" };
-    return   { key: "focus_mode",        label: "Focus Mode",        color: "var(--accent)", confidence: "MEDIUM" };
-  }, [recoveryState, momentum, energy, relaxation, workloadForecast, tasks, today, taskWeights, userLoadBaseline]); // eslint-disable-line
-
-  const contextMode = noraState; // UI alias — keeps all existing JSX working
-
-  const behaviorProfile = useMemo(() => {
-    const allTasks   = tasks.filter((t) => t.type !== "break");
-    const sampleSize = allTasks.length;
-    const schedulingRate = sampleSize > 0
-      ? allTasks.filter((t) => t.startHour != null).length / sampleSize : 0;
-    const work_style = schedulingRate > 0.65 ? "structured"
-      : schedulingRate > 0.3 ? "mixed" : "flexible";
-    const completion_consistency = momentum.score != null
-      ? Math.round(momentum.score * 100) : null;
-    const overload_response =
-      momentum.state === "overloaded" && recoveryState.level === "burnout"
-        ? "continues despite overload"
-        : momentum.state === "overloaded" ? "reduces load under pressure"
-        : "stable";
-    const restart_speed = momentum.state === "recovering" ? "fast"
-      : recoveryState.level === "recovery" ? "slow" : "n/a";
-    const confidence = sampleSize >= 40 ? "HIGH"
-      : sampleSize >= 15 ? "MEDIUM" : "EXPERIMENTAL";
-
-    // Stress response pattern — Part 5
-    const overloadT = userLoadBaseline.overloadThreshold;
-    const days14 = Array.from({ length: 14 }, (_, i) => {
-      const date   = fmtDate(addDays(today, i - 13));
-      const dayT   = tasks.filter((t) => t.date === date && t.type !== "break");
-      const totalW = dayT.reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-      const doneW  = dayT.filter((t) => t.completed).reduce((s, t) => s + (taskWeights[t.id] ?? 3), 0);
-      return { totalW, doneW, rate: totalW > 0 ? doneW / totalW : null };
-    }).filter((d) => d.rate !== null);
-    const overloadDays = days14.filter((d) => d.totalW > overloadT);
-    let stress_response_pattern = "stable";
-    if (overloadDays.length >= 2) {
-      const avgRate = overloadDays.reduce((s, d) => s + d.rate, 0) / overloadDays.length;
-      stress_response_pattern = avgRate >= 0.6 ? "resilient"
-        : avgRate >= 0.35 ? "overload_sensitive" : "overload_sensitive";
-    }
-
-    return { work_style, completion_consistency, overload_response, restart_speed, confidence, sampleSize, stress_response_pattern };
-  }, [tasks, momentum, recoveryState, taskWeights, userLoadBaseline, today]); // eslint-disable-line
-
   // Auto-save behavior profile snapshot to persistent preferences
   useEffect(() => {
     if (!session) return;
@@ -1547,7 +1196,6 @@ export default function App() {
       const bp = prev.behavior_profile;
       const changed = !bp
         || bp.work_style              !== behaviorProfile.work_style
-        || bp.completion_consistency  !== behaviorProfile.completion_consistency
         || bp.confidence              !== behaviorProfile.confidence
         || bp.stress_response_pattern !== behaviorProfile.stress_response_pattern;
       if (!changed) return prev;
@@ -1570,6 +1218,7 @@ export default function App() {
       return updated;
     });
   }, [session, userLoadBaseline]); // eslint-disable-line
+
 
   const aiFocus = useMemo(() => {
     const incomplete = todayTasks.filter((t) => !t.completed && t.type !== "break");
@@ -1615,70 +1264,6 @@ export default function App() {
     return age >= 0 ? age : null;
   }, [userProfile]);
 
-  const predictiveSignals = useMemo(() => {
-    const insights = [];
-
-    // Rule A — Overload prevention
-    // Heavy day coming + momentum already unstable → prevent the crunch
-    const heavyUpcoming = workloadForecast.slice(1, 4).find((d) => d.level === "heavy");
-    if (heavyUpcoming && ["unstable", "overloaded", "recovery"].includes(momentum.state)) {
-      insights.push({
-        type: "warning",
-        confidence: momentum.state === "overloaded" ? "HIGH" : "MEDIUM",
-        message: `${heavyUpcoming.label} looks heavy and your recent rhythm is inconsistent — moving 1–2 tasks earlier prevents the crunch.`,
-        ruleId: "overload_prevention",
-      });
-    }
-
-    // Rule B — Procrastination detection
-    // Avoided task past 3 days → proactively surface micro-start
-    if (mostAvoided && mostAvoided.daysOverdue >= 3) {
-      insights.push({
-        type: "micro-start",
-        confidence: mostAvoided.daysOverdue >= 7 ? "HIGH" : "MEDIUM",
-        message: `"${mostAvoided.task.title}" has been waiting ${mostAvoided.daysOverdue} days — a 5-minute start now breaks the pattern.`,
-        ruleId: "procrastination_detected",
-      });
-    }
-
-    // Rule C — Energy mismatch
-    // Peak performance is NOT afternoon, but hard tasks are scheduled in afternoon
-    if (focusPatterns && focusPatterns.peak.key !== "afternoon") {
-      const afternoonHard = todayTasks.filter(
-        (t) => !t.completed && t.complexity === "hard" &&
-               t.startHour != null && t.startHour >= 12 && t.startHour < 17
-      );
-      if (afternoonHard.length > 0) {
-        insights.push({
-          type: "optimization",
-          confidence: focusPatterns.peakPct >= 50 ? "HIGH" : "MEDIUM",
-          message: `"${afternoonHard[0].title}" is scheduled for the afternoon, but your focus peaks in the ${focusPatterns.peak.label.toLowerCase()} — consider moving it.`,
-          ruleId: "energy_mismatch",
-        });
-      }
-    }
-
-    // Rule D — Recovery prediction
-    // Recovery/overload state + dropping trend + non-light tomorrow → suggest lighter day
-    if (["mild", "high", "recovery", "burnout"].includes(recoveryState.level) &&
-        (weekTrend === "declining" || ["overloaded", "unstable"].includes(momentum.state))) {
-      const tomorrow = workloadForecast[1];
-      if (tomorrow && (tomorrow.level === "heavy" || tomorrow.level === "moderate")) {
-        insights.push({
-          type: "warning",
-          confidence: ["burnout", "recovery"].includes(recoveryState.level) ? "HIGH" : "MEDIUM",
-          message: `You're showing signs of overextension — a lighter ${tomorrow.label} helps more than pushing through.`,
-          ruleId: "recovery_predicted",
-        });
-      }
-    }
-
-    // Sort HIGH confidence first, cap at 2
-    const order = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-    return insights
-      .sort((a, b) => order[a.confidence] - order[b.confidence])
-      .slice(0, 2);
-  }, [workloadForecast, momentum, mostAvoided, focusPatterns, todayTasks, recoveryState, weekTrend]); // eslint-disable-line
 
   const zoomedH = Math.round(HOUR_H * zoomLevel);
   const cTop    = (h, m) => calcTop(h, m, zoomedH);
@@ -1961,21 +1546,36 @@ export default function App() {
       sleepQuality:   todaySleepQuality,
       loadLevel:      workloadForecast[0]?.level ?? "light",
       readinessScore: morningCheckup?.readinessScore ?? null,
+      recoveryScore:  recoveryState.score ?? null,
       tasksCompleted: doneToday, tasksTotal: totalToday,
       updatedAt: Date.now(),
     };
     setDailyMetrics(prev => {
-      const next = { ...prev, [today]: { ...prev[today], ...snapshot } };
+      const merged = { ...prev, [today]: { ...prev[today], ...snapshot } };
+      // Unbounded retention risk — cap to the trailing 365 days, same
+      // convention already used for nora_focus_log (.slice(-500)) and
+      // nora_metric_history (.slice(-9)). Emotional Drift / burnout-trend
+      // detection depend on this history existing, so prune rather than
+      // let it grow forever in localStorage.
+      const dates = Object.keys(merged).sort();
+      const next = dates.length > 365
+        ? Object.fromEntries(dates.slice(-365).map((d) => [d, merged[d]]))
+        : merged;
       localStorage.setItem("nora_daily_metrics", JSON.stringify(next));
       return next;
     });
-  }, [doneToday, totalToday, todaySleepQuality, today, session]); // eslint-disable-line
+  }, [doneToday, totalToday, todaySleepQuality, today, session, recoveryState]); // eslint-disable-line
 
   // Save chat to localStorage on every change (instant persistence across refreshes)
   useEffect(() => {
     if (messages.length <= 1) return; // no need to persist if only the greeting
     localStorage.setItem(CHAT_STORE_KEY, JSON.stringify({ msgs: messages, savedAt: Date.now() }));
   }, [messages]); // eslint-disable-line
+
+  useEffect(() => {
+    if (atlasMessages.length <= 1) return;
+    localStorage.setItem(ATLAS_CHAT_STORE_KEY, JSON.stringify({ msgs: atlasMessages, savedAt: Date.now() }));
+  }, [atlasMessages]); // eslint-disable-line
 
   // Liquid Glass pointer reactivity — tracks mouse to shift ambient light
   useEffect(() => {
@@ -2393,7 +1993,7 @@ export default function App() {
     if (filterGroup === id) setFilterGroup(null);
   };
 
-  const buildSystem = () => {
+  const buildPlannerSystem = () => {
     const taskLines = tasks.length
       ? tasks.map((t) => {
           const g = getGroup(t.groupId);
@@ -2493,7 +2093,7 @@ export default function App() {
     if (userPrefs.goals)                   prefsLines.push(`User goals: ${userPrefs.goals}`);
 
     // Include all coaching insights saved via save_insight tool
-    const SYSTEM_KEYS = new Set(["load_baseline","peak_hours","preferred_session_mins","work_style","goals","behavior_profile","completion_consistency"]);
+    const SYSTEM_KEYS = new Set(["load_baseline","peak_hours","preferred_session_mins","work_style","goals","behavior_profile","completion_consistency","wellbeing_signal"]);
     const coachingInsights = Object.entries(userPrefs)
       .filter(([k]) => !SYSTEM_KEYS.has(k) && !k.endsWith("_note"))
       .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
@@ -2543,6 +2143,25 @@ export default function App() {
     }[noraState.key] ?? "Standard mode.";
 
     const todayDayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(today + "T00:00:00").getDay()];
+
+    // Atlas → Planner cooperation signal — surfaced once, then acknowledged
+    // so it doesn't repeat on every subsequent turn (see userPrefs.wellbeing_signal).
+    const wellbeingSignal = userPrefs.wellbeing_signal;
+    const hasFreshSignal = wellbeingSignal && wellbeingSignal.date === today && !wellbeingSignal.acknowledged;
+    const signalFromAtlasBlock = hasFreshSignal
+      ? `━━━ SIGNAL FROM ATLAS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Atlas (the user's wellbeing companion) flagged today: "${wellbeingSignal.note}" (severity: ${wellbeingSignal.level}).
+→ Proactively and gently offer to lighten today's schedule in your next reply — don't wait to be asked. Mention it once, briefly, then move on.
+
+`
+      : "";
+    if (hasFreshSignal) {
+      const acknowledged = { ...wellbeingSignal, acknowledged: true };
+      setUserPrefs((prev) => ({ ...prev, wellbeing_signal: acknowledged }));
+      saveUserPreferences({ ...userPrefs, wellbeing_signal: acknowledged }).catch(console.warn);
+    }
+
     return `You are NORA — a calm, intelligent planning butler. Today is ${today} (${todayDayName}).
 You know this person's schedule and genuinely care about how they're doing. Be direct, warm, brief.
 Never start with "Certainly!", "Absolutely!", "Of course!", or "Great question!". Use contractions. Refer to tasks by name.
@@ -2607,7 +2226,7 @@ Momentum:          ${momentum.label}${momentum.score != null ? ` (${Math.round(m
 Recovery:          ${recoveryState.label} — ${recoveryState.desc}
 Most avoided:      ${mostAvoided ? `"${mostAvoided.task.title}" (${mostAvoided.daysOverdue}d deferred)` : "(none)"}
 Work style:        ${behaviorProfile.work_style}
-Consistency:       ${behaviorProfile.completion_consistency != null ? `${behaviorProfile.completion_consistency}% (14-day weighted avg)` : "not enough data"}
+Consistency:       ${metrics.consistency.value != null ? `${metrics.consistency.value}% steadiness (${metrics.consistency.bucket})` : "not enough data"}
 Overload pattern:  ${behaviorProfile.overload_response}
 Stress response:   ${behaviorProfile.stress_response_pattern}
 Restart speed:     ${behaviorProfile.restart_speed}
@@ -2619,54 +2238,11 @@ ${boardsBlock}
 ${notesBlock}
 ${placesBlock}
 ${prefsBlock}
-━━━ CURRENT WELLNESS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${buildWellbeingStateBlock({ energy, relaxation, focus, motivation, metricHistory, userConfidence, sleepState, todaySleepQuality })}
 
-Energy ${energy}/10 · Stress relief ${relaxation}/10 · Focus ${focus}/10 · Motivation ${motivation}/10
-(Values shown are live. A value is only "recorded" after holding steady for 25 minutes.)
-${(() => {
-  const LABELS = { energy: "Energy", stress: "Stress relief", focus: "Focus", motivation: "Motivation" };
-  const recent = metricHistory.filter(e => Date.now() - new Date(e.at).getTime() < 6 * 60 * 60 * 1000);
-  if (!recent.length) return "";
-  const lines = recent.map(e => {
-    const min = Math.round((Date.now() - new Date(e.at).getTime()) / 60000);
-    const ago = min < 60 ? `${min}m ago` : `${Math.round(min / 60)}h ago`;
-    return `  • ${LABELS[e.key] ?? e.key}: ${e.from} → ${e.to} ${e.to > e.from ? "↑" : "↓"}  (committed ${ago})`;
-  }).join("\n");
-  return `\nConfirmed status shifts today (each held ≥25 min):\n${lines}`;
-})()}
-Confidence: ${userConfidence.label}
-→ ${
-    relaxation <= 2 && energy <= 2
-      ? "Severely stressed and exhausted. Lead with empathy — 1 sentence. Don't add tasks. Offer to lighten the day."
-    : relaxation <= 3 && energy <= 3
-      ? "Very low. Keep it to one essential task. No pressure, no lists."
-    : relaxation <= 3
-      ? "Stressed. Suggest the single smallest next step. Nothing more."
-    : energy <= 3
-      ? "Low energy. Defer anything non-critical. One task, then rest."
-    : relaxation >= 8 && energy >= 8
-      ? "Peak state. Ideal moment for the hardest, most important work."
-    : relaxation >= 6 && energy >= 6
-      ? "Good state. Steady blocks. No need for extra encouragement."
-    : "Moderate. One task at a time. Don't overload."
-  }
+${signalFromAtlasBlock}${assistantSettings?.twoAssistantMode ? `━━━ WELLBEING INVESTIGATION PROTOCOL ━━━━━━━━━━━━━━━━
 
-━━━ SLEEP INTELLIGENCE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Sleep Pressure: ${sleepState.pressure} · Tonight's Risk: ${sleepState.tonightRisk}
-Late tasks tonight (after 20:00): ${sleepState.tonightTasks.length > 0 ? sleepState.tonightTasks.map((t) => `"${t.title}" at ${fmtTime(t.startHour, t.startMinute ?? 0)}`).join(", ") : "none"}
-Late-work pattern: ${sleepState.hasLatePattern ? `Yes — ${sleepState.lateNights}/7 recent nights had late tasks.` : "No concerning pattern"}
-Sleep quality today: ${todaySleepQuality ?? "not reported"}
-
-Sleep-aware planning rules:
-• Avoid heavy cognitive tasks after 21:00 unless a deadline urgently requires it.
-• Sleep Pressure = High → actively suggest moving evening tasks to tomorrow before adding more.
-• Tonight's Risk = Late Work Risk → warn once and offer to trim/reschedule.
-• Late-work pattern detected → mention it once, calmly. Never repeat it in the same conversation.
-• Tone: "Tonight may need protecting" / "This could affect recovery" / "Let's reduce late pressure." Never: "You should sleep earlier" / "This is unhealthy."
-• When real obligations exist (exam, deadline): respect them — suggest the minimum viable late workload only.
-
-━━━ WELLBEING INVESTIGATION PROTOCOL ━━━━━━━━━━━━━━━━
+When the user expresses exhaustion, stress, overwhelm, or burnout — don't run a full investigation, that's Atlas's job now. Acknowledge briefly in one sentence, offer one concrete scheduling fix (lighten today, defer something non-critical, add a break), and mention Atlas is available for a deeper conversation about it. Keep it to 1–2 sentences total.` : `━━━ WELLBEING INVESTIGATION PROTOCOL ━━━━━━━━━━━━━━━━
 
 When user says "no energy", "I'm exhausted", "I'm stressed", "overwhelmed", "burned out", "no motivation", or any wellness concern — DO NOT immediately reschedule or remove tasks.
 
@@ -2682,7 +2258,7 @@ After their answer, THEN decide:
 → Burnout pattern (3+ days) → major restructuring, add recovery blocks
 → Temporary dip → acknowledge, keep today light, don't reschedule everything
 
-Never assume. Always understand first.
+Never assume. Always understand first.`}
 
 ━━━ DATE INTERPRETATION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2710,7 +2286,7 @@ Before creating or moving tasks, check:
 1. Today load: ${workloadForecast[0]?.level ?? "unknown"} (${workloadForecast[0]?.weightedLoad ?? 0} pts vs ${userLoadBaseline.overloadThreshold} overload threshold)
 2. Momentum trend: ${momentum.label} — ${momentum.desc}
 3. Energy/relaxation: ${energy}/10 energy · ${relaxation}/10 relaxation
-4. Completion pattern: ${behaviorProfile.completion_consistency != null ? `${behaviorProfile.completion_consistency}% 14-day avg` : "insufficient data"}
+4. Completion pattern: ${metrics.consistency.value != null ? `${metrics.consistency.value}% steadiness, 14-day avg` : "insufficient data"}
 5. Lightest upcoming day: use workload forecast to find the best slot — don't stack tasks on already-heavy days.
 
 Use this to: pick optimal time slots, decide session count, flag if the day is already full.
@@ -3078,6 +2654,70 @@ Weekly reflection → 4-part format above.
 Everything else → as short as possible. If nothing notable to add, don't add it.`;
   };
 
+  // ── Atlas — the Psychologist persona ────────────────────────────────
+  // Deliberately much shorter than buildPlannerSystem: no task list, no
+  // scheduling rules, no date math — just identity/tone/boundaries, the
+  // shared wellbeing snapshot, and a light read-only glance at Planner's
+  // world so Atlas is never blind to it without owning any of it.
+  const buildAtlasSystem = () => {
+    const todayDayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(today + "T00:00:00").getDay()];
+    const todayItems = tasks.filter((t) => t.date === today && !t.completed);
+    const todayHasBreak = todayItems.some((t) => t.type === "break");
+
+    const ATLAS_SYSTEM_KEYS = new Set(["load_baseline","peak_hours","preferred_session_mins","work_style","goals","behavior_profile","completion_consistency","wellbeing_signal"]);
+    const priorInsights = Object.entries(userPrefs)
+      .filter(([k]) => !ATLAS_SYSTEM_KEYS.has(k) && !k.endsWith("_note"))
+      .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
+      .slice(0, 8);
+
+    return `You are ATLAS — a warm, patient, curious companion for the user's inner life. Today is ${today} (${todayDayName}).
+You are not a therapist and you never diagnose. You help the user understand themselves — their stress, motivation, emotions, and patterns — through genuine curiosity, not advice-giving.
+
+━━━ WHO YOU ARE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Tone: warm, patient, curious, never judgmental. Never pushes productivity. Never says "just work harder" or anything advice-first.
+Style: ask meaningful, open questions before offering any reflection. Use reflective listening — mirror back what you heard before adding anything of your own. Validate feelings without reinforcing distortions. Prefer one good question over three.
+Techniques to draw on naturally (never mechanically, never name-drop the technique to the user): motivational interviewing, gentle cognitive reframing, values clarification, self-compassion, emotion labeling, grounding and breathing suggestions, tiny/achievable next steps.
+Length: 1–3 sentences per reply by default. Longer only when the user is clearly mid-unpacking and wants to keep going. Use contractions. Never start with "Certainly!", "Absolutely!", or "Great question!".
+
+━━━ BOUNDARIES — NON-NEGOTIABLE ━━━━━━━━━━━━━━━━━━━━━━
+
+Never diagnose a mental health condition. Never claim to replace therapy or a licensed professional.
+If the user describes severe, persistent, or safety-relevant symptoms (ongoing hopelessness, self-harm, suicidal ideation, panic attacks, symptoms lasting weeks), gently and clearly encourage them to reach out to a licensed mental health professional or, for immediate safety concerns, local emergency services — do this once, without alarm, and keep supporting them in the conversation.
+Never give medical or clinical advice (medication, diagnosis, treatment plans).
+
+━━━ INVESTIGATIVE STYLE (your core technique) ━━━━━━━
+
+When the user expresses exhaustion, stress, overwhelm, or burnout, don't rush to fix it. FIRST get curious with 1–2 focused questions:
+• "What's draining you most right now — the workload, something specific that happened, or physical exhaustion?"
+• "Has this been building over a few days, or is today an exception?"
+• "Is it mental overload or physical tiredness?"
+Only after understanding, reflect back gently and, if it feels right, offer one small next step — never a list.
+
+${buildWellbeingStateBlock({ energy, relaxation, focus, motivation, metricHistory, userConfidence, sleepState, todaySleepQuality })}
+
+━━━ TODAY'S EXTERNAL CONTEXT (light touch only) ━━━━━━
+
+Today: ${todayItems.length} item(s) scheduled${todayHasBreak ? ", including a break" : ""}. Cognitive load: ${workloadForecast[0]?.level ?? "unknown"}.
+Recovery: ${recoveryState.label} — ${recoveryState.desc}
+Momentum: ${momentum.label} — ${momentum.desc}
+${keySignals?.length ? `Recent signals Planner is tracking: ${keySignals.join("; ")}` : ""}
+Use this only for context — you are not here to manage the schedule. If scheduling changes would genuinely help, say so in one sentence and trust Planner to handle the details.
+${priorInsights.length > 0 ? `
+━━━ THINGS YOU'VE LEARNED ABOUT THIS PERSON ━━━━━━━━━
+
+${priorInsights.join("\n")}` : ""}
+
+━━━ TOOLS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+save_insight — call when you learn something durable about how this person experiences stress, motivation, or their emotional patterns.
+flag_wellbeing_signal — call when the conversation reveals meaningful exhaustion, stress, or burnout risk that should actually change today's plan. Don't call this for routine check-ins — only when it should influence Planner's next move. This silently notifies Planner; you don't need to tell the user you did it.
+
+━━━ OUTPUT FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1–3 sentences by default. No bullet-point advice lists. No "have you tried..." unless they've asked for suggestions.`;
+  };
+
   const sendChat = async () => {
     const text = chatInput.trim();
     if (!text || chatLoading) return;
@@ -3113,7 +2753,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
     try {
       let workingTasks = tasks;
-      let apiMsgs = [{ role: "system", content: buildSystem() }, ...toApiMsgs(uiHistory)];
+      let apiMsgs = [{ role: "system", content: buildPlannerSystem() }, ...toApiMsgs(uiHistory)];
       let finalText = "";
 
       for (let iter = 0; iter < 10; iter++) {
@@ -3266,6 +2906,73 @@ Everything else → as short as possible. If nothing notable to add, don't add i
     } finally { setChatLoading(false); }
   };
 
+  // Atlas's own send loop — deliberately not a generalized version of
+  // sendChat: Atlas only has 2 tools, so a shared dispatch table would be
+  // disproportionate. Posts includeResearchTool:false so Atlas never gets
+  // silent access to Planner's productivity-technique KB tool.
+  const sendAtlasChat = async () => {
+    const text = atlasChatInput.trim();
+    if (!text || atlasChatLoading) return;
+    const uiHistory = [...atlasMessages, { role: "user", content: text }];
+    setAtlasMessages(uiHistory); setAtlasChatInput(""); setAtlasChatLoading(true);
+    saveAtlasChatMessage("user", text).catch(console.warn);
+
+    const toApiMsgs = (msgs) => {
+      const flat = msgs.filter((m) => m.role === "user" || m.role === "assistant");
+      const first = flat.findIndex((m) => m.role === "user");
+      return first >= 0 ? flat.slice(first).slice(-20) : [];
+    };
+
+    try {
+      let apiMsgs = [{ role: "system", content: buildAtlasSystem() }, ...toApiMsgs(uiHistory)];
+      let finalText = "";
+
+      for (let iter = 0; iter < 6; iter++) {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: apiMsgs, tools: ATLAS_TOOLS, includeResearchTool: false }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error ?? `API error ${res.status}`);
+        }
+        const data = await res.json();
+        const msg = data.choices[0].message;
+        apiMsgs = [...apiMsgs, msg];
+        if (!msg.tool_calls || msg.tool_calls.length === 0) { finalText = msg.content ?? ""; break; }
+        const toolResults = [];
+        for (const tc of msg.tool_calls) {
+          const input = JSON.parse(tc.function.arguments);
+          if (tc.function.name === "save_insight") {
+            const { key, value, note } = input;
+            setUserPrefs((prev) => {
+              const updated = { ...prev, [key]: value };
+              if (note) updated[`${key}_note`] = note;
+              saveUserPreferences(updated).catch(console.warn);
+              return updated;
+            });
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Insight saved: ${key} = "${value}"${note ? ` (${note})` : ""}` });
+          } else if (tc.function.name === "flag_wellbeing_signal") {
+            const { level, note, suggestedAction } = input;
+            setUserPrefs((prev) => {
+              const updated = { ...prev, wellbeing_signal: { level, note, suggestedAction, source: "atlas", date: today, createdAt: Date.now(), acknowledged: false } };
+              saveUserPreferences(updated).catch(console.warn);
+              return updated;
+            });
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Wellbeing signal flagged for Planner: ${level} — "${note}"` });
+          }
+        }
+        apiMsgs = [...apiMsgs, ...toolResults];
+      }
+      const reply = finalText || "I'm here.";
+      setAtlasMessages((m) => [...m, { role: "assistant", content: reply }]);
+      saveAtlasChatMessage("assistant", reply).catch(console.warn);
+    } catch (e) {
+      setAtlasMessages((m) => [...m, { role: "assistant", content: `Error: ${e.message}` }]);
+    } finally { setAtlasChatLoading(false); }
+  };
+
   // ── New item helper ────────────────────────────────────
   const startNewItem = (type, slot = null) => {
     const isSlot = slot && typeof slot === "object";
@@ -3361,6 +3068,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       setDark, theme, setTheme, isOnline,
       chatOpen, setChatOpen, aiHubOpen, setAiHubOpen, messengerOpen, setMessengerOpen,
       chatInput, setChatInput, chatLoading, messages, sendChat,
+      atlasOpen, setAtlasOpen, atlasMessages, atlasChatInput, setAtlasChatInput,
+      atlasChatLoading, sendAtlasChat, assistantSettings, updateAssistantSettings, visibleAiTools,
       editingTask, setEditingTask, draft, setDraft,
       todayTasks, deferredTasks, contextMode, aiFocus,
       momentum, recoveryState, workloadForecast, weekData, weekTrend,
@@ -3370,6 +3079,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       addNote: (text) => setNotes((p) => [...p, { id: uid(), title: "", content: text, color: "default", type: "note", items: [], pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() }]),
       toggleNote, updateNote, deleteNote, patchNote, createStickyNote, createNote, getGroup,
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
+      metrics, interpretations, patterns, emotionalDrift, flowPrediction,
+      aiCoach, actionCenter, implementationIntention,
       microStartMode, setMicroStartMode,
       boards,
       rescheduleTask, setRescheduleTask, saveReschedule,
@@ -3496,6 +3207,14 @@ Everything else → as short as possible. If nothing notable to add, don't add i
                 <span className="sett-label">{t("settings.darkMode")}</span>
                 <button className={`theme-toggle${dark ? " on" : ""}`} onClick={() => setDark((d) => !d)} />
               </div>
+              <div className="sett-row">
+                <span className="sett-label">{t("settings.twoAssistantMode")}</span>
+                <button className={`theme-toggle${assistantSettings.twoAssistantMode ? " on" : ""}`}
+                  onClick={() => updateAssistantSettings({ twoAssistantMode: !assistantSettings.twoAssistantMode })} />
+              </div>
+              {assistantSettings.twoAssistantMode && (
+                <p className="sett-field-hint">{t("settings.twoAssistantModeDesc")}</p>
+              )}
               <div className="sett-field">
                 <label className="sett-field-lbl">{t("settings.appearance")}</label>
                 <div className="theme-pill-group">
@@ -4300,331 +4019,132 @@ Everything else → as short as possible. If nothing notable to add, don't add i
           {/* ── Notes view ── */}
           {/* ── Status view ── */}
           {view === "status" && (() => {
-            const maxWlLoad = Math.max(...workloadForecast.map((d) => d.load), 1);
             const CHECKIN_DEFS = [
-              { icon: <Zap size={13} />,        title: "Energy",     color: "var(--accent)", value: energy,     set: setEnergy,
-                levels: [{l:"Very low",v:1},{l:"Low",v:3},{l:"Okay",v:5},{l:"Good",v:7},{l:"High",v:9}] },
-              { icon: <Wind size={13} />,       title: "Stress",     color: "#3b82f6",       value: relaxation, set: setRelaxation,
-                levels: [{l:"Overwhelmed",v:1},{l:"Stressed",v:3},{l:"Okay",v:5},{l:"Calm",v:7},{l:"Relaxed",v:9}] },
-              { icon: <Activity size={13} />,   title: "Focus",      color: "#22c55e",       value: focus,      set: setFocus,
-                levels: [{l:"Scattered",v:1},{l:"Drifting",v:3},{l:"Okay",v:5},{l:"Focused",v:7},{l:"Deep",v:9}] },
-              { icon: <TrendingUp size={13} />, title: "Motivation", color: "#f59e0b",       value: motivation, set: setMotivation,
-                levels: [{l:"None",v:1},{l:"Low",v:3},{l:"Okay",v:5},{l:"Driven",v:7},{l:"Fired up",v:9}] },
+              { id: "energy", icon: <Zap size={13} />, label: "Energy", color: "var(--accent)", value: energy, onChange: setEnergy,
+                levels: [{label:"Very low",value:1},{label:"Low",value:3},{label:"Okay",value:5},{label:"Good",value:7},{label:"High",value:9}] },
+              { id: "stress", icon: <Wind size={13} />, label: "Stress", color: "#3b82f6", value: relaxation, onChange: setRelaxation,
+                levels: [{label:"Overwhelmed",value:1},{label:"Stressed",value:3},{label:"Okay",value:5},{label:"Calm",value:7},{label:"Relaxed",value:9}] },
+              { id: "focus", icon: <Activity size={13} />, label: "Focus", color: "#22c55e", value: focus, onChange: setFocus,
+                levels: [{label:"Scattered",value:1},{label:"Drifting",value:3},{label:"Okay",value:5},{label:"Focused",value:7},{label:"Deep",value:9}] },
+              { id: "motivation", icon: <TrendingUp size={13} />, label: "Motivation", color: "#f59e0b", value: motivation, onChange: setMotivation,
+                levels: [{label:"None",value:1},{label:"Low",value:3},{label:"Okay",value:5},{label:"Driven",value:7},{label:"Fired up",value:9}] },
             ];
-            const closestL = (lvls, val) => lvls.reduce((p, c) => Math.abs(c.v - val) < Math.abs(p.v - val) ? c : p);
+
+            const METRIC_META = {
+              mentalBattery:      { label: "Mental Battery",      unit: "%" },
+              recoveryIndex:      { label: "Recovery Index",      unit: "" },
+              momentum:           { label: "Momentum",            unit: "%" },
+              consistency:        { label: "Consistency",         unit: "%" },
+              deepWorkCapacity:   { label: "Deep Work Capacity",  unit: "%" },
+              attentionStability: { label: "Attention Stability", unit: "%" },
+            };
+            const BUCKET_COLORS = {
+              mentalBattery:      { charged: "#22c55e", adequate: "#3b82f6", low: "#f59e0b", depleted: "#ef4444" },
+              recoveryIndex:      { stable: "#22c55e", mild: "#f59e0b", high: "#f97316", recovery: "#ef4444", burnout: "#dc2626" },
+              momentum:           { rising: "#22c55e", stable: "#3b82f6", recovery: "#f59e0b", overloaded: "#ef4444", unstable: "#f59e0b", new: "var(--accent)", recovering: "#22c55e" },
+              consistency:        { steady: "#22c55e", variable: "#f59e0b", erratic: "#ef4444", building: "var(--accent)" },
+              deepWorkCapacity:   { high: "#22c55e", moderate: "#3b82f6", low: "#f59e0b" },
+              attentionStability: { high: "#22c55e", moderate: "#3b82f6", low: "#f59e0b", gated: "var(--text-muted)" },
+            };
+            const colorForMetric = (key, m) => BUCKET_COLORS[key]?.[m.bucket] ?? "var(--accent)";
+
+            const metricCards = Object.entries(metrics).map(([key, m]) => {
+              const interp = interpretations[key] ?? {};
+              const meta = METRIC_META[key] ?? { label: key, unit: "" };
+              const gated = Boolean(m.gated);
+              return {
+                id: key,
+                label: meta.label,
+                value: m.value,
+                unit: meta.unit,
+                trend: m.trend != null ? (m.trend > 0.03 ? "up" : m.trend < -0.03 ? "down" : "flat") : undefined,
+                oneLinerExplanation: interp.sentence ?? meta.label,
+                aiInterpretation: interp.sentence,
+                recommendedAction: interp.action,
+                estimatedImprovement: interp.improvement,
+                accentColor: colorForMetric(key, m),
+                gated,
+                gatedMessage: gated ? `Complete ${m.sessionsNeeded ?? 3} more Focus Session${(m.sessionsNeeded ?? 3) === 1 ? "" : "s"} to unlock this.` : undefined,
+              };
+            });
+
+            const ACTION_ICONS = {
+              reduce_cognitive_load:       <AlertTriangle size={14} />,
+              begin_micro_start:           <Zap size={14} />,
+              move_difficult_task_earlier: <CalendarDays size={14} />,
+              protect_morning_focus:       <Sunrise size={14} />,
+              schedule_recovery_break:     <Moon size={14} />,
+            };
+
+            const primaryActions = actionCenter.map((a) => ({
+              id: a.actionKey,
+              label: a.label,
+              icon: ACTION_ICONS[a.actionKey],
+              tone: "primary",
+              meta: a.rationale,
+              onClick: () => {
+                if (a.actionKey === "begin_micro_start" && mostAvoided) {
+                  setChatInput(`Help me micro-start "${mostAvoided.task.title}"`); setChatOpen(true);
+                } else if (a.actionKey === "move_difficult_task_earlier" && deferredTasks[0]) {
+                  setRescheduleTask(deferredTasks[0]);
+                } else if (a.actionKey === "schedule_recovery_break") {
+                  setChatInput("Help me schedule a recovery break today."); setChatOpen(true);
+                } else {
+                  setChatInput(a.rationale ?? a.label); setChatOpen(true);
+                }
+              },
+            }));
+
+            const readiness = morningCheckup ? (computeReadiness(morningCheckup) ?? { label: "Moderate", pct: 50 }) : null;
+            const metricsEntryCount = Object.keys(dailyMetrics).length;
+            const ghostActions = [
+              {
+                id: "mcu", tone: "ghost",
+                label: morningCheckup ? "Review Morning Check-Up" : "Start Morning Check-Up",
+                meta: readiness ? `${readiness.label} readiness${Number.isFinite(readiness.pct) ? ` · ${readiness.pct}%` : ""}` : undefined,
+                preview: morningCheckup?.noraSummary,
+                onClick: () => { setReviewCheckupMode(!!morningCheckup); setShowMorningCheckup(true); },
+              },
+              {
+                id: "lti", tone: "ghost", label: "Long-Term Insights",
+                meta: metricsEntryCount >= 3 ? `${metricsEntryCount} days tracked` : "Complete a few check-ins to unlock",
+                onClick: () => setShowLongTermInsights(true),
+              },
+              ...(flowPrediction?.confidence !== "insufficient_data" ? [{
+                id: "flow_window", tone: "ghost", label: "Best Focus Window Today",
+                meta: `${flowPrediction.window} · ${flowPrediction.confidence.toLowerCase()} confidence`,
+                onClick: () => { setChatInput(`Schedule my most demanding task for ${flowPrediction.window}.`); setChatOpen(true); },
+              }] : []),
+              ...(implementationIntention ? [{
+                id: "implementation_intention", tone: "ghost", label: "Today's Plan",
+                preview: `${implementationIntention.ifClause}, ${implementationIntention.thenClause}.`,
+                onClick: () => { setChatInput(`${implementationIntention.ifClause}, ${implementationIntention.thenClause}.`); setChatOpen(true); },
+              }] : []),
+            ];
+
+            const allPatterns = [...patterns, ...emotionalDrift.map((d) => d.text)].slice(0, 4);
+
             return (
-              <div className="status-view-v2">
-
-              <div className="sv2-grid">
-
-                {/* ── § 1 Assessment (hero) ── */}
-                <div className="sv2-card sv2-assessment sv2-left">
-                  <div className="sv2-assess-header">
-                    <div className="sv2-state-row">
-                      <span className="sv2-state-dot" style={{ background: noraState.color }} />
-                      <span className="sv2-state-label" style={{ color: noraState.color }}>{noraState.label}</span>
-                    </div>
-                    <span className={`sv2-confidence sv2-conf-${userConfidence.level}`} style={{ color: userConfidence.color }}>
-                      {userConfidence.label}
-                    </span>
-                  </div>
-                  <p className="sv2-summary">{assessmentSummary}</p>
-                  <div className="sv2-signals">
-                    {keySignals.map((s, i) => (
-                      <div key={i} className="sv2-signal"><span className="sv2-signal-dot" />{s}</div>
-                    ))}
-                  </div>
-                  {adaptiveRecs[0] && (
-                    <div className="sv2-assess-rec">
-                      <span className="sv2-rec-lbl">Nora suggests:</span> {adaptiveRecs[0]}
-                    </div>
-                  )}
-                </div>
-
-                {/* ── § 2 Daily Check-In ── */}
-                <div className="sv2-card sv2-checkin sv2-right">
-                  <div className="sv2-card-title"><Wind size={14} /> Daily Check-In</div>
-                  <div className="sv2-checkin-list">
-                    {CHECKIN_DEFS.map(({ icon, title, color, value, set, levels }) => {
-                      const active = closestL(levels, value);
-                      return (
-                        <div key={title} className="sv2-check-row">
-                          <div className="sv2-check-meta">
-                            <span className="sv2-check-icon-wrap" style={{ color }}>{icon}</span>
-                            <span className="sv2-check-title">{title}</span>
-                            <span className="sv2-check-current" style={{ color }}>{active.l}</span>
-                          </div>
-                          <div className="sv2-check-levels">
-                            {levels.map((lvl) => (
-                              <button key={lvl.v}
-                                className={`sv2-lvl${lvl.v === active.v ? " active" : ""}`}
-                                style={lvl.v === active.v ? { background: `${color}18`, borderColor: `${color}50`, color } : {}}
-                                onClick={() => set(lvl.v)}>
-                                {lvl.l}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* ── § Sleep & Recovery ── */}
-                <div className="sv2-card sv2-sleep sv2-full">
-                  <div className="sv2-card-title"><Moon size={14} /> Sleep &amp; Recovery</div>
-                  <div className="sleep-body">
-                    {/* Check-in */}
-                    <div className="sleep-checkin-section">
-                      <span className="sleep-checkin-label">How was your sleep?</span>
-                      <div className="sleep-q-row">
-                        {[["poor","Poor"],["okay","Okay"],["good","Good"]].map(([val, label]) => (
-                          <button key={val}
-                            className={`sleep-q-btn sleep-q-${val}${todaySleepQuality === val ? " active" : ""}`}
-                            onClick={() => setSleepQuality(val)}>
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Signals */}
-                    <div className="sleep-signals">
-                      <div className="sleep-signal-row">
-                        <span className="sleep-signal-label">Sleep Pressure</span>
-                        <span className="sleep-badge" style={{ color: sleepState.pressureColor, background: `${sleepState.pressureColor}15`, borderColor: `${sleepState.pressureColor}30` }}>
-                          {sleepState.pressure}
-                        </span>
-                      </div>
-                      <div className="sleep-signal-row">
-                        <span className="sleep-signal-label">Tonight's Risk</span>
-                        <span className="sleep-badge" style={{ color: sleepState.riskColor, background: `${sleepState.riskColor}15`, borderColor: `${sleepState.riskColor}30` }}>
-                          {sleepState.tonightRisk}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  {sleepState.suggestion && (
-                    <div className="sleep-suggestion">
-                      <Moon size={11} /> {sleepState.suggestion}
-                    </div>
-                  )}
-                </div>
-
-                {/* ── § 3 Today's Reality ── */}
-                <div className="sv2-card sv2-today sv2-left">
-                  <div className="sv2-card-title"><CalendarDays size={14} /> Today's Reality</div>
-                  <div className="sv2-reality-row">
-                    {[
-                      { val: doneToday,                          lbl: "Completed", color: "#22c55e" },
-                      { val: Math.max(0, totalToday - doneToday), lbl: "Remaining", color: "var(--text)" },
-                      { val: deferredTasks.length,               lbl: "Deferred",  color: deferredTasks.length > 0 ? "#f97316" : "var(--text)" },
-                      { val: workloadForecast[0]?.level ?? "—",  lbl: "Load",      color: workloadForecast[0]?.level === "heavy" ? "#ef4444" : workloadForecast[0]?.level === "moderate" ? "#f97316" : "#22c55e" },
-                    ].map(({ val, lbl, color }) => (
-                      <div key={lbl} className="sv2-reality-stat">
-                        <span className="sv2-rstat-val" style={{ color }}>{val}</span>
-                        <span className="sv2-rstat-lbl">{lbl}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {totalToday > 0 && (
-                    <div className="sv2-today-bar-bg">
-                      <div className="sv2-today-bar-fill" style={{ width: `${pct}%` }} />
-                    </div>
-                  )}
-                </div>
-
-                {/* ── § 4 Needs Attention ── */}
-                <div className="sv2-card sv2-attention sv2-right">
-                  <div className="sv2-card-title"><AlertTriangle size={14} /> Needs Attention</div>
-                  {recoveryState.level !== "stable" && (
-                    <div className={`sv2-recovery-alert sv2-rec-${recoveryState.level}`} style={{ borderLeftColor: recoveryState.color }}>
-                      <span className="sv2-rec-name" style={{ color: recoveryState.color }}>{recoveryState.label}</span>
-                      <p className="sv2-rec-desc">{recoveryState.desc}</p>
-                      {recoveryState.advice && <p className="sv2-rec-advice">{recoveryState.advice}</p>}
-                    </div>
-                  )}
-                  {predictiveSignals.filter((s) => s.confidence === "HIGH").map((s, i) => (
-                    <div key={i} className="sv2-psignal"><Zap size={11} /> {s.message}</div>
-                  ))}
-                  {mostAvoided && (
-                    <div className="sv2-attention-item sv2-avoided">
-                      <div className="sv2-attn-info">
-                        <span className="sv2-attn-name">{mostAvoided.task.title}</span>
-                        <span className="sv2-attn-age">Deferred {mostAvoided.daysOverdue}d</span>
-                      </div>
-                      <p className="sv2-attn-note">"{mostAvoided.daysOverdue >= 5 ? "This is becoming avoidance, not scheduling." : "A 5-minute start breaks the loop."}"</p>
-                      <div className="sv2-attn-btns">
-                        <button className="sv2-attn-btn" onClick={() => setRescheduleTask(mostAvoided.task)}><CalendarDays size={11} /> Move</button>
-                        <button className="sv2-attn-btn sv2-attn-micro" onClick={() => { setChatInput(`Help me micro-start "${mostAvoided.task.title}"`); setChatOpen(true); }}><Zap size={11} /> Micro Start</button>
-                      </div>
-                    </div>
-                  )}
-                  {deferredTasks.filter((t) => t.id !== mostAvoided?.task?.id).slice(0, 3).map((t) => (
-                    <div key={t.id} className={`sv2-attention-item sv2-def-${t.urgency}`}>
-                      <div className="sv2-attn-info">
-                        <span className="sv2-attn-name">{t.title}</span>
-                        <span className="sv2-attn-age">{t.daysDeferred}d pending</span>
-                      </div>
-                      <button className="sv2-attn-btn" onClick={() => setRescheduleTask(t)}><CalendarDays size={11} /> Move</button>
-                    </div>
-                  ))}
-                  {recoveryState.level === "stable" && deferredTasks.length === 0 && predictiveSignals.filter((s) => s.confidence === "HIGH").length === 0 && (
-                    <p className="sv2-all-clear">✓ Nothing urgent right now.</p>
-                  )}
-                  {deferredTasks.length > 1 && (
-                    <button className="sv2-rebalance-btn" onClick={() => {
-                      const titles = deferredTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ");
-                      setChatInput(`I have ${deferredTasks.length} deferred tasks: ${titles}. Rebalance across this week based on my load.`);
-                      setChatOpen(true);
-                    }}>Rebalance all with Nora</button>
-                  )}
-                </div>
-
-                {/* ── § 5 Week Outlook ── */}
-                <div className="sv2-card sv2-week sv2-left">
-                  <div className="sv2-card-title-row">
-                    <div className="sv2-card-title" style={{ marginBottom: 0 }}><BarChart2 size={14} /> Week Outlook</div>
-                    <span className={`trend-badge trend-${weekTrend}`}>
-                      {weekTrend === "improving" ? <TrendingUp size={12} /> : weekTrend === "declining" ? <TrendingDown size={12} /> : <Minus size={12} />}
-                      {weekTrend === "new" ? "Starting" : weekTrend.charAt(0).toUpperCase() + weekTrend.slice(1)}
-                    </span>
-                  </div>
-                  <div className="sv2-outlook-chart">
-                    {workloadForecast.map((day) => (
-                      <div key={day.date} className={`sv2-out-day${day.isToday ? " today" : ""}`}>
-                        <div className="sv2-out-bar-wrap">
-                          <div className={`sv2-out-bar wl-${day.level}`} style={{ height: `${Math.max(4, Math.round((day.load / maxWlLoad) * 64))}px` }} />
-                        </div>
-                        <span className="sv2-out-lbl">{day.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="sv2-outlook-note">{
-                    (() => {
-                      const heavy = workloadForecast.filter((d) => d.level === "heavy");
-                      return heavy.length > 0
-                        ? `Heavy work concentrated on ${heavy.map((d) => d.label).join(" and ")}.`
-                        : workloadForecast.some((d) => d.level !== "free")
-                        ? "This week looks manageable — good pacing."
-                        : "Light week ahead.";
-                    })()
-                  }</p>
-                  {weeklyReflection?.insights[0] && (
-                    <p className="sv2-reflect-note">{weeklyReflection.insights[0]}</p>
-                  )}
-                </div>
-
-                {/* ── § 6 How You Work Best ── */}
-                <div className="sv2-card sv2-patterns sv2-right">
-                  <div className="sv2-card-title"><Activity size={14} /> How You Work Best</div>
-                  <div className="sv2-pattern-stats">
-                    {[
-                      { lbl: "Peak Focus",    val: focusPatterns ? `${focusPatterns.peak.label}` : "—" },
-                      { lbl: "Avg Session",   val: adaptivePlanData?.avgDur ? `${adaptivePlanData.avgDur} min` : "—" },
-                      { lbl: "Work Style",    val: behaviorProfile.work_style !== "unknown" ? behaviorProfile.work_style.charAt(0).toUpperCase() + behaviorProfile.work_style.slice(1) : "—" },
-                      { lbl: "Best Day",      val: adaptivePlanData?.bestDayName ?? "—" },
-                    ].map(({ lbl, val }) => (
-                      <div key={lbl} className="sv2-pstat">
-                        <span className="sv2-pstat-lbl">{lbl}</span>
-                        <span className="sv2-pstat-val">{val}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {focusPatterns && (
-                    <div className="sv2-focus-bands">
-                      {focusPatterns.bands.map((b) => (
-                        <div key={b.key} className={`sv2-fband${b.key === focusPatterns.peak.key ? " peak" : ""}`}>
-                          <span className="sv2-fband-lbl">{b.label}</span>
-                          <div className="sv2-fband-bg">
-                            <div className="sv2-fband-fill" style={{ width: `${focusPatterns.total > 0 ? Math.round((b.count / focusPatterns.total) * 100) : 0}%` }} />
-                          </div>
-                          <span className="sv2-fband-pct">{focusPatterns.total > 0 ? Math.round((b.count / focusPatterns.total) * 100) : 0}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {behaviorProfile.completion_consistency != null && (
-                    <p className="sv2-pattern-note">{behaviorProfile.completion_consistency}% completion · {behaviorProfile.sampleSize} tasks sampled</p>
-                  )}
-                </div>
-
-                {/* ── § Morning Check-Up ── */}
-                <div className="sv2-card sv2-checkup sv2-full">
-                  <div className="sv2-card-title"><Sunrise size={14} className="mcu-sunrise-icon" /> Morning Check-Up</div>
-                  {morningCheckup ? (() => {
-                    const r = computeReadiness(morningCheckup) ?? { label: "Moderate", color: "#f59e0b", pct: 50 };
-                    return (
-                      <div className="mcu-status-submitted">
-                        <div className="mcu-status-row">
-                          <span className="mcu-status-badge mcu-status-done">✓ Submitted today</span>
-                          <span className="mcu-readiness-inline" style={{ color: r.color }}>
-                            {r.label} readiness{Number.isFinite(r.pct) ? ` · ${r.pct}%` : ""}
-                          </span>
-                        </div>
-                        {morningCheckup.noraSummary && (
-                          <p className="mcu-status-summary">"{morningCheckup.noraSummary}"</p>
-                        )}
-                        <button className="lti-open-btn" style={{ marginTop: 6 }} onClick={() => { setReviewCheckupMode(true); setShowMorningCheckup(true); }}>
-                          Review results →
-                        </button>
-                      </div>
-                    );
-                  })() : (
-                    <div className="mcu-status-cta">
-                      <p className="mcu-status-cta-text">Help Nora understand your day before planning it.</p>
-                      <button className="mcu-start-btn" onClick={() => { setReviewCheckupMode(false); setShowMorningCheckup(true); }}>
-                        <Sunrise size={14} /> Start Morning Check-Up
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── § Long-Term Insights ── */}
-                <div className="sv2-card sv2-lti sv2-full">
-                  <div className="sv2-card-title"><Activity size={14} /> Long-Term Insights</div>
-                  {(() => {
-                    const entries = Object.entries(dailyMetrics).sort((a, b) => a[0].localeCompare(b[0]));
-                    const hasData = entries.length >= 3;
-                    if (!hasData) return (
-                      <div className="lti-status-cta">
-                        <p className="lti-status-text">Complete a few check-ins to unlock your trends.</p>
-                        <button className="mcu-start-btn" onClick={() => setShowLongTermInsights(true)}>View Insights</button>
-                      </div>
-                    );
-                    const recent = entries.slice(-7).map(([, v]) => v.energy).filter(Boolean);
-                    const trend  = recent.length >= 3 ? (recent.slice(-3).reduce((a, b) => a + b, 0) / 3 > recent.slice(0, 3).reduce((a, b) => a + b, 0) / 3 ? "improving" : "stable") : "stable";
-                    return (
-                      <div className="lti-status-preview">
-                        <div className="lti-status-row">
-                          <span className="lti-status-signal">Energy {trend === "improving" ? "↑ improving" : "→ stable"} this week</span>
-                          <span className="lti-status-count">{entries.length} days tracked</span>
-                        </div>
-                        <button className="lti-open-btn" onClick={() => setShowLongTermInsights(true)}>Open Insights →</button>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* ── § 7 What NORA Recommends ── */}
-                {adaptiveRecs.length > 0 && (
-                  <div className="sv2-card sv2-recs sv2-full">
-                    <div className="sv2-card-title"><Lightbulb size={14} /> What Nora Recommends</div>
-                    <div className="sv2-recs-list">
-                      {adaptiveRecs.slice(0, 3).map((r, i) => (
-                        <div key={i} className="sv2-rec-item">
-                          <span className="sv2-rec-num">{i + 1}</span>
-                          <span className="sv2-rec-text">{r}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              </div>
-
-              </div>
+              <StatusPage
+                aiCoach={{
+                  headline: aiCoach.headline,
+                  stateLabel: noraState.label,
+                  stateColor: noraState.color,
+                  confidence: userConfidence,
+                  signals: keySignals,
+                  onAskNora: () => { setChatInput(assessmentSummary); setChatOpen(true); },
+                }}
+                metrics={metricCards}
+                patterns={allPatterns}
+                actions={[...primaryActions, ...ghostActions]}
+                quickCheckIn={{
+                  items: CHECKIN_DEFS,
+                  sleep: { value: todaySleepQuality, onChange: setSleepQuality, meta: sleepState.suggestion },
+                }}
+              />
             );
           })()}
+
 
           {view === "notes" && (() => {
             const openNote  = openNoteId ? notes.find(n => n.id === openNoteId) : null;
@@ -4890,16 +4410,16 @@ Everything else → as short as possible. If nothing notable to add, don't add i
 
       {/* AI FAB — opens the AI Hub launcher; closes whichever AI surface is open */}
       <button
-        className={`chat-fab${(aiHubOpen || chatOpen || messengerOpen) ? " active" : ""}`}
+        className={`chat-fab${(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? " active" : ""}`}
         onClick={() => {
-          if (aiHubOpen || chatOpen || messengerOpen) {
-            setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false);
+          if (aiHubOpen || chatOpen || messengerOpen || atlasOpen) {
+            setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false); setAtlasOpen(false);
           } else {
             setAiHubOpen(true);
           }
         }}
       >
-        {(aiHubOpen || chatOpen || messengerOpen) ? <X size={22} /> : <Sparkle size={24} strokeWidth={0} fill="currentColor" />}
+        {(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? <X size={22} /> : <Sparkle size={24} strokeWidth={0} fill="currentColor" />}
       </button>
 
       <div className={`chat-panel${chatOpen ? " open" : ""}`}>
@@ -5026,12 +4546,23 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         open={aiHubOpen}
         onClose={() => setAiHubOpen(false)}
         badges={{ insights: intel.pendingCount > 0 }}
+        tools={visibleAiTools}
         onSelect={(id) => {
           setAiHubOpen(false);
           if (id === "assistant") setChatOpen(true);
+          else if (id === "atlas") setAtlasOpen(true);
           else if (id === "messenger") setMessengerOpen(true);
           else if (id === "insights") intel.setCenterOpen(true);
         }}
+      />
+      <DesktopAtlasChat
+        open={atlasOpen}
+        onClose={() => setAtlasOpen(false)}
+        messages={atlasMessages}
+        chatInput={atlasChatInput}
+        setChatInput={setAtlasChatInput}
+        chatLoading={atlasChatLoading}
+        onSend={sendAtlasChat}
       />
       <DesktopToolComingSoon
         open={messengerOpen}

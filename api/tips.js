@@ -84,6 +84,30 @@ Be specific to their actual task count / task names where helpful.
 Return a JSON array of 3 strings only. No explanation.
 Example: ["What should I tackle first today?","Help me fit in the math homework","I'm low on energy, what's realistic?"]`;
 
+  } else if (type === "status_coach") {
+    const { items = [], noraStateKey, workloadToday, deferredCount, focusPeak, sleepQuality, dayOfWeek } = context;
+
+    const itemSummary = items.length
+      ? items.map((it) => `  - ${it.key}: value=${it.value ?? "n/a"}, prevValue=${it.prevValue ?? "n/a"}, bucket=${it.bucket ?? "n/a"}, topFactor="${it.topFactor ?? "none"}"`).join("\n")
+      : "  (none)";
+
+    systemPrompt = `You are Nora, a calm, evidence-based cognitive-performance coach. Explain WHY each number is what it is using ONLY the factors given — never invent facts not present in the data. Give one recommended action and one realistic estimated improvement per item. Never generic, never guilt-based language (no "failed", "missed", "should have"); always reframe positively. Max 22 words for the explanation, 12 for the action, 10 for the improvement.`;
+
+    userPrompt = `Status page context:
+- Day: ${dayOfWeek ?? "today"}
+- Overall state: ${noraStateKey ?? "unknown"}
+- Workload today: ${workloadToday ?? "unknown"}
+- Deferred tasks: ${deferredCount ?? 0}
+- Focus peak: ${focusPeak ?? "unknown"}
+- Sleep quality: ${sleepQuality ?? "unknown"}
+
+Items to explain (use item.key as the JSON key in your response):
+${itemSummary}
+
+For each item, return { "key": <same key>, "sentence": <why, grounded only in the given factors>, "action": <one recommended action>, "improvement": <one realistic estimated improvement, phrased as a positive delta> }.
+Return a JSON array of these objects, one per item, same order as given. Nothing else.
+Example: [{"key":"mental_battery","sentence":"Your battery is a touch below average after yesterday's three long sessions with only one real break.","action":"Take a 12-minute walk before your next focus block.","improvement":"+15% focus"}]`;
+
   } else {
     return res.status(400).json({ error: "Unknown tip type" });
   }
@@ -130,6 +154,17 @@ Example: ["What should I tackle first today?","Help me fit in the math homework"
           .slice(0, 3);
       }
       return res.status(200).json({ tips });
+    } else if (type === "status_coach") {
+      // Structured objects, not plain strings — if parsing fails there's no sensible
+      // text-splitting fallback, so return an empty array and let the client's own
+      // local heuristic interpretations (already rendered before this call resolves) stand.
+      let items = [];
+      try {
+        const cleaned = text.replace(/^```json?\s*/i, "").replace(/```$/, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) items = parsed.filter((it) => it && typeof it.key === "string");
+      } catch {}
+      return res.status(200).json({ items });
     } else {
       return res.status(200).json({ tip: text.replace(/^["']|["']$/g, "") });
     }

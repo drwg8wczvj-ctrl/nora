@@ -3,7 +3,7 @@ import {
   Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
   FileText, Trash2, User, RotateCcw, CalendarDays,
   Flag, Coffee, Bell, Activity, Wind, TrendingUp,
-  TrendingDown, Minus, AlertTriangle, Moon, Sunrise,
+  AlertTriangle, Moon, Sunrise,
   SkipForward, Sparkles, Sparkle, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
   Share2, Users, Search, KeyRound,
@@ -29,7 +29,9 @@ import SavedPlacesManager from "./components/SavedPlacesManager";
 import PricingModal from "./components/PricingModal";
 import AIHub from "./aiHub/AIHub";
 import { MobileToolComingSoon } from "./aiHub/AIToolComingSoon";
+import { MobileAtlasChat } from "./aiHub/AtlasChat";
 import { AI_HUB_TOOLS } from "./aiHub/aiToolsRegistry";
+import StatusPage from "./status/StatusPage";
 import "./MobileApp.css";
 import { useTranslation } from "react-i18next";
 import { useNativeTabBar } from "./hooks/useNativeTabBar";
@@ -97,6 +99,146 @@ const fmtDur = (min) => {
   return r === 0 ? `${h}h` : `${h}h${r}m`;
 };
 
+// ── Status page props builder ────────────────────────────────
+// Mirrors the desktop assembly in App.js exactly (same metric/action shapes,
+// same colorForMetric semantics) so both shells present identical intelligence
+// through the one shared <StatusPage> — only the data source (ctx.X vs bare X)
+// differs.
+const STATUS_METRIC_META = {
+  mentalBattery:      { label: "Mental Battery",      unit: "%" },
+  recoveryIndex:      { label: "Recovery Index",      unit: "" },
+  momentum:           { label: "Momentum",            unit: "%" },
+  consistency:        { label: "Consistency",         unit: "%" },
+  deepWorkCapacity:   { label: "Deep Work Capacity",  unit: "%" },
+  attentionStability: { label: "Attention Stability", unit: "%" },
+};
+const STATUS_BUCKET_COLORS = {
+  mentalBattery:      { charged: "#22c55e", adequate: "#3b82f6", low: "#f59e0b", depleted: "#ef4444" },
+  recoveryIndex:      { stable: "#22c55e", mild: "#f59e0b", high: "#f97316", recovery: "#ef4444", burnout: "#dc2626" },
+  momentum:           { rising: "#22c55e", stable: "#3b82f6", recovery: "#f59e0b", overloaded: "#ef4444", unstable: "#f59e0b", new: "var(--accent)", recovering: "#22c55e" },
+  consistency:        { steady: "#22c55e", variable: "#f59e0b", erratic: "#ef4444", building: "var(--accent)" },
+  deepWorkCapacity:   { high: "#22c55e", moderate: "#3b82f6", low: "#f59e0b" },
+  attentionStability: { high: "#22c55e", moderate: "#3b82f6", low: "#f59e0b", gated: "var(--text-muted)" },
+};
+const statusColorForMetric = (key, m) => STATUS_BUCKET_COLORS[key]?.[m.bucket] ?? "var(--accent)";
+const STATUS_ACTION_ICONS = {
+  reduce_cognitive_load:       <AlertTriangle size={14} />,
+  begin_micro_start:           <Zap size={14} />,
+  move_difficult_task_earlier: <CalendarDays size={14} />,
+  protect_morning_focus:       <Sunrise size={14} />,
+  schedule_recovery_break:     <Moon size={14} />,
+};
+
+function buildStatusPageProps(ctx) {
+  const {
+    energy, setEnergy, relaxation, setRelaxation, focus, setFocus, motivation, setMotivation,
+    noraState, userConfidence, assessmentSummary, keySignals,
+    metrics, interpretations, patterns = [], emotionalDrift = [],
+    aiCoach, actionCenter = [], flowPrediction, implementationIntention,
+    mostAvoided, deferredTasks, morningCheckup, dailyMetrics,
+    sleepState, todaySleepQuality, setSleepQuality,
+    setChatInput, setChatOpen, setRescheduleTask,
+    setReviewCheckupMode, setShowMorningCheckup, setShowLongTermInsights,
+  } = ctx;
+
+  const checkInItems = [
+    { id: "energy", icon: <Zap size={13} />, label: "Energy", color: "var(--accent)", value: energy, onChange: setEnergy,
+      levels: [{label:"Very low",value:1},{label:"Low",value:3},{label:"Okay",value:5},{label:"Good",value:7},{label:"High",value:9}] },
+    { id: "stress", icon: <Wind size={13} />, label: "Stress", color: "#3b82f6", value: relaxation, onChange: setRelaxation,
+      levels: [{label:"Overwhelmed",value:1},{label:"Stressed",value:3},{label:"Okay",value:5},{label:"Calm",value:7},{label:"Relaxed",value:9}] },
+    { id: "focus", icon: <Activity size={13} />, label: "Focus", color: "#22c55e", value: focus, onChange: setFocus,
+      levels: [{label:"Scattered",value:1},{label:"Drifting",value:3},{label:"Okay",value:5},{label:"Focused",value:7},{label:"Deep",value:9}] },
+    { id: "motivation", icon: <TrendingUp size={13} />, label: "Motivation", color: "#f59e0b", value: motivation, onChange: setMotivation,
+      levels: [{label:"None",value:1},{label:"Low",value:3},{label:"Okay",value:5},{label:"Driven",value:7},{label:"Fired up",value:9}] },
+  ];
+
+  const metricCards = Object.entries(metrics).map(([key, m]) => {
+    const interp = interpretations[key] ?? {};
+    const meta = STATUS_METRIC_META[key] ?? { label: key, unit: "" };
+    const gated = Boolean(m.gated);
+    return {
+      id: key,
+      label: meta.label,
+      value: m.value,
+      unit: meta.unit,
+      trend: m.trend != null ? (m.trend > 0.03 ? "up" : m.trend < -0.03 ? "down" : "flat") : undefined,
+      oneLinerExplanation: interp.sentence ?? meta.label,
+      aiInterpretation: interp.sentence,
+      recommendedAction: interp.action,
+      estimatedImprovement: interp.improvement,
+      accentColor: statusColorForMetric(key, m),
+      gated,
+      gatedMessage: gated ? `Complete ${m.sessionsNeeded ?? 3} more Focus Session${(m.sessionsNeeded ?? 3) === 1 ? "" : "s"} to unlock this.` : undefined,
+    };
+  });
+
+  const primaryActions = actionCenter.map((a) => ({
+    id: a.actionKey,
+    label: a.label,
+    icon: STATUS_ACTION_ICONS[a.actionKey],
+    tone: "primary",
+    meta: a.rationale,
+    onClick: () => {
+      if (a.actionKey === "begin_micro_start" && mostAvoided) {
+        setChatInput(`Help me micro-start "${mostAvoided.task.title}"`); setChatOpen(true);
+      } else if (a.actionKey === "move_difficult_task_earlier" && deferredTasks[0]) {
+        setRescheduleTask(deferredTasks[0]);
+      } else if (a.actionKey === "schedule_recovery_break") {
+        setChatInput("Help me schedule a recovery break today."); setChatOpen(true);
+      } else {
+        setChatInput(a.rationale ?? a.label); setChatOpen(true);
+      }
+    },
+  }));
+
+  const readiness = morningCheckup ? (computeReadiness(morningCheckup) ?? { label: "Moderate", pct: 50 }) : null;
+  const metricsEntryCount = Object.keys(dailyMetrics ?? {}).length;
+  const ghostActions = [
+    {
+      id: "mcu", tone: "ghost",
+      label: morningCheckup ? "Review Morning Check-Up" : "Start Morning Check-Up",
+      meta: readiness ? `${readiness.label} readiness${Number.isFinite(readiness.pct) ? ` · ${readiness.pct}%` : ""}` : undefined,
+      preview: morningCheckup?.noraSummary,
+      onClick: () => { setReviewCheckupMode(!!morningCheckup); setShowMorningCheckup(true); },
+    },
+    {
+      id: "lti", tone: "ghost", label: "Long-Term Insights",
+      meta: metricsEntryCount >= 3 ? `${metricsEntryCount} days tracked` : "Complete a few check-ins to unlock",
+      onClick: () => setShowLongTermInsights(true),
+    },
+    ...(flowPrediction?.confidence !== "insufficient_data" ? [{
+      id: "flow_window", tone: "ghost", label: "Best Focus Window Today",
+      meta: `${flowPrediction.window} · ${flowPrediction.confidence.toLowerCase()} confidence`,
+      onClick: () => { setChatInput(`Schedule my most demanding task for ${flowPrediction.window}.`); setChatOpen(true); },
+    }] : []),
+    ...(implementationIntention ? [{
+      id: "implementation_intention", tone: "ghost", label: "Today's Plan",
+      preview: `${implementationIntention.ifClause}, ${implementationIntention.thenClause}.`,
+      onClick: () => { setChatInput(`${implementationIntention.ifClause}, ${implementationIntention.thenClause}.`); setChatOpen(true); },
+    }] : []),
+  ];
+
+  const allPatterns = [...patterns, ...emotionalDrift.map((d) => d.text)].slice(0, 4);
+
+  return {
+    aiCoach: {
+      headline: aiCoach.headline,
+      stateLabel: noraState.label,
+      stateColor: noraState.color,
+      confidence: userConfidence,
+      signals: keySignals,
+      onAskNora: () => { setChatInput(assessmentSummary); setChatOpen(true); },
+    },
+    metrics: metricCards,
+    patterns: allPatterns,
+    actions: [...primaryActions, ...ghostActions],
+    quickCheckIn: {
+      items: checkInItems,
+      sleep: { value: todaySleepQuality, onChange: setSleepQuality, meta: sleepState.suggestion },
+    },
+  };
+}
+
 // ── Root ─────────────────────────────────────────────────────
 export default function MobileApp({ ctx }) {
   const { t } = useTranslation();
@@ -133,7 +275,9 @@ export default function MobileApp({ ctx }) {
           rescheduleTask, setRescheduleTask, saveReschedule, groups,
           focusTask, setFocusTask, userPrefs, setUserPrefs, toggleTask,
           notifBannerVisible, dismissNotifBanner, requestNotifPermission,
-          sharingTask, setSharingTask, session } = ctx;
+          sharingTask, setSharingTask, session,
+          atlasOpen, setAtlasOpen, atlasMessages, atlasChatInput, setAtlasChatInput,
+          atlasChatLoading, sendAtlasChat, visibleAiTools } = ctx;
 
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
@@ -269,7 +413,7 @@ export default function MobileApp({ ctx }) {
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
         {mobileView === "boards"   && <MobileWhiteboardView boards={ctx.boards} onAskNora={p => { ctx.setChatInput(p); ctx.setChatOpen(true); }} onClose={() => setMobileView("plan")} />}
-        {mobileView === "status"   && <MobileStatus ctx={ctx} />}
+        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildStatusPageProps(ctx)} /></div>}
         {mobileView === "settings" && <MobileSettings ctx={ctx} />}
       </main>
 
@@ -299,25 +443,36 @@ export default function MobileApp({ ctx }) {
       </nav>
 
       <button
-        className={`mob-ai-fab${(aiHubOpen || chatOpen || messengerOpen) ? " fab-open" : ""}`}
+        className={`mob-ai-fab${(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? " fab-open" : ""}`}
         onClick={() => {
-          if (aiHubOpen || chatOpen || messengerOpen) {
-            setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false);
+          if (aiHubOpen || chatOpen || messengerOpen || atlasOpen) {
+            setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false); setAtlasOpen(false);
           } else {
             setAiHubOpen(true);
           }
         }}>
-        {(aiHubOpen || chatOpen || messengerOpen) ? <X size={22} /> : <Sparkle size={24} strokeWidth={0} fill="currentColor" />}
+        {(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? <X size={22} /> : <Sparkle size={24} strokeWidth={0} fill="currentColor" />}
       </button>
 
       <MobileChat ctx={ctx} />
+      <MobileAtlasChat
+        open={atlasOpen}
+        onClose={() => setAtlasOpen(false)}
+        messages={atlasMessages}
+        chatInput={atlasChatInput}
+        setChatInput={setAtlasChatInput}
+        chatLoading={atlasChatLoading}
+        onSend={sendAtlasChat}
+      />
       <AIHub
         open={aiHubOpen}
         onClose={() => setAiHubOpen(false)}
         badges={{ insights: (ctx.intelCount ?? 0) > 0 }}
+        tools={visibleAiTools}
         onSelect={(id) => {
           setAiHubOpen(false);
           if (id === "assistant") setChatOpen(true);
+          else if (id === "atlas") setAtlasOpen(true);
           else if (id === "messenger") setMessengerOpen(true);
           else if (id === "insights") ctx.onIntelClick();
         }}
@@ -1865,317 +2020,6 @@ function MobileNotes({ ctx }) {
   );
 }
 
-// ── Status view ──────────────────────────────────────────────
-function MobileStatus({ ctx }) {
-  const {
-    energy, setEnergy, relaxation, setRelaxation,
-    focus, setFocus, motivation, setMotivation,
-    noraState, userConfidence, assessmentSummary, keySignals,
-    recoveryState, workloadForecast, weekTrend,
-    adaptiveRecs, deferredTasks, mostAvoided,
-    setChatInput, setChatOpen, doneToday, totalToday, pct,
-    focusPatterns, adaptivePlanData, behaviorProfile,
-    weeklyReflection, predictiveSignals,
-    setRescheduleTask,
-    sleepState, todaySleepQuality, setSleepQuality,
-  } = ctx;
-
-  const maxWl = Math.max(...workloadForecast.map((d) => d.load), 1);
-
-  const CHECKIN_DEFS = [
-    { Icon: Zap,        title:"Energy",     color:"var(--accent)", value:energy,     set:setEnergy,
-      levels:[{l:"Very low",v:1},{l:"Low",v:3},{l:"Okay",v:5},{l:"Good",v:7},{l:"High",v:9}] },
-    { Icon: Wind,       title:"Stress",     color:"#3b82f6",       value:relaxation, set:setRelaxation,
-      levels:[{l:"Overwhelmed",v:1},{l:"Stressed",v:3},{l:"Okay",v:5},{l:"Calm",v:7},{l:"Relaxed",v:9}] },
-    { Icon: Activity,   title:"Focus",      color:"#22c55e",       value:focus,      set:setFocus,
-      levels:[{l:"Scattered",v:1},{l:"Drifting",v:3},{l:"Okay",v:5},{l:"Focused",v:7},{l:"Deep",v:9}] },
-    { Icon: TrendingUp, title:"Motivation", color:"#f59e0b",       value:motivation, set:setMotivation,
-      levels:[{l:"None",v:1},{l:"Low",v:3},{l:"Okay",v:5},{l:"Driven",v:7},{l:"Fired up",v:9}] },
-  ];
-  const closestL = (lvls, val) => lvls.reduce((p, c) => Math.abs(c.v - val) < Math.abs(p.v - val) ? c : p);
-
-  return (
-    <div className="mob-status-v2">
-
-      {/* § 1 Assessment */}
-      <div className="mob-sv2-card mob-assessment" style={{ borderTop: `3px solid ${noraState.color}` }}>
-        <div className="mob-assess-header">
-          <div className="mob-assess-state" style={{ color: noraState.color }}>
-            <span className="mob-assess-dot" style={{ background: noraState.color }} />{noraState.label}
-          </div>
-          <span className={`mob-assess-conf mob-conf-${userConfidence?.level ?? "building"}`} style={{ color: userConfidence?.color }}>
-            {userConfidence?.label ?? "Building Confidence"}
-          </span>
-        </div>
-        <p className="mob-assess-summary">{assessmentSummary}</p>
-        <div className="mob-assess-signals">
-          {(keySignals ?? []).map((s, i) => (
-            <div key={i} className="mob-signal"><span className="mob-signal-dot" />{s}</div>
-          ))}
-        </div>
-        {adaptiveRecs?.[0] && (
-          <div className="mob-assess-rec">
-            <span className="mob-assess-rec-lbl">Nora suggests:</span> {adaptiveRecs[0]}
-          </div>
-        )}
-      </div>
-
-      {/* § 2 Daily Check-In */}
-      <div className="mob-sv2-card">
-        <div className="mob-status-card-title"><Activity size={14} /> Daily Check-In</div>
-        <div className="mob-checkin-list">
-          {CHECKIN_DEFS.map(({ Icon, title, color, value, set, levels }) => {
-            const active = closestL(levels, value);
-            return (
-              <div key={title} className="mob-check-row">
-                <div className="mob-check-meta">
-                  <span className="mob-check-icon-wrap" style={{ color }}><Icon size={13} /></span>
-                  <span className="mob-check-title">{title}</span>
-                  <span className="mob-check-curr" style={{ color }}>{active.l}</span>
-                </div>
-                <div className="mob-check-levels">
-                  {levels.map((lvl) => (
-                    <button key={lvl.v}
-                      className={`mob-check-lvl${lvl.v === active.v ? " active" : ""}`}
-                      style={lvl.v === active.v ? { background: `${color}18`, borderColor: `${color}50`, color } : {}}
-                      onClick={() => set(lvl.v)}>
-                      {lvl.l}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* § Sleep & Recovery */}
-      <div className="mob-sv2-card mob-sleep-card">
-        <div className="mob-status-card-title"><Moon size={14} /> Sleep &amp; Recovery</div>
-        <div className="mob-sleep-body">
-          {/* Check-in */}
-          <div className="mob-sleep-checkin">
-            <div className="mob-sleep-checkin-header">
-              <span className="mob-sleep-checkin-lbl">How was your sleep?</span>
-              {ctx.morningCheckup?.sleepQuality && ctx.morningCheckup.sleepQuality === todaySleepQuality && (
-                <span className="mob-sleep-from-checkup">✓ from check-up</span>
-              )}
-            </div>
-            <div className="mob-sleep-q-row">
-              {[["poor","Poor"],["okay","Okay"],["good","Good"]].map(([val, label]) => (
-                <button key={val}
-                  className={`mob-sleep-q-btn mob-sq-${val}${todaySleepQuality === val ? " active" : ""}`}
-                  onClick={() => setSleepQuality(val)}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* Signals */}
-          <div className="mob-sleep-signals">
-            <div className="mob-sleep-signal-row">
-              <span>Sleep Pressure</span>
-              <span className="mob-sleep-badge" style={{ color: sleepState?.pressureColor, background: `${sleepState?.pressureColor}15` }}>
-                {sleepState?.pressure ?? "—"}
-              </span>
-            </div>
-            <div className="mob-sleep-signal-row">
-              <span>Tonight's Risk</span>
-              <span className="mob-sleep-badge" style={{ color: sleepState?.riskColor, background: `${sleepState?.riskColor}15` }}>
-                {sleepState?.tonightRisk ?? "—"}
-              </span>
-            </div>
-          </div>
-        </div>
-        {sleepState?.suggestion && (
-          <div className="mob-sleep-suggestion">{sleepState.suggestion}</div>
-        )}
-      </div>
-
-      {/* § 3 Today's Reality */}
-      <div className="mob-sv2-card">
-        <div className="mob-status-card-title"><CalendarDays size={14} /> Today's Reality</div>
-        <div className="mob-reality-row">
-          {[
-            { val: doneToday, lbl: "Done", color: "#22c55e" },
-            { val: Math.max(0, totalToday - doneToday), lbl: "Left", color: "var(--text)" },
-            { val: deferredTasks.length, lbl: "Deferred", color: deferredTasks.length > 0 ? "#f97316" : "var(--text)" },
-            { val: workloadForecast[0]?.level ?? "—", lbl: "Load", color: workloadForecast[0]?.level === "heavy" ? "#ef4444" : "#22c55e" },
-          ].map(({ val, lbl, color }) => (
-            <div key={lbl} className="mob-rstat">
-              <span className="mob-rstat-val" style={{ color }}>{val}</span>
-              <span className="mob-rstat-lbl">{lbl}</span>
-            </div>
-          ))}
-        </div>
-        {totalToday > 0 && (
-          <div className="mob-progress-track" style={{ marginTop: 10 }}>
-            <div className="mob-progress-fill" style={{ width: `${pct}%` }} />
-          </div>
-        )}
-      </div>
-
-      {/* § 4 Needs Attention */}
-      <div className="mob-sv2-card">
-        <div className="mob-status-card-title"><AlertTriangle size={14} /> Needs Attention</div>
-        {recoveryState.level !== "stable" && (
-          <div className="mob-attn-recovery" style={{ borderLeftColor: recoveryState.color }}>
-            <span className="mob-attn-rec-name" style={{ color: recoveryState.color }}>{recoveryState.label}</span>
-            <p className="mob-attn-rec-desc">{recoveryState.desc}</p>
-          </div>
-        )}
-        {predictiveSignals?.filter((s) => s.confidence === "HIGH").map((s, i) => (
-          <div key={i} className="mob-psignal"><Zap size={11} /> {s.message}</div>
-        ))}
-        {mostAvoided && (
-          <div className="mob-attn-item mob-attn-avoided">
-            <div className="mob-attn-info">
-              <span className="mob-attn-name">{mostAvoided.task.title}</span>
-              <span className="mob-attn-age">Deferred {mostAvoided.daysOverdue}d</span>
-            </div>
-            <p className="mob-attn-note">"{mostAvoided.daysOverdue >= 5 ? "Avoidance, not scheduling." : "5 min starts break the loop."}"</p>
-            <div className="mob-attn-btns">
-              <button className="mob-attn-btn" onClick={() => setRescheduleTask(mostAvoided.task)}><CalendarDays size={11} /> Move</button>
-              <button className="mob-attn-btn mob-attn-micro" onClick={() => { setChatInput(`Help me micro-start "${mostAvoided.task.title}"`); setChatOpen(true); }}><Zap size={11} /> Micro</button>
-            </div>
-          </div>
-        )}
-        {deferredTasks.filter((t) => t.id !== mostAvoided?.task?.id).slice(0, 3).map((t) => (
-          <div key={t.id} className={`mob-attn-item mob-attn-def-${t.urgency}`}>
-            <div className="mob-attn-info">
-              <span className="mob-attn-name">{t.title}</span>
-              <span className="mob-attn-age">{t.daysDeferred}d pending</span>
-            </div>
-            <button className="mob-attn-btn" onClick={() => setRescheduleTask(t)}><CalendarDays size={11} /> Move</button>
-          </div>
-        ))}
-        {recoveryState.level === "stable" && deferredTasks.length === 0 && (
-          <p className="mob-all-clear">✓ Nothing urgent right now.</p>
-        )}
-        {deferredTasks.length > 1 && (
-          <button className="mob-rebalance-btn" onClick={() => {
-            const titles = deferredTasks.slice(0, 4).map((t) => `"${t.title}"`).join(", ");
-            setChatInput(`I have ${deferredTasks.length} deferred tasks: ${titles}. Rebalance across this week.`);
-            setChatOpen(true);
-          }}>Rebalance all with Nora</button>
-        )}
-      </div>
-
-      {/* § 5 Week Outlook */}
-      <div className="mob-sv2-card">
-        <div className="mob-status-card-top">
-          <div className="mob-status-card-title" style={{ marginBottom: 0 }}><BarChart2 size={14} /> Week Outlook</div>
-          <span className={`mob-trend-badge mob-trend-${weekTrend}`}>
-            {weekTrend === "improving" ? <TrendingUp size={12} /> : weekTrend === "declining" ? <TrendingDown size={12} /> : <Minus size={12} />}
-            {weekTrend === "new" ? "Starting" : weekTrend.charAt(0).toUpperCase() + weekTrend.slice(1)}
-          </span>
-        </div>
-        <div className="mob-workload-row">
-          {workloadForecast.map((day) => (
-            <div key={day.date} className={`mob-wl-day${day.isToday ? " mob-wl-today" : ""}`}>
-              <div className="mob-wl-bar-wrap">
-                <div className={`mob-wl-bar mob-wl-${day.level}`}
-                  style={{ height: `${Math.max(4, Math.round((day.load / maxWl) * 52))}px` }} />
-              </div>
-              <span className="mob-wl-label">{day.label}</span>
-            </div>
-          ))}
-        </div>
-        {weeklyReflection?.insights[0] && (
-          <p className="mob-reflect-note">{weeklyReflection.insights[0]}</p>
-        )}
-      </div>
-
-      {/* § 6 How You Work Best */}
-      <div className="mob-sv2-card">
-        <div className="mob-status-card-title"><Activity size={14} /> How You Work Best</div>
-        <div className="mob-pattern-stats">
-          {[
-            { lbl: "Peak Focus", val: focusPatterns ? focusPatterns.peak.label : "—" },
-            { lbl: "Avg Session", val: adaptivePlanData?.avgDur ? `${adaptivePlanData.avgDur}m` : "—" },
-            { lbl: "Work Style", val: behaviorProfile?.work_style !== "unknown" ? behaviorProfile?.work_style?.charAt(0).toUpperCase() + behaviorProfile?.work_style?.slice(1) : "—" },
-            { lbl: "Best Day", val: adaptivePlanData?.bestDayName ?? "—" },
-          ].map(({ lbl, val }) => (
-            <div key={lbl} className="mob-pstat">
-              <span className="mob-pstat-lbl">{lbl}</span>
-              <span className="mob-pstat-val">{val}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* § Morning Check-Up */}
-      <div className="mob-sv2-card mob-checkup-card">
-        <div className="mob-status-card-title"><Sunrise size={14} className="mcu-sunrise-icon" /> Morning Check-Up</div>
-        {ctx.morningCheckup ? (() => {
-          const r = computeReadiness(ctx.morningCheckup) ?? { label: "Moderate", color: "#f59e0b", pct: 50 };
-          return (
-            <div className="mob-checkup-done">
-              <div className="mob-checkup-done-row">
-                <span className="mob-checkup-badge">✓ Submitted</span>
-                <span style={{ color: r.color, fontWeight: 700, fontSize: 13 }}>
-                  {r.label}{Number.isFinite(r.pct) ? ` · ${r.pct}%` : ""}
-                </span>
-              </div>
-              {ctx.morningCheckup.noraSummary && (
-                <p className="mob-checkup-summary">"{ctx.morningCheckup.noraSummary}"</p>
-              )}
-              <button className="mob-checkup-btn" style={{ marginTop: 8, background: "var(--surface-2)", color: "var(--accent)", boxShadow: "none", border: "1px solid var(--border)" }}
-                onClick={() => { ctx.setReviewCheckupMode(true); ctx.setShowMorningCheckup(true); }}>
-                Review results →
-              </button>
-            </div>
-          );
-        })() : (
-          <div className="mob-checkup-cta">
-            <p className="mob-checkup-cta-text">Help Nora understand your day before planning it.</p>
-            <button className="mob-checkup-btn" onClick={() => { ctx.setReviewCheckupMode && ctx.setReviewCheckupMode(false); ctx.setShowMorningCheckup(true); }}>
-              Start Morning Check-Up
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* § Long-Term Insights */}
-      <div className="mob-sv2-card mob-lti-card">
-        <div className="mob-status-card-title"><Activity size={14} /> Long-Term Insights</div>
-        {(() => {
-          const entries = Object.entries(ctx.dailyMetrics || {});
-          const hasData = entries.length >= 3;
-          if (!hasData) return (
-            <div className="mob-lti-preview">
-              <p className="mob-checkup-cta-text">Complete a few check-ins to unlock your trends.</p>
-              <button className="mob-checkup-btn" onClick={() => ctx.setShowLongTermInsights(true)}>Open Insights →</button>
-            </div>
-          );
-          const recent = entries.slice(-7).map(([, v]) => v.energy).filter(Boolean);
-          const trend = recent.length >= 3 && recent.slice(-3).reduce((a, b) => a + b, 0) / 3 > recent.slice(0, 3).reduce((a, b) => a + b, 0) / 3 ? "↑ improving" : "→ stable";
-          return (
-            <div className="mob-lti-preview">
-              <p className="mob-lti-signal">Energy {trend} this week · {entries.length} days tracked</p>
-              <button className="mob-checkup-btn" onClick={() => ctx.setShowLongTermInsights(true)}>Open Insights →</button>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* § 7 What NORA Recommends */}
-      {adaptiveRecs.length > 0 && (
-        <div className="mob-sv2-card mob-recs-card">
-          <div className="mob-status-card-title"><Zap size={14} /> What Nora Recommends</div>
-          {adaptiveRecs.slice(0, 3).map((r, i) => (
-            <div key={i} className="mob-rec-item">
-              <span className="mob-rec-num">{i + 1}</span>
-              <span className="mob-rec-text">{r}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-    </div>
-  );
-}
-
 // ── Settings view ────────────────────────────────────────────
 function MobNameEditor({ name, onSave }) {
   const [editing, setEditing] = useState(false);
@@ -2217,6 +2061,7 @@ function MobileSettings({ ctx }) {
     session, groups, setGroups,
     notifPermission, notifSettings, updateNotifSettings, requestNotifPermission,
     userProfile, setShowProfileModal,
+    assistantSettings, updateAssistantSettings,
   } = ctx;
 
   const [newGroupName,  setNewGroupName]  = useState("");
@@ -2290,6 +2135,21 @@ function MobileSettings({ ctx }) {
           <button className={`mob-theme-pill${i18n.resolvedLanguage === "ru" ? " active" : ""}`}
             onClick={() => i18n.changeLanguage("ru")}>🇷🇺 RU</button>
         </div>
+      </div>
+
+      {/* AI experience */}
+      <div className="mob-sett-card">
+        <div className="mob-sett-card-title"><Sparkle size={15} /> {t("settings.twoAssistantMode")}</div>
+        <div className="mob-sett-row">
+          <span className="mob-sett-row-label">{t("settings.twoAssistantMode")}</span>
+          <button className={`mob-toggle${assistantSettings.twoAssistantMode ? " on" : ""}`}
+            onClick={() => updateAssistantSettings({ twoAssistantMode: !assistantSettings.twoAssistantMode })}>
+            <span className="mob-toggle-knob" />
+          </button>
+        </div>
+        {assistantSettings.twoAssistantMode && (
+          <p className="mob-sett-hint">{t("settings.twoAssistantModeDesc")}</p>
+        )}
       </div>
 
       {/* Notifications */}
