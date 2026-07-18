@@ -135,6 +135,20 @@
 .dark .mob-nav-indicator {
   background: rgba(139,92,246,0.18);
 }
+
+/* Subtle amber wash while Atlas is open — a dedicated element (not a direct
+   .mob-bottom-nav override) since Liquid Glass's own nav rules already claim
+   border/box-shadow at higher specificity in light+glass mode; a separate
+   layer sidesteps that specificity fight entirely. Same z-index as the nav
+   indicator above — DOM order (this renders first) keeps the indicator and
+   nav buttons (z-index:1) painting on top of it. */
+.mob-nav-atlas-glow {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(0deg, var(--atlas-accent-light) 0%, transparent 60%);
+  transition: opacity var(--atlas-dur-ambient) var(--ease-in-out);
+}
+.mob-app.atlas-active .mob-nav-atlas-glow { opacity: 1; }
 .mob-bottom-nav.mob-nav-dragging .mob-nav-indicator,
 .mob-bottom-nav.mob-nav-no-trans .mob-nav-indicator {
   transition: none !important;

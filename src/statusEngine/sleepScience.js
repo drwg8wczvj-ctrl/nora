@@ -161,6 +161,18 @@ export function estimateMoodPredictionConfidence({
   return { level, reasons };
 }
 
+// ── Recent-nights adapter ────────────────────────────────────────────────────
+// Shared by MorningCheckup.js (building today's analysis at completion time)
+// and useStatusEngine.js (building it live for the Status page) — both need
+// the same trailing history shape from the same dailyMetrics store.
+export function buildRecentNights(dailyMetrics = {}, today, count = 14) {
+  return Object.entries(dailyMetrics)
+    .filter(([date]) => date < today)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-count)
+    .map(([, m]) => ({ bedtime: m.bedtime ?? null, wakeTime: m.wakeTime ?? null, sleepDurationHours: m.sleepDurationHours ?? null }));
+}
+
 // ── Orchestrator — everything above, composed into one bundle ──────────────
 // Called once, at check-up completion, when all self-report answers are
 // available. `recentNights` is trailing history from dailyMetrics:

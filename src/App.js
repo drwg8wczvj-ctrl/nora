@@ -41,10 +41,10 @@ import {
   Clock, MessageSquare, X, Send, FileText, Trash2,
   Menu, Settings, User, ChevronDown, RotateCcw, List, Layers,
   Flag, Coffee, Bell,
-  Activity, Zap, Wind, TrendingUp,
+  Activity, Zap,
   ZoomIn, ZoomOut,
-  Brain, Target, AlertTriangle,
-  Pencil, SkipForward, Sparkles, Sparkle, Moon, Sunrise,
+  Brain, Target,
+  Pencil, SkipForward, Sparkles, Sparkle,
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
   MapPin, Navigation, Car, Bus, Bike, PersonStanding,
 } from "lucide-react";
@@ -69,6 +69,7 @@ import { AI_HUB_TOOLS } from "./aiHub/aiToolsRegistry";
 import "./aiHub/AIHub.css";
 import { useStatusEngine } from "./statusEngine/useStatusEngine";
 import StatusPage from "./status/StatusPage";
+import { buildWorkMindProps } from "./status/buildStatusProps";
 import "./status/StatusPage.css";
 
 // ── Constants ──────────────────────────────────────────
@@ -1174,8 +1175,9 @@ export default function App() {
     focusPatterns, mostAvoided, adaptiveRecs, deferredTasks, weeklyReflection,
     sleepState, userConfidence, assessmentSummary, keySignals, noraState,
     behaviorProfile, predictiveSignals, adaptivePlanData, weekData, weekTrend,
-    metrics, interpretations, patterns, emotionalDrift, flowPrediction,
-    aiCoach, actionCenter, implementationIntention, taskWeights, recoveryTrendDeclining3d,
+    metrics, interpretations, patterns, workPatterns, mindPatterns, emotionalDrift, flowPrediction,
+    aiCoach, atlasCoach, actionCenter, implementationIntention, taskWeights, recoveryTrendDeclining3d,
+    sleepAnalysis,
   } = statusEngine;
   const contextMode = noraState; // UI alias — keeps all existing JSX working
 
@@ -3106,8 +3108,9 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
       addNote: (text) => setNotes((p) => [...p, { id: uid(), title: "", content: text, color: "default", type: "note", items: [], pinned: false, starred: false, createdAt: Date.now(), updatedAt: Date.now() }]),
       toggleNote, updateNote, deleteNote, patchNote, createStickyNote, createNote, getGroup,
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
-      metrics, interpretations, patterns, emotionalDrift, flowPrediction,
-      aiCoach, actionCenter, implementationIntention, taskWeights, recoveryTrendDeclining3d,
+      metrics, interpretations, patterns, workPatterns, mindPatterns, emotionalDrift, flowPrediction,
+      aiCoach, atlasCoach, actionCenter, implementationIntention, taskWeights, recoveryTrendDeclining3d,
+      sleepAnalysis,
       microStartMode, setMicroStartMode,
       boards,
       rescheduleTask, setRescheduleTask, saveReschedule,
@@ -3192,7 +3195,10 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
   // ── Desktop render ────────────────────────────────────
   const tabIdxCur = view === "day" ? 0 : view === "month" ? 1 : 2;
   return (
-    <div className={`app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
+    <div className={`app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}${atlasOpen ? " atlas-active" : ""}`}>
+
+      {/* Ambient warmth wash while Atlas's chat is open — fades in/out via .atlas-active */}
+      <div className="app-atlas-tint" aria-hidden="true" />
 
       {/* Pointer-reactive ambient light for Liquid Glass */}
       <div className="glass-pointer-light" aria-hidden="true" />
@@ -3200,6 +3206,7 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
       <aside className={`sidebar${sidebarOpen ? " open" : ""}`}>
+        <div className="sidebar-atlas-glow" aria-hidden="true" />
         <div className="sidebar-top">
           <div className="sidebar-brand">
             <img
@@ -4045,132 +4052,17 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
 
           {/* ── Notes view ── */}
           {/* ── Status view ── */}
-          {view === "status" && (() => {
-            const CHECKIN_DEFS = [
-              { id: "energy", icon: <Zap size={13} />, label: "Energy", color: "var(--accent)", value: energy, onChange: setEnergy,
-                levels: [{label:"Very low",value:1},{label:"Low",value:3},{label:"Okay",value:5},{label:"Good",value:7},{label:"High",value:9}] },
-              { id: "stress", icon: <Wind size={13} />, label: "Stress", color: "#3b82f6", value: relaxation, onChange: setRelaxation,
-                levels: [{label:"Overwhelmed",value:1},{label:"Stressed",value:3},{label:"Okay",value:5},{label:"Calm",value:7},{label:"Relaxed",value:9}] },
-              { id: "focus", icon: <Activity size={13} />, label: "Focus", color: "#22c55e", value: focus, onChange: setFocus,
-                levels: [{label:"Scattered",value:1},{label:"Drifting",value:3},{label:"Okay",value:5},{label:"Focused",value:7},{label:"Deep",value:9}] },
-              { id: "motivation", icon: <TrendingUp size={13} />, label: "Motivation", color: "#f59e0b", value: motivation, onChange: setMotivation,
-                levels: [{label:"None",value:1},{label:"Low",value:3},{label:"Okay",value:5},{label:"Driven",value:7},{label:"Fired up",value:9}] },
-            ];
-
-            const METRIC_META = {
-              mentalBattery:      { label: "Mental Battery",      unit: "%" },
-              recoveryIndex:      { label: "Recovery Index",      unit: "" },
-              momentum:           { label: "Momentum",            unit: "%" },
-              consistency:        { label: "Consistency",         unit: "%" },
-              deepWorkCapacity:   { label: "Deep Work Capacity",  unit: "%" },
-              attentionStability: { label: "Attention Stability", unit: "%" },
-            };
-            const BUCKET_COLORS = {
-              mentalBattery:      { charged: "#22c55e", adequate: "#3b82f6", low: "#f59e0b", depleted: "#ef4444" },
-              recoveryIndex:      { stable: "#22c55e", mild: "#f59e0b", high: "#f97316", recovery: "#ef4444", burnout: "#dc2626" },
-              momentum:           { rising: "#22c55e", stable: "#3b82f6", recovery: "#f59e0b", overloaded: "#ef4444", unstable: "#f59e0b", new: "var(--accent)", recovering: "#22c55e" },
-              consistency:        { steady: "#22c55e", variable: "#f59e0b", erratic: "#ef4444", building: "var(--accent)" },
-              deepWorkCapacity:   { high: "#22c55e", moderate: "#3b82f6", low: "#f59e0b" },
-              attentionStability: { high: "#22c55e", moderate: "#3b82f6", low: "#f59e0b", gated: "var(--text-muted)" },
-            };
-            const colorForMetric = (key, m) => BUCKET_COLORS[key]?.[m.bucket] ?? "var(--accent)";
-
-            const metricCards = Object.entries(metrics).map(([key, m]) => {
-              const interp = interpretations[key] ?? {};
-              const meta = METRIC_META[key] ?? { label: key, unit: "" };
-              const gated = Boolean(m.gated);
-              return {
-                id: key,
-                label: meta.label,
-                value: m.value,
-                unit: meta.unit,
-                trend: m.trend != null ? (m.trend > 0.03 ? "up" : m.trend < -0.03 ? "down" : "flat") : undefined,
-                oneLinerExplanation: interp.sentence ?? meta.label,
-                aiInterpretation: interp.sentence,
-                recommendedAction: interp.action,
-                estimatedImprovement: interp.improvement,
-                accentColor: colorForMetric(key, m),
-                gated,
-                gatedMessage: gated ? `Complete ${m.sessionsNeeded ?? 3} more Focus Session${(m.sessionsNeeded ?? 3) === 1 ? "" : "s"} to unlock this.` : undefined,
-              };
-            });
-
-            const ACTION_ICONS = {
-              reduce_cognitive_load:       <AlertTriangle size={14} />,
-              begin_micro_start:           <Zap size={14} />,
-              move_difficult_task_earlier: <CalendarDays size={14} />,
-              protect_morning_focus:       <Sunrise size={14} />,
-              schedule_recovery_break:     <Moon size={14} />,
-            };
-
-            const primaryActions = actionCenter.map((a) => ({
-              id: a.actionKey,
-              label: a.label,
-              icon: ACTION_ICONS[a.actionKey],
-              tone: "primary",
-              meta: a.rationale,
-              onClick: () => {
-                if (a.actionKey === "begin_micro_start" && mostAvoided) {
-                  setChatInput(`Help me micro-start "${mostAvoided.task.title}"`); setChatOpen(true);
-                } else if (a.actionKey === "move_difficult_task_earlier" && deferredTasks[0]) {
-                  setRescheduleTask(deferredTasks[0]);
-                } else if (a.actionKey === "schedule_recovery_break") {
-                  setChatInput("Help me schedule a recovery break today."); setChatOpen(true);
-                } else {
-                  setChatInput(a.rationale ?? a.label); setChatOpen(true);
-                }
-              },
-            }));
-
-            const readiness = morningCheckup ? (computeReadiness(morningCheckup) ?? { label: "Moderate", pct: 50 }) : null;
-            const metricsEntryCount = Object.keys(dailyMetrics).length;
-            const ghostActions = [
+          {view === "status" && (
+            <StatusPage {...buildWorkMindProps(
+              statusEngine,
+              { energy, relaxation, focus, motivation, todaySleepQuality, morningCheckup, dailyMetrics },
               {
-                id: "mcu", tone: "ghost",
-                label: morningCheckup ? "Review Morning Check-Up" : "Start Morning Check-Up",
-                meta: readiness ? `${readiness.label} readiness${Number.isFinite(readiness.pct) ? ` · ${readiness.pct}%` : ""}` : undefined,
-                preview: morningCheckup?.noraSummary,
-                onClick: () => { setReviewCheckupMode(!!morningCheckup); setShowMorningCheckup(true); },
-              },
-              {
-                id: "lti", tone: "ghost", label: "Long-Term Insights",
-                meta: metricsEntryCount >= 3 ? `${metricsEntryCount} days tracked` : "Complete a few check-ins to unlock",
-                onClick: () => setShowLongTermInsights(true),
-              },
-              ...(flowPrediction?.confidence !== "insufficient_data" ? [{
-                id: "flow_window", tone: "ghost", label: "Best Focus Window Today",
-                meta: `${flowPrediction.window} · ${flowPrediction.confidence.toLowerCase()} confidence`,
-                onClick: () => { setChatInput(`Schedule my most demanding task for ${flowPrediction.window}.`); setChatOpen(true); },
-              }] : []),
-              ...(implementationIntention ? [{
-                id: "implementation_intention", tone: "ghost", label: "Today's Plan",
-                preview: `${implementationIntention.ifClause}, ${implementationIntention.thenClause}.`,
-                onClick: () => { setChatInput(`${implementationIntention.ifClause}, ${implementationIntention.thenClause}.`); setChatOpen(true); },
-              }] : []),
-            ];
-
-            const allPatterns = [...patterns, ...emotionalDrift.map((d) => d.text)].slice(0, 4);
-
-            return (
-              <StatusPage
-                aiCoach={{
-                  headline: aiCoach.headline,
-                  stateLabel: noraState.label,
-                  stateColor: noraState.color,
-                  confidence: userConfidence,
-                  signals: keySignals,
-                  onAskNora: () => { setChatInput(assessmentSummary); setChatOpen(true); },
-                }}
-                metrics={metricCards}
-                patterns={allPatterns}
-                actions={[...primaryActions, ...ghostActions]}
-                quickCheckIn={{
-                  items: CHECKIN_DEFS,
-                  sleep: { value: todaySleepQuality, onChange: setSleepQuality, meta: sleepState.suggestion },
-                }}
-              />
-            );
-          })()}
+                setChatInput, setChatOpen, setAtlasOpen, setRescheduleTask,
+                setShowMorningCheckup, setReviewCheckupMode, setShowLongTermInsights,
+                setEnergy, setRelaxation, setFocus, setMotivation, setSleepQuality,
+              }
+            )} />
+          )}
 
 
           {view === "notes" && (() => {

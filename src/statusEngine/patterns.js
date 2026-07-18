@@ -183,6 +183,29 @@ export function minePatternsFromHistory(inputs) {
   return mineAllPatterns(inputs).slice(0, 4);
 }
 
+// ── WORK/MIND domain classification ──────────────────────────────────────────
+// Colocated with the pattern-id definitions above — this is the single source
+// of truth for which tab (Status page) a given pattern belongs to. Unknown ids
+// default to "work" so a future rule that forgets to register here doesn't
+// silently vanish from both tabs.
+export const PATTERN_DOMAIN = {
+  day_of_week_rate: "work",
+  hard_task_timing: "work",
+  most_avoided_category: "work",
+  load_energy_correlation: "work",
+  peak_completion_hour: "work",
+  focus_trend_up: "mind",
+  focus_trend_down: "mind",
+  stress_trend_up: "mind",
+  poor_sleep_prevalence: "mind",
+};
+
+export function splitPatternsByDomain(patterns) {
+  const work = [], mind = [];
+  for (const p of patterns) (PATTERN_DOMAIN[p.id] === "mind" ? mind : work).push(p);
+  return { work, mind };
+}
+
 // ── Best focus window ────────────────────────────────────────────────────────
 // Sliding 90-minute window scan over completed tasks' start times, to find the
 // stretch of the day where completions cluster most.

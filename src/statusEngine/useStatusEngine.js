@@ -10,9 +10,10 @@ import {
   computeAttentionStability,
   computeRecoveryTrendDeclining3d,
 } from "./metrics";
-import { minePatternsFromHistory, computeBestFocusWindow, computeEmotionalDrift } from "./patterns";
-import { getMicroStart, generateInterpretation, generateCoachHeadline } from "./interpretations";
+import { minePatternsFromHistory, mineAllPatterns, splitPatternsByDomain, computeBestFocusWindow, computeEmotionalDrift } from "./patterns";
+import { getMicroStart, generateInterpretation, generateCoachHeadline, generateAtlasHeadline } from "./interpretations";
 import { buildImplementationIntention } from "./intentions";
+import { computeSleepAnalysis, buildRecentNights } from "./sleepScience";
 import { apiUrl } from "../lib/apiBase";
 
 // Mirrors the shape of src/intelligence/useIntelligence.js: a plain hook that
@@ -544,6 +545,21 @@ export function useStatusEngine({
   // own key for whoever wires the Status page up next.
   const emotionalDrift = useMemo(() => computeEmotionalDrift({ dailyMetrics }), [dailyMetrics]);
 
+  // ── WORK/MIND pattern split (Status page tabs) ───────────────────────────────
+  // Built from the uncapped mineAllPatterns() (not the top-4 `patterns` above)
+  // so each tab gets its own full top-4, not a shared cap split across both.
+  const allMinedPatterns = useMemo(
+    () => mineAllPatterns({ tasks, taskWeights, dailyMetrics, today }),
+    [tasks, taskWeights, dailyMetrics, today]
+  );
+  const { workPatterns, mindPatterns } = useMemo(() => {
+    const { work, mind } = splitPatternsByDomain(allMinedPatterns);
+    return {
+      workPatterns: work.map((p) => p.text).slice(0, 4),
+      mindPatterns: [...mind.map((p) => p.text), ...emotionalDrift.map((d) => d.text)].slice(0, 4),
+    };
+  }, [allMinedPatterns, emotionalDrift]);
+
   // ── Best focus window (90-min sliding scan over completion history) ─────────
   const flowPrediction = useMemo(() => (
     computeBestFocusWindow(tasks.filter((t) => t.completed && t.startHour != null && t.type !== "break"))
@@ -562,6 +578,26 @@ export function useStatusEngine({
   // Tuesday" style onset from yet — stays dormant until that tracking exists.
   const attentionFragmentedSinceDay = null;
 
+  // ── Sleep science (Status page card) ─────────────────────────────────────────
+  // Same computeSleepAnalysis() the Morning Check-up uses, but read live for
+  // display rather than computed once at check-up completion. Today's
+  // bedtime/wakeTime come from morningCheckup if it exists yet; every other
+  // field (debt/consistency/regularity/circadian) degrades gracefully to
+  // history-only when it doesn't — see sleepScience.js's null-safety notes.
+  const sleepAnalysis = useMemo(() => computeSleepAnalysis({
+    bedtime: morningCheckup?.bedtime ?? null,
+    wakeTime: morningCheckup?.wakeTime ?? null,
+    sleepQuality: morningCheckup?.sleepQuality ?? null,
+    restedScore: morningCheckup?.restedScore ?? null,
+    energyScore: morningCheckup?.energyScore ?? null,
+    clarityScore: morningCheckup?.clarityScore ?? null,
+    recentNights: buildRecentNights(dailyMetrics, today),
+    idealHours: 8,
+    recoveryScore: recoveryState.score ?? null,
+    recoveryStateLevel: recoveryState.level ?? null,
+    todaysWorkloadLevel: workloadForecast[0]?.level ?? null,
+  }), [dailyMetrics, today, morningCheckup, recoveryState, workloadForecast]);
+
   // ── AI Coach hero headline ────────────────────────────────────────────────────
   const aiCoach = useMemo(() => ({
     headline: generateCoachHeadline({
@@ -571,6 +607,11 @@ export function useStatusEngine({
       metrics,
     }),
   }), [noraState, recoveryTrendDeclining3d, attentionFragmentedSinceDay, metrics]);
+
+  // ── Atlas Coach headline (Mind tab) ───────────────────────────────────────────
+  const atlasCoach = useMemo(() => ({
+    headline: generateAtlasHeadline({ userPrefs, today, sleepAnalysis, metrics }),
+  }), [userPrefs, today, sleepAnalysis, metrics]);
 
   // ── Action Center (top up to 4 concrete next actions) ────────────────────────
   const actionCenter = useMemo(() => {
@@ -624,10 +665,14 @@ export function useStatusEngine({
     metrics,
     interpretations,
     patterns,
+    workPatterns,
+    mindPatterns,
     emotionalDrift,
     recoveryTrendDeclining3d,
+    sleepAnalysis,
     flowPrediction,
     aiCoach,
+    atlasCoach,
     actionCenter,
     implementationIntention,
   };

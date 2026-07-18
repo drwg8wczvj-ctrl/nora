@@ -240,3 +240,38 @@ export function generateCoachHeadline({ noraState, recoveryTrendDeclining3d, att
   const seed = metrics?.mentalBattery?.value ?? 0;
   return pick(variants, seed);
 }
+
+// ── Atlas Coach headline (Mind tab) ──────────────────────────────────────────
+function yesterdayOf(dateStr) {
+  return new Date(new Date(dateStr + "T00:00:00").getTime() - 86400000).toISOString().slice(0, 10);
+}
+
+const ATLAS_CALM_DEFAULTS = [
+  "No particular flags today — a good moment to check in with yourself if you'd like.",
+  "Things look steady. Atlas is here anytime, no issue needs to prompt it.",
+  "Nothing urgent today. Worth a moment of reflection if it's useful.",
+];
+
+// Deliberately no parallel "state machine" here (no stateLabel/color/confidence
+// like Nora's coach card) — Atlas's card only ever needs one honest sentence,
+// grounded in a real signal, never a fabricated taxonomy to match Nora's.
+export function generateAtlasHeadline({ userPrefs, today, sleepAnalysis, metrics }) {
+  const signal = userPrefs?.wellbeing_signal;
+  const signalFresh = signal && !signal.acknowledged && (signal.date === today || signal.date === yesterdayOf(today));
+  if (signalFresh) {
+    return signal.note
+      ? `You mentioned something was weighing on you — "${signal.note}" — Atlas is here if you want to talk it through.`
+      : "You mentioned something was weighing on you — Atlas is here if you want to talk it through.";
+  }
+
+  if (sleepAnalysis?.mentalFatigueRisk?.bucket === "high") {
+    return "Fatigue risk is elevated today — a short pause now may help more than pushing through.";
+  }
+
+  if (["depleted", "low"].includes(metrics?.mentalBattery?.bucket)) {
+    return "Your reserves are running low — this might be a good moment to check in with yourself, not just your tasks.";
+  }
+
+  const seed = metrics?.mentalBattery?.value ?? 0;
+  return pick(ATLAS_CALM_DEFAULTS, seed);
+}

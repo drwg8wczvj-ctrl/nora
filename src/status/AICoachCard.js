@@ -12,13 +12,15 @@ export default function AICoachCard({
   confidence,
   signals = [],
   onAskNora,
+  askLabel = "Ask Nora",
+  persona,
   loading = false,
 }) {
   const safeSignals = Array.isArray(signals) ? signals : [];
   const hasHeader = Boolean(stateLabel) || Boolean(confidence?.label);
 
   return (
-    <div className="status-card status-coach-card" data-tone={tone}>
+    <div className="status-card status-coach-card" data-tone={tone} {...(persona ? { "data-persona": persona } : {})}>
       {hasHeader && (
         <div className="status-coach-header">
           {stateLabel && (
@@ -63,7 +65,7 @@ export default function AICoachCard({
       {!loading && typeof onAskNora === "function" && (
         <div className="status-coach-footer">
           <button type="button" className="status-ghost-btn" onClick={onAskNora}>
-            <MessageSquare size={13} /> Ask Nora
+            <MessageSquare size={13} /> {askLabel}
           </button>
         </div>
       )}

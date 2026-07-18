@@ -32,6 +32,17 @@
   container-name: status;
 }
 
+/* Mind tab — recolors every descendant card that reads var(--accent)/
+   var(--accent-light) (MetricCard, PatternsSection, ActionCenter,
+   QuickCheckIn all already do, whether via a stylesheet rule or an inline
+   style) to Atlas's amber, with zero changes to those shared components.
+   Applied to this existing root rather than a new wrapper div, since the
+   entrance-stagger rule below depends on the exact set of direct children. */
+.status-mind-view {
+  --accent: var(--atlas-accent);
+  --accent-light: var(--atlas-accent-light);
+}
+
 /* ── Entrance stagger (reuses the existing noraEnter keyframe) ──────
    Selectors are deliberately more specific than the plain `.status-card`
    rule in App.css (which already applies the same un-delayed animation)
@@ -101,6 +112,47 @@ button.status-card {
   background: var(--accent-light);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   Work / Mind segmented control
+   ══════════════════════════════════════════════════════════════════ */
+.status-worktab-toggle {
+  position: relative;
+  display: flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+}
+.status-worktab-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: calc(50% - 4px);
+  border-radius: 8px;
+  background: var(--grad);
+  box-shadow: 0 2px 8px rgba(124,58,237,0.3);
+  transition: left var(--dur-base) var(--ease-spring);
+  pointer-events: none;
+  z-index: 0;
+}
+.status-worktab-pill-0 { left: 4px; }
+.status-worktab-pill-1 { left: calc(50%); }
+.status-worktab-btn {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 8px;
+  transition: color var(--dur-fast) ease;
+}
+.status-worktab-btn.active { color: #fff; }
+
 /* ── Shared expand/collapse technique (grid-template-rows 0fr → 1fr) ──
    Driven by a `data-expanded` attribute on the card root rather than a
    class, so toggling from JS is a single attribute flip. No JS height
@@ -143,6 +195,14 @@ button.status-card {
 }
 .status-coach-card[data-tone="positive"] {
   border-top-color: var(--success);
+}
+.status-coach-card[data-persona="atlas"] {
+  border-top-color: var(--atlas-accent);
+}
+.status-coach-card[data-persona="atlas"] .status-ghost-btn:hover {
+  border-color: var(--atlas-accent);
+  color: var(--atlas-accent);
+  background: var(--atlas-accent-light);
 }
 
 .status-coach-header {
@@ -236,6 +296,115 @@ button.status-card {
     align-items: flex-start;
     gap: 8px;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Sleep Science Card
+   ══════════════════════════════════════════════════════════════════ */
+.status-sleep-disclaimer {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.status-sleep-hero {
+  display: flex;
+  gap: 28px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.status-sleep-hero-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.status-sleep-hero-icon { color: var(--accent); margin-bottom: 2px; }
+.status-sleep-hero-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.status-sleep-hero-unit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 3px;
+}
+.status-sleep-hero-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.status-sleep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.status-sleep-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.status-sleep-stat-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.status-sleep-stat-icon { color: var(--text-muted); flex-shrink: 0; }
+.status-sleep-stat-label {
+  flex: 1;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.status-sleep-stat-value {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+}
+.status-sleep-stat-sub {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.status-sleep-conf {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  letter-spacing: .02em;
+  flex-shrink: 0;
+}
+.status-sleep-conf-high   { background: rgba(34,197,94,.12);   color: var(--success); }
+.status-sleep-conf-medium { background: rgba(245,158,11,.12);  color: #f59e0b; }
+.status-sleep-conf-low    { background: rgba(148,163,184,.15); color: var(--text-muted); }
+
+.status-sleep-recommend {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.status-sleep-recommend strong { color: var(--accent); font-weight: 700; }
+
+.status-sleep-footnote {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* ══════════════════════════════════════════════════════════════════

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { X, ChevronLeft, ChevronRight, Sunrise, Zap, Brain, Moon, Target, Wind, Heart, BatteryCharging } from "lucide-react";
 import { apiUrl } from "./lib/apiBase";
 import { computeReadiness, computeReadinessSubScores } from "./statusEngine/readiness";
-import { computeSleepAnalysis, estimateSleepDuration } from "./statusEngine/sleepScience";
+import { computeSleepAnalysis, estimateSleepDuration, buildRecentNights } from "./statusEngine/sleepScience";
 import { selectAdaptiveQuestion, buildAdaptiveCheckupInputs } from "./statusEngine/adaptiveCheckup";
 import { selectCandidateRecommendations } from "./statusEngine/morningRecommendations";
 import { mineAllPatterns } from "./statusEngine/patterns";
@@ -131,11 +131,7 @@ export default function MorningCheckup({
   ][step] ?? true;
 
   const handleFinish = () => {
-    const recentNights = Object.entries(engineContext.dailyMetrics ?? {})
-      .filter(([date]) => date < today)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-14)
-      .map(([, m]) => ({ bedtime: m.bedtime ?? null, wakeTime: m.wakeTime ?? null, sleepDurationHours: m.sleepDurationHours ?? null }));
+    const recentNights = buildRecentNights(engineContext.dailyMetrics, today);
 
     const todaysWorkloadLevel = engineContext.workloadForecast?.[0]?.level ?? null;
 
