@@ -14,9 +14,9 @@ export default async function handler(req, res) {
 
   if (type === "morning") {
     const {
-      readinessLabel, readinessPct,
-      sleepQuality, sleepDuration,
-      energyScore, restedScore, clarityScore,
+      subScores = {}, sleepDebtHours, sleepDurationHours,
+      adaptiveQuestion = null,
+      candidateRecommendations = [],
       dayPressure, focusChoices = [],
       tasks = [],
     } = context;
@@ -25,24 +25,31 @@ export default async function handler(req, res) {
       ? tasks.slice(0, 5).map((t, i) => `  ${i + 1}. ${t.title}${t.type === "deadline" ? " [deadline]" : ""}`).join("\n")
       : "  (none scheduled yet)";
 
-    systemPrompt = `You are Nora, a concise, insightful personal productivity coach.
-You give short, hyper-specific, actionable advice — never generic platitudes.
-You know the user's actual data and reference it directly.`;
+    const subScoreSummary = Object.entries(subScores).length
+      ? Object.entries(subScores).map(([k, v]) => `  - ${k}: ${v?.value ?? "n/a"}/100`).join("\n")
+      : "  (none)";
 
-    userPrompt = `Morning check-in data:
-- Readiness: ${readinessLabel ?? "Moderate"} (${readinessPct ?? 50}%)
-- Sleep: ${sleepQuality ?? "unknown"}${sleepDuration != null ? `, ${sleepDuration.toFixed(1)}h` : ""}
-- Energy: ${energyScore ?? "?"}/10, Rested: ${restedScore ?? "?"}/10, Clarity: ${clarityScore ?? "?"}/10
-${dayPressure?.trim() ? `- Today's pressure: "${dayPressure.trim()}"` : ""}
-${focusChoices.length ? `- Focus intent: ${focusChoices.join(", ")}` : ""}
-- Tasks today:
+    const candidateSummary = candidateRecommendations.length
+      ? candidateRecommendations.map((c) => `  - [${c.id}] (${c.factor}): "${c.text}"`).join("\n")
+      : "  (none)";
+
+    systemPrompt = `You are Nora, a calm, evidence-based cognitive-performance coach speaking at the start of someone's day. Explain and recommend using ONLY the factors given — never invent facts, scores, or recommendations not present in the data. Warm, patient, never guilt-based language (no "failed", "missed", "should have"). Using ONLY the candidate recommendations given, select the 2-3 most relevant to today's specific numbers and rephrase each in Nora's calm, evidence-based voice, weaving in the actual number/factor. Never invent a recommendation not in the candidate list.`;
+
+    userPrompt = `Morning readiness sub-scores (0-100):
+${subScoreSummary}
+Sleep debt: ${sleepDebtHours != null ? `${sleepDebtHours}h` : "unknown"}, sleep duration: ${sleepDurationHours != null ? `${sleepDurationHours}h` : "unknown"}
+${adaptiveQuestion ? `Today's reflective question: "${adaptiveQuestion.prompt}"\nTheir answer: "${adaptiveQuestion.answer || "(no answer given)"}"` : ""}
+${dayPressure?.trim() ? `Today's pressure: "${dayPressure.trim()}"` : ""}
+${focusChoices.length ? `Focus intent: ${focusChoices.join(", ")}` : ""}
+Tasks today:
 ${taskSummary}
 
-Give exactly 3 short, specific tips for THIS person's day — not generic advice.
-Reference their actual scores or tasks where relevant.
-Each tip: max 12 words, imperative sentence, no bullet symbols, no numbering.
-Return a JSON array of 3 strings. Nothing else.
-Example: ["Start with task 2 — it fits your current clarity","Take a break before 14:00 to protect energy","Keep today's sessions under 45 minutes"]`;
+Candidate recommendations (choose from these only):
+${candidateSummary}
+
+Select the 2-3 most relevant candidates for today's specific numbers, and rephrase each in Nora's calm voice, citing the actual number/factor that makes it relevant. Max 20 words each.
+Return a JSON array: [{ "id": <candidate id>, "text": <rephrased recommendation> }]. Nothing else.
+Example: [{"id":"delay_deep_work","text":"You're carrying about 90 minutes of sleep debt — delay deep work until 10am."}]`;
 
   } else if (type === "focus_start") {
     const { taskTitle, blockReason, daysDeferred, duration } = context;
@@ -115,6 +122,10 @@ Example: [{"key":"mental_battery","sentence":"Your battery is a touch below aver
     return res.status(400).json({ error: "Unknown tip type" });
   }
 
+  // No per-branch override existed before "morning" needed one — number-citing
+  // sentences run longer than the other branches' short single-string tips.
+  const MAX_TOKENS = { morning: 260 }[type] ?? 200;
+
   try {
     const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -128,7 +139,7 @@ Example: [{"key":"mental_battery","sentence":"Your battery is a touch below aver
           { role: "system", content: systemPrompt },
           { role: "user",   content: userPrompt   },
         ],
-        max_tokens: 200,
+        max_tokens: MAX_TOKENS,
         temperature: 0.75,
       }),
     });
@@ -141,7 +152,7 @@ Example: [{"key":"mental_battery","sentence":"Your battery is a touch below aver
     const data = await upstream.json();
     const text = data.choices?.[0]?.message?.content?.trim() ?? "";
 
-    if (type === "morning" || type === "chat_prompts") {
+    if (type === "chat_prompts") {
       let tips;
       try {
         // Model should return a JSON array; be robust if it wraps in markdown fences
@@ -166,6 +177,18 @@ Example: [{"key":"mental_battery","sentence":"Your battery is a touch below aver
         const cleaned = text.replace(/^```json?\s*/i, "").replace(/```$/, "").trim();
         const parsed = JSON.parse(cleaned);
         if (Array.isArray(parsed)) items = parsed.filter((it) => it && typeof it.key === "string");
+      } catch {}
+      return res.status(200).json({ items });
+    } else if (type === "morning") {
+      // Structured { id, text } objects — same "no text-splitting fallback"
+      // convention as status_coach: an id-keyed object can't be recovered
+      // from mangled prose, so a parse failure returns an empty array and
+      // the client falls back to its own static candidate recommendations.
+      let items = [];
+      try {
+        const cleaned = text.replace(/^```json?\s*/i, "").replace(/```$/, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) items = parsed.filter((it) => it && typeof it.id === "string" && typeof it.text === "string");
       } catch {}
       return res.status(200).json({ items });
     } else {

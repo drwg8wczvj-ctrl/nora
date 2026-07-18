@@ -8,6 +8,7 @@ import {
   computeConsistency,
   computeDeepWorkCapacity,
   computeAttentionStability,
+  computeRecoveryTrendDeclining3d,
 } from "./metrics";
 import { minePatternsFromHistory, computeBestFocusWindow, computeEmotionalDrift } from "./patterns";
 import { getMicroStart, generateInterpretation, generateCoachHeadline } from "./interpretations";
@@ -551,15 +552,10 @@ export function useStatusEngine({
   // ── Recovery Index 3-day decline check ───────────────────────────────────────
   // App.js's daily-metrics snapshot effect now persists recoveryState.score
   // each day as `recoveryScore`, so this reads real history instead of a stub.
-  const recoveryTrendDeclining3d = useMemo(() => {
-    const dates = Object.keys(dailyMetrics ?? {}).sort().slice(-4); // last 4 days incl. today
-    const scores = dates.map((d) => dailyMetrics[d]?.recoveryScore).filter((s) => s != null);
-    if (scores.length < 3) return false;
-    const last3 = scores.slice(-3);
-    const monotonicDecline = last3[0] > last3[1] && last3[1] > last3[2];
-    const cumulativeDrop = scores[0] - scores[scores.length - 1] >= 15;
-    return monotonicDecline || cumulativeDrop;
-  }, [dailyMetrics]);
+  const recoveryTrendDeclining3d = useMemo(
+    () => computeRecoveryTrendDeclining3d(dailyMetrics),
+    [dailyMetrics]
+  );
 
   // Attention fragmentation is tracked at the focus-session level (nora_focus_log),
   // not in the daily snapshot, so there's no per-day history to detect "since
@@ -629,6 +625,7 @@ export function useStatusEngine({
     interpretations,
     patterns,
     emotionalDrift,
+    recoveryTrendDeclining3d,
     flowPrediction,
     aiCoach,
     actionCenter,

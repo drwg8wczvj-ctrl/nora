@@ -1949,6 +1949,30 @@
 .mcu-pressure-input { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 14px; font-family: inherit; resize: none; outline: none; box-sizing: border-box; transition: border-color .15s; }
 .mcu-pressure-input:focus { border-color: #818cf8; }
 
+/* Collapsed "log exact times" disclosure (merged into step 0) */
+.mcu-sleep-times-toggle { background: none; border: none; color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 0; text-decoration: underline; text-underline-offset: 2px; }
+.mcu-sleep-times-toggle:hover { color: var(--text); }
+
+/* Adaptive question — one reflective question per morning */
+.mcu-adaptive-question-text { font-size: 15px; color: var(--text); line-height: 1.5; text-align: center; margin: 0 0 4px; }
+.mcu-choice-grid { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.mcu-choice-btn { padding: 12px 16px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer; transition: all .15s ease; }
+.mcu-choice-btn:hover { border-color: #818cf8; }
+.mcu-choice-btn.active { border-color: #818cf8; background: rgba(129,140,248,0.12); color: #818cf8; }
+
+/* Adaptive Q&A recap on the summary screen */
+.mcu-adaptive-recap { width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.mcu-adaptive-recap-q { font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+.mcu-adaptive-recap-a { font-size: 13.5px; color: var(--text); line-height: 1.5; font-style: italic; }
+
+/* 6-part Morning Readiness sub-score row */
+.mcu-subscores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.mcu-subscore-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.mcu-subscore-top { display: flex; align-items: center; gap: 5px; }
+.mcu-subscore-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.mcu-subscore-value { font-size: 20px; font-weight: 900; line-height: 1.2; }
+.mcu-subscore-why { font-size: 10.5px; color: var(--text-muted); line-height: 1.35; }
+
 /* Summary — SVG ring + readiness display */
 .mcu-summary { gap: 18px; }
 .mcu-readiness-display { display: flex; align-items: center; gap: 18px; }

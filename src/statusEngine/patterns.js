@@ -23,7 +23,7 @@ function extractSeries(entries, key) {
 
 // Generic confidence tiering shared by every rule in minePatternsFromHistory.
 // Below the EXPERIMENTAL floor there simply isn't enough data to say anything.
-function confidenceTier(sampleSize) {
+export function confidenceTier(sampleSize) {
   if (sampleSize >= 40) return "HIGH";
   if (sampleSize >= 15) return "MEDIUM";
   if (sampleSize >= 5) return "EXPERIMENTAL";
@@ -45,7 +45,13 @@ function categorizeTitle(title = "") {
 }
 
 // ── Pattern mining ───────────────────────────────────────────────────────────
-export function minePatternsFromHistory({ tasks, taskWeights = {}, dailyMetrics = {}, today }) {
+// `mineAllPatterns` is the full, untruncated rule output — callers that need a
+// SPECIFIC pattern id regardless of the top-4 confidence cutoff (e.g. the
+// adaptive Morning Check-up checking for "poor_sleep_prevalence" even when
+// other patterns outrank it) should call this directly. `minePatternsFromHistory`
+// stays the existing top-4-by-confidence export so no current caller's
+// behavior changes.
+export function mineAllPatterns({ tasks, taskWeights = {}, dailyMetrics = {}, today }) {
   const patterns = [];
   const nonBreak = tasks.filter((t) => t.type !== "break");
 
@@ -170,8 +176,11 @@ export function minePatternsFromHistory({ tasks, taskWeights = {}, dailyMetrics 
   }
 
   return patterns
-    .sort((a, b) => CONFIDENCE_RANK[a.confidence] - CONFIDENCE_RANK[b.confidence])
-    .slice(0, 4);
+    .sort((a, b) => CONFIDENCE_RANK[a.confidence] - CONFIDENCE_RANK[b.confidence]);
+}
+
+export function minePatternsFromHistory(inputs) {
+  return mineAllPatterns(inputs).slice(0, 4);
 }
 
 // ── Best focus window ────────────────────────────────────────────────────────

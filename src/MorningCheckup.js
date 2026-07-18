@@ -1,67 +1,44 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { X, ChevronLeft, ChevronRight, Sunrise, Zap, Brain } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Sunrise, Zap, Brain, Moon, Target, Wind, Heart, BatteryCharging } from "lucide-react";
 import { apiUrl } from "./lib/apiBase";
+import { computeReadiness, computeReadinessSubScores } from "./statusEngine/readiness";
+import { computeSleepAnalysis, estimateSleepDuration } from "./statusEngine/sleepScience";
+import { selectAdaptiveQuestion, buildAdaptiveCheckupInputs } from "./statusEngine/adaptiveCheckup";
+import { selectCandidateRecommendations } from "./statusEngine/morningRecommendations";
+import { mineAllPatterns } from "./statusEngine/patterns";
+import { containsBannedLanguage } from "./statusEngine/interpretations";
 
-// ── Readiness computation (NaN-safe) ───────────────────────────
-export function computeReadiness({ sleepQuality, restedScore, energyScore, clarityScore, sleepDuration } = {}) {
-  // Guard: if no meaningful inputs, return null
-  if (!sleepQuality && restedScore == null && energyScore == null && clarityScore == null) return null;
+// Re-exported so App.js/MobileApp.js's `import { computeReadiness } from "./MorningCheckup"`
+// keeps working unchanged — the real implementation now lives in statusEngine/readiness.js
+// (it needs to be importable by widget sync / Action Center without pulling in this component).
+export { computeReadiness };
 
-  let score = 0;
-  score += ({ poor: 0, okay: 1, good: 2.5, great: 4 }[sleepQuality] ?? 1.5);
-  score += ((( restedScore ?? 5) - 1) / 9) * 3;
-  score += (((energyScore  ?? 5) - 1) / 9) * 3;
-  score += (((clarityScore ?? 5) - 1) / 9) * 3;
-  if (sleepDuration != null) {
-    if (sleepDuration >= 8) score += 1;
-    else if (sleepDuration >= 7) score += 0.6;
-    else if (sleepDuration >= 6) score += 0.2;
-  }
-  const pct = Math.min(1, score / 14);
-  const pctInt = Math.round(pct * 100);
-  if (!isFinite(pctInt)) return { label: "Moderate", color: "#f59e0b", pct: 50 };
-  if (pct >= 0.72) return { label: "High",     color: "#22c55e", pct: pctInt };
-  if (pct >= 0.45) return { label: "Moderate", color: "#f59e0b", pct: pctInt };
-  if (pct >= 0.25) return { label: "Low",      color: "#ef4444", pct: pctInt };
-  return               { label: "Recovery",  color: "#8b5cf6", pct: pctInt };
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+export function generateNoraSummary({ readiness } = {}) {
+  if (!readiness) return "";
+  if (readiness.label === "High")     return "You're in strong shape today. This is a good window for focused, important work.";
+  if (readiness.label === "Moderate") return "Decent start. Your energy is usable — realistic sessions and one clear priority will carry the day.";
+  if (readiness.label === "Low")      return "Today may need a lighter start. A few small wins beat one exhausting push.";
+  return "Your system needs recovery today. Gentle progress is still progress.";
 }
 
-export function generateNoraSummary({ sleepQuality, restedScore, energyScore, clarityScore, dayPressure, focusChoices = [], readiness } = {}) {
-  const low = (energyScore ?? 5) <= 4 || (restedScore ?? 5) <= 4;
-  const hasPressure = dayPressure?.trim().length > 0;
-  const hasFocus = focusChoices.length > 0;
-
-  let summary, tips = [];
-
-  if (readiness?.label === "High") {
-    summary = "You're in strong shape today. This is a good window for focused, important work.";
-    tips = ["Tackle your hardest task first", "Protect your peak focus window", "Keep evening light to sustain the week"];
-  } else if (readiness?.label === "Moderate") {
-    summary = "Decent start. Your energy is usable — realistic sessions and one clear priority will carry the day.";
-    tips = ["Start with one clear priority", "Keep sessions under 90 minutes", "Protect evening recovery"];
-  } else if (readiness?.label === "Low") {
-    summary = "Today may need a lighter start. A few small wins beat one exhausting push.";
-    tips = ["Begin with one small easy task", "Avoid scheduling heavy work late", "Add a recovery break this afternoon"];
-  } else {
-    summary = "Your system needs recovery today. Gentle progress is still progress.";
-    tips = ["Protect your rest — skip non-essential tasks", "One gentle priority only", "Avoid late-night work tonight"];
-  }
-
-  if (hasFocus) tips.push(`Stay close to your focus choices: ${focusChoices.slice(0, 2).join(", ")}.`);
-  else if (hasPressure) tips.push("Nora noted your day pressure — keeping the plan realistic.");
-  if (low && !hasPressure) tips.push("Consider Micro Start mode for anything that feels heavy.");
-
-  return { summary, tips: tips.slice(0, 3) };
+function subScoreColor(v) {
+  if (v == null) return "#94a3b8";
+  if (v >= 72) return "#22c55e";
+  if (v >= 45) return "#f59e0b";
+  if (v >= 25) return "#ef4444";
+  return "#8b5cf6";
 }
 
-function parseSleepDuration(bedtime, wakeTime) {
-  if (!bedtime || !wakeTime) return null;
-  const [bh, bm] = bedtime.split(":").map(Number);
-  const [wh, wm] = wakeTime.split(":").map(Number);
-  let mins = (wh * 60 + wm) - (bh * 60 + bm);
-  if (mins < 0) mins += 24 * 60;
-  return Math.round(mins / 60 * 10) / 10;
-}
+const SUBSCORE_META = [
+  { key: "recovery",           label: "Recovery",  icon: BatteryCharging },
+  { key: "energy",             label: "Energy",    icon: Zap },
+  { key: "focus",              label: "Focus",     icon: Target },
+  { key: "mentalClarity",      label: "Clarity",   icon: Brain },
+  { key: "stress",             label: "Calm",      icon: Wind },
+  { key: "emotionalStability", label: "Stability", icon: Heart },
+];
 
 // ── Scale selector ────────────────────────────────────────────────
 function ScaleSelector({ value, onChange, low, high, color = "#818cf8" }) {
@@ -99,22 +76,45 @@ function buildFocusBubbles(todayTasks = []) {
   return [...fromTasks, ...extra].slice(0, 10);
 }
 
+const EMPTY_CHECKUP_DATA = {
+  sleepQuality: null, bedtime: "", wakeTime: "",
+  restedScore: null, energyScore: null, clarityScore: null,
+  dayPressure: "", focusChoices: [], adaptiveAnswer: "",
+};
+
 // ── Main component ────────────────────────────────────────────────
 export default function MorningCheckup({
   dark, glass, today, todayTasks = [],
   onComplete, onClose,
   viewOnly = false, existingData = null,
+  engineContext = {},
 }) {
-  // If viewOnly, jump straight to summary
-  const [step, setStep] = useState(viewOnly ? 5 : 0);
-  const [data, setData] = useState(viewOnly && existingData ? existingData : {
-    sleepQuality: null, bedtime: "", wakeTime: "",
-    restedScore: null, energyScore: null, clarityScore: null,
-    dayPressure: "", focusChoices: [],
-  });
+  const TOTAL_STEPS = 3;
 
-  const TOTAL_STEPS = 5;
+  // If viewOnly, jump straight to summary
+  const [step, setStep] = useState(viewOnly ? TOTAL_STEPS : 0);
+  const [data, setData] = useState(viewOnly && existingData ? existingData : { ...EMPTY_CHECKUP_DATA });
+  const [showSleepTimes, setShowSleepTimes] = useState(false);
+
   const focusBubbles = useMemo(() => buildFocusBubbles(todayTasks), [todayTasks]);
+
+  // Exactly one adaptively-selected question per morning — chosen once, deterministically,
+  // when the check-up opens. Review mode reads back whichever question was asked that day
+  // rather than re-selecting against today's (since-moved-on) signals.
+  const adaptiveQuestion = useMemo(() => {
+    if (viewOnly) return existingData?.adaptiveQuestion ?? null;
+    const inputs = buildAdaptiveCheckupInputs({
+      today,
+      tasks: engineContext.tasks ?? [],
+      taskWeights: engineContext.taskWeights ?? {},
+      dailyMetrics: engineContext.dailyMetrics ?? {},
+      recoveryState: engineContext.recoveryState,
+      recoveryTrendDeclining3d: engineContext.recoveryTrendDeclining3d,
+      deferredTasks: engineContext.deferredTasks ?? [],
+      userPrefs: engineContext.userPrefs ?? {},
+    });
+    return selectAdaptiveQuestion(inputs);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key, val) => setData(d => ({ ...d, [key]: val }));
   const toggleFocus = (chip) => setData(d => ({
@@ -126,64 +126,150 @@ export default function MorningCheckup({
 
   const canNext = [
     !!data.sleepQuality,
-    true,
-    data.restedScore != null,
-    data.energyScore != null && data.clarityScore != null,
+    data.restedScore != null && data.energyScore != null && data.clarityScore != null,
     true,
   ][step] ?? true;
 
   const handleFinish = () => {
-    const sleepDuration = parseSleepDuration(data.bedtime, data.wakeTime);
-    const readiness = computeReadiness({ ...data, sleepDuration }) ?? { label: "Moderate", color: "#f59e0b", pct: 50 };
-    const { summary, tips } = generateNoraSummary({ ...data, readiness });
-    const checkup = { ...data, date: today, sleepDuration, readinessScore: readiness.pct, readinessLabel: readiness.label, noraSummary: summary, noraTips: tips };
+    const recentNights = Object.entries(engineContext.dailyMetrics ?? {})
+      .filter(([date]) => date < today)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-14)
+      .map(([, m]) => ({ bedtime: m.bedtime ?? null, wakeTime: m.wakeTime ?? null, sleepDurationHours: m.sleepDurationHours ?? null }));
+
+    const todaysWorkloadLevel = engineContext.workloadForecast?.[0]?.level ?? null;
+
+    const sleepAnalysis = computeSleepAnalysis({
+      bedtime: data.bedtime, wakeTime: data.wakeTime,
+      sleepQuality: data.sleepQuality, restedScore: data.restedScore,
+      energyScore: data.energyScore, clarityScore: data.clarityScore,
+      recentNights, idealHours: 8,
+      recoveryScore: engineContext.recoveryState?.score ?? null,
+      recoveryStateLevel: engineContext.recoveryState?.level ?? null,
+      todaysWorkloadLevel,
+    });
+
+    // Real, already-mined pattern signals — never a fabricated "anxiety" style flag.
+    const minedPatterns = mineAllPatterns({
+      tasks: engineContext.tasks ?? [], taskWeights: engineContext.taskWeights ?? {},
+      dailyMetrics: engineContext.dailyMetrics ?? {}, today,
+    });
+    const focusTrend = minedPatterns.some(p => p.id === "focus_trend_up") ? "up"
+      : minedPatterns.some(p => p.id === "focus_trend_down") ? "down" : null;
+    const stressTrendUp = minedPatterns.some(p => p.id === "stress_trend_up");
+
+    const todayWeekday = WEEKDAY_NAMES[new Date(today + "T00:00:00").getDay()];
+    const emotionalDriftToday = (engineContext.emotionalDrift ?? [])
+      .some(d => d.weekday === todayWeekday && d.metric !== "focus");
+
+    const subScores = computeReadinessSubScores({
+      restedScore: data.restedScore, energyScore: data.energyScore, clarityScore: data.clarityScore,
+      relaxationScore: data.restedScore, // rested ↔ low-stress, same mapping handleCheckupComplete uses
+      recoveryState: engineContext.recoveryState,
+      attentionStability: engineContext.metrics?.attentionStability,
+      focusTrend, stressTrendUp, emotionalDriftToday,
+      wellbeingSignal: engineContext.userPrefs?.wellbeing_signal, today,
+      sleepAnalysis, todaysWorkloadLevel,
+    });
+
+    const readiness = computeReadiness({ subScores });
+
+    const candidateRecommendations = selectCandidateRecommendations({
+      sleepDebtHours: sleepAnalysis.debt?.value ?? null,
+      mentalFatigueRisk: sleepAnalysis.mentalFatigueRisk?.bucket ?? null,
+      circadianConsistency: sleepAnalysis.circadian?.value ?? null,
+      restedScore: data.restedScore,
+      cognitivePerformance: sleepAnalysis.cognitivePerformance?.value ?? null,
+      todaysWorkloadLevel,
+      recoveryStateLevel: engineContext.recoveryState?.level ?? null,
+      energyScore: data.energyScore,
+      relaxationScore: data.restedScore,
+      wellbeingSignalRecent: engineContext.userPrefs?.wellbeing_signal?.date === today,
+    }, 6);
+
+    const summary = generateNoraSummary({ readiness });
+
+    const checkup = {
+      ...data, date: today,
+      sleepDuration: sleepAnalysis.duration?.value ?? null,
+      readinessScore: readiness.pct, readinessLabel: readiness.label,
+      noraSummary: summary,
+      subScores, sleepAnalysis, candidateRecommendations,
+      adaptiveQuestion: adaptiveQuestion ? {
+        id: adaptiveQuestion.id, kind: adaptiveQuestion.kind,
+        prompt: adaptiveQuestion.prompt, answer: data.adaptiveAnswer || "",
+      } : null,
+    };
+
+    setData(checkup);
     onComplete(checkup);
     setStep(TOTAL_STEPS);
   };
 
-  const sd = parseSleepDuration(data.bedtime ?? "", data.wakeTime ?? "");
-  const finalReadiness = step >= TOTAL_STEPS
-    ? (computeReadiness({ ...data, sleepDuration: sd }) ?? { label: "Moderate", color: "#f59e0b", pct: 50 })
-    : null;
-  const finalSummary = finalReadiness
-    ? generateNoraSummary({ ...data, focusChoices: data.focusChoices ?? [], readiness: finalReadiness })
-    : null;
+  // Summary is purely a function of `data` — for a fresh completion `data` was just
+  // replaced with the full computed checkup above; for a review it's whatever was
+  // stored. Legacy (pre-redesign) checkups simply lack `subScores`/`sleepAnalysis`/
+  // `adaptiveQuestion`, so those blocks render nothing rather than crashing.
+  const summaryData = useMemo(() => {
+    if (step < TOTAL_STEPS) return null;
+    const subScores = data.subScores ?? null;
+    const readiness = subScores
+      ? computeReadiness({ subScores })
+      : (computeReadiness(data) ?? { label: "Moderate", color: "#f59e0b", pct: 50 });
+    return {
+      readiness,
+      summary: data.noraSummary ?? generateNoraSummary({ readiness }),
+      subScores,
+      sleepAnalysis: data.sleepAnalysis ?? null,
+      candidateRecommendations: data.candidateRecommendations ?? [],
+      adaptiveQuestion: data.adaptiveQuestion ?? null,
+    };
+  }, [step, data]);
 
-  // AI-generated tips — fetched when summary screen appears
-  const [aiTips,       setAiTips]       = useState(null);  // null = not yet fetched
-  const [tipsLoading,  setTipsLoading]  = useState(false);
-  const tipsRequestedRef = useRef(false);
+  // AI-phrased recommendations — only fetched when there's a real candidate list to
+  // ground them in (new-shape checkups). Legacy reviews just show their stored noraTips.
+  const [aiRecommendations, setAiRecommendations] = useState(null);
+  const [recsLoading,      setRecsLoading]        = useState(false);
+  const recsRequestedRef = useRef(false);
 
   useEffect(() => {
-    if (step < TOTAL_STEPS || tipsRequestedRef.current) return;
-    tipsRequestedRef.current = true;
-    setTipsLoading(true);
+    if (step < TOTAL_STEPS || recsRequestedRef.current) return;
+    const candidates = summaryData?.candidateRecommendations;
+    if (!candidates?.length) return;
+    recsRequestedRef.current = true;
+    setRecsLoading(true);
     fetch(apiUrl("/api/tips"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "morning",
         context: {
-          readinessLabel: finalReadiness?.label,
-          readinessPct:   finalReadiness?.pct,
-          sleepQuality:   data.sleepQuality,
-          sleepDuration:  sd,
-          energyScore:    data.energyScore,
-          restedScore:    data.restedScore,
-          clarityScore:   data.clarityScore,
-          dayPressure:    data.dayPressure,
-          focusChoices:   data.focusChoices ?? [],
-          tasks:          (todayTasks ?? []).map(t => ({ title: t.title, type: t.type })),
+          subScores: summaryData.subScores ?? {},
+          sleepDebtHours: summaryData.sleepAnalysis?.debt?.value ?? null,
+          sleepDurationHours: summaryData.sleepAnalysis?.duration?.value ?? null,
+          adaptiveQuestion: summaryData.adaptiveQuestion
+            ? { prompt: summaryData.adaptiveQuestion.prompt, answer: summaryData.adaptiveQuestion.answer }
+            : null,
+          candidateRecommendations: candidates,
+          dayPressure: data.dayPressure,
+          focusChoices: data.focusChoices ?? [],
+          tasks: (todayTasks ?? []).map(t => ({ title: t.title, type: t.type })),
         },
       }),
     })
       .then(r => r.json())
-      .then(d => { if (d.tips?.length) setAiTips(d.tips); })
-      .catch(() => {/* fall back to static tips */})
-      .finally(() => setTipsLoading(false));
+      .then(d => {
+        const items = (d.items ?? []).filter(it => it?.text && !containsBannedLanguage(it.text));
+        if (items.length) setAiRecommendations(items);
+      })
+      .catch(() => {/* fall back to static candidates */})
+      .finally(() => setRecsLoading(false));
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const displayTips = aiTips ?? finalSummary?.tips ?? [];
+  const displayRecommendations = aiRecommendations
+    ?? (summaryData?.candidateRecommendations?.length
+        ? summaryData.candidateRecommendations
+        : (data.noraTips ?? []).map((t, i) => ({ id: `legacy_${i}`, text: t })));
 
   const progressPct = Math.min(step / TOTAL_STEPS, 1) * 100;
 
@@ -215,7 +301,7 @@ export default function MorningCheckup({
         {/* Body */}
         <div className="mcu-body">
 
-          {/* ── 0: Sleep quality ── */}
+          {/* ── 0: Sleep quality (+ optional exact times) ── */}
           {step === 0 && (
             <div className="mcu-step">
               <div className="mcu-step-header">
@@ -235,61 +321,52 @@ export default function MorningCheckup({
                   </button>
                 ))}
               </div>
+
+              {!showSleepTimes ? (
+                <button type="button" className="mcu-sleep-times-toggle" onClick={() => setShowSleepTimes(true)}>
+                  + Log exact sleep times (optional)
+                </button>
+              ) : (
+                <>
+                  <div className="mcu-time-row">
+                    <div className="mcu-time-field">
+                      <label className="mcu-time-label">Bedtime</label>
+                      <input type="time" className="mcu-time-input" value={data.bedtime} onChange={e => set("bedtime", e.target.value)} />
+                    </div>
+                    <div className="mcu-time-field">
+                      <label className="mcu-time-label">Wake time</label>
+                      <input type="time" className="mcu-time-input" value={data.wakeTime} onChange={e => set("wakeTime", e.target.value)} />
+                    </div>
+                  </div>
+                  {data.bedtime && data.wakeTime && (() => {
+                    const d = estimateSleepDuration(data.bedtime, data.wakeTime)?.value;
+                    return d != null ? (
+                      <div className="mcu-duration-badge">
+                        {Math.floor(d)}h {Math.round((d % 1) * 60)}m of sleep
+                        <span className="mcu-duration-eval" style={{ color: d >= 7 ? "#22c55e" : d >= 6 ? "#f59e0b" : "#ef4444" }}>
+                          {d >= 8 ? "Excellent" : d >= 7 ? "Good" : d >= 6 ? "Short" : "Very short"}
+                        </span>
+                      </div>
+                    ) : null;
+                  })()}
+                </>
+              )}
             </div>
           )}
 
-          {/* ── 1: Sleep times ── */}
+          {/* ── 1: How your body feels (rested + energy + clarity) ── */}
           {step === 1 && (
             <div className="mcu-step">
               <div className="mcu-step-header">
-                <Sunrise size={32} className="mcu-sunrise-icon" />
-                <h2 className="mcu-title">Sleep schedule</h2>
-                <p className="mcu-subtitle">Optional — helps Nora track your patterns over time.</p>
-              </div>
-              <div className="mcu-time-row">
-                <div className="mcu-time-field">
-                  <label className="mcu-time-label">Bedtime</label>
-                  <input type="time" className="mcu-time-input" value={data.bedtime} onChange={e => set("bedtime", e.target.value)} />
-                </div>
-                <div className="mcu-time-field">
-                  <label className="mcu-time-label">Wake time</label>
-                  <input type="time" className="mcu-time-input" value={data.wakeTime} onChange={e => set("wakeTime", e.target.value)} />
-                </div>
-              </div>
-              {data.bedtime && data.wakeTime && (() => {
-                const d = parseSleepDuration(data.bedtime, data.wakeTime);
-                return d != null ? (
-                  <div className="mcu-duration-badge">
-                    {Math.floor(d)}h {Math.round((d % 1) * 60)}m of sleep
-                    <span className="mcu-duration-eval" style={{ color: d >= 7 ? "#22c55e" : d >= 6 ? "#f59e0b" : "#ef4444" }}>
-                      {d >= 8 ? "Excellent" : d >= 7 ? "Good" : d >= 6 ? "Short" : "Very short"}
-                    </span>
-                  </div>
-                ) : null;
-              })()}
-            </div>
-          )}
-
-          {/* ── 2: Rested ── */}
-          {step === 2 && (
-            <div className="mcu-step">
-              <div className="mcu-step-header">
-                <Sunrise size={32} className="mcu-sunrise-icon" />
-                <h2 className="mcu-title">How rested do you feel?</h2>
-                <p className="mcu-subtitle">Regardless of hours — how does your body actually feel?</p>
-              </div>
-              <ScaleSelector value={data.restedScore} onChange={v => set("restedScore", v)} low="Exhausted" high="Fully rested" color="#818cf8" />
-            </div>
-          )}
-
-          {/* ── 3: Energy + Clarity ── */}
-          {step === 3 && (
-            <div className="mcu-step">
-              <div className="mcu-step-header">
                 <div className="mcu-dual-icon"><Zap size={24} className="mcu-sunrise-icon" /><Brain size={24} className="mcu-sunrise-icon" /></div>
-                <h2 className="mcu-title">Energy &amp; clarity</h2>
+                <h2 className="mcu-title">How your body feels</h2>
+                <p className="mcu-subtitle">Regardless of hours slept — how does today actually feel?</p>
               </div>
               <div className="mcu-dual-scales">
+                <div className="mcu-scale-section">
+                  <label className="mcu-scale-lbl"><Moon size={12} /> Rested</label>
+                  <ScaleSelector value={data.restedScore} onChange={v => set("restedScore", v)} low="Exhausted" high="Fully rested" color="#818cf8" />
+                </div>
                 <div className="mcu-scale-section">
                   <label className="mcu-scale-lbl"><Zap size={12} /> Energy right now</label>
                   <ScaleSelector value={data.energyScore} onChange={v => set("energyScore", v)} low="Drained" high="Charged" color="#f59e0b" />
@@ -302,12 +379,35 @@ export default function MorningCheckup({
             </div>
           )}
 
-          {/* ── 4: Focus today (task bubbles, multi-select) ── */}
-          {step === 4 && (
+          {/* ── 2: The (adaptively-chosen) question + focus intentions ── */}
+          {step === 2 && (
             <div className="mcu-step">
               <div className="mcu-step-header">
                 <Sunrise size={32} className="mcu-sunrise-icon" />
-                <h2 className="mcu-title">What will you focus on?</h2>
+                <h2 className="mcu-title">One thing to reflect on</h2>
+              </div>
+
+              <p className="mcu-adaptive-question-text">{adaptiveQuestion?.prompt}</p>
+
+              {adaptiveQuestion?.kind === "choice" ? (
+                <div className="mcu-choice-grid">
+                  {(adaptiveQuestion.options ?? []).map((opt) => (
+                    <button key={opt} type="button"
+                      className={`mcu-choice-btn${data.adaptiveAnswer === opt ? " active" : ""}`}
+                      onClick={() => set("adaptiveAnswer", opt)}>
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <textarea className="mcu-pressure-input" rows={3}
+                  value={data.adaptiveAnswer}
+                  onChange={e => set("adaptiveAnswer", e.target.value)}
+                  placeholder="Take a moment — anything you write stays just for you." />
+              )}
+
+              <div className="mcu-step-header" style={{ marginTop: 22 }}>
+                <h2 className="mcu-title" style={{ fontSize: 15 }}>What will you focus on?</h2>
                 <p className="mcu-subtitle">Select all that apply — Nora will protect these windows.</p>
               </div>
               <div className="mcu-focus-bubbles">
@@ -334,35 +434,74 @@ export default function MorningCheckup({
             </div>
           )}
 
-          {/* ── Summary (NORA's Read) ── */}
-          {step >= TOTAL_STEPS && finalReadiness && finalSummary && (
+          {/* ── Summary (Nora's read) ── */}
+          {step >= TOTAL_STEPS && summaryData?.readiness && (
             <div className="mcu-step mcu-summary">
               <div className="mcu-readiness-display">
-                <div className="mcu-readiness-ring" style={{ "--rc": finalReadiness.color }}>
+                <div className="mcu-readiness-ring" style={{ "--rc": summaryData.readiness.color }}>
                   <svg viewBox="0 0 36 36" className="mcu-ring-svg">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.12" />
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke={finalReadiness.color} strokeWidth="2.5"
-                      strokeDasharray={`${finalReadiness.pct} ${100 - finalReadiness.pct}`}
+                    <circle cx="18" cy="18" r="15.9" fill="none" stroke={summaryData.readiness.color} strokeWidth="2.5"
+                      strokeDasharray={`${summaryData.readiness.pct} ${100 - summaryData.readiness.pct}`}
                       strokeDashoffset="25" strokeLinecap="round" />
                   </svg>
                   <div className="mcu-readiness-center">
-                    <span className="mcu-readiness-pct" style={{ color: finalReadiness.color }}>{finalReadiness.pct}%</span>
-                    <span className="mcu-readiness-lbl">{finalReadiness.label}</span>
+                    <span className="mcu-readiness-pct" style={{ color: summaryData.readiness.color }}>{summaryData.readiness.pct}%</span>
+                    <span className="mcu-readiness-lbl">{summaryData.readiness.label}</span>
                   </div>
                 </div>
                 <div className="mcu-readiness-text">
                   <div className="mcu-readiness-title">Today's Readiness</div>
-                  <div className="mcu-readiness-sub" style={{ color: finalReadiness.color }}>
-                    {finalReadiness.label === "High" ? "Peak condition" :
-                     finalReadiness.label === "Moderate" ? "Good to go" :
-                     finalReadiness.label === "Low" ? "Take it light" : "Recovery day"}
+                  <div className="mcu-readiness-sub" style={{ color: summaryData.readiness.color }}>
+                    {summaryData.readiness.label === "High" ? "Peak condition" :
+                     summaryData.readiness.label === "Moderate" ? "Good to go" :
+                     summaryData.readiness.label === "Low" ? "Take it light" : "Recovery day"}
                   </div>
                 </div>
               </div>
 
-              <p className="mcu-nora-summary">"{finalSummary.summary}"</p>
+              {summaryData.sleepAnalysis?.duration && (
+                <div className="mcu-duration-badge">
+                  {summaryData.sleepAnalysis.duration.value}h sleep
+                  {summaryData.sleepAnalysis.debt?.value > 0.3 && (
+                    <span className="mcu-duration-eval" style={{ color: "#f59e0b" }}>
+                      {summaryData.sleepAnalysis.debt.value}h debt
+                    </span>
+                  )}
+                </div>
+              )}
 
-              {data.focusChoices.length > 0 && (
+              {summaryData.subScores && (
+                <div className="mcu-subscores">
+                  {SUBSCORE_META.map(({ key, label, icon: Icon }) => {
+                    const s = summaryData.subScores[key];
+                    if (!s) return null;
+                    const color = subScoreColor(s.value);
+                    return (
+                      <div key={key} className="mcu-subscore-card">
+                        <div className="mcu-subscore-top">
+                          <Icon size={12} style={{ color }} />
+                          <span className="mcu-subscore-label">{label}</span>
+                        </div>
+                        <span className="mcu-subscore-value" style={{ color }}>{s.value}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <p className="mcu-nora-summary">"{summaryData.summary}"</p>
+
+              {summaryData.adaptiveQuestion?.prompt && (
+                <div className="mcu-adaptive-recap">
+                  <div className="mcu-adaptive-recap-q">{summaryData.adaptiveQuestion.prompt}</div>
+                  {summaryData.adaptiveQuestion.answer && (
+                    <div className="mcu-adaptive-recap-a">"{summaryData.adaptiveQuestion.answer}"</div>
+                  )}
+                </div>
+              )}
+
+              {data.focusChoices?.length > 0 && (
                 <div className="mcu-summary-focus">
                   <div className="mcu-summary-focus-label">Focus today</div>
                   <div className="mcu-summary-focus-chips">
@@ -374,20 +513,20 @@ export default function MorningCheckup({
               )}
 
               <div className="mcu-tips">
-                {tipsLoading && !aiTips ? (
+                {recsLoading && !aiRecommendations ? (
                   <>
                     {[0, 1, 2].map(i => (
                       <div key={i} className="mcu-tip mcu-tip-skeleton">
-                        <span className="mcu-tip-dot" style={{ background: finalReadiness.color }} />
+                        <span className="mcu-tip-dot" style={{ background: summaryData.readiness.color }} />
                         <span className="mcu-tip-shimmer" />
                       </div>
                     ))}
                   </>
                 ) : (
-                  displayTips.map((tip, i) => (
-                    <div key={i} className={`mcu-tip${aiTips ? " mcu-tip-ai" : ""}`}>
-                      <span className="mcu-tip-dot" style={{ background: finalReadiness.color }} />
-                      {tip}
+                  displayRecommendations.map((rec, i) => (
+                    <div key={rec.id ?? i} className={`mcu-tip${aiRecommendations ? " mcu-tip-ai" : ""}`}>
+                      <span className="mcu-tip-dot" style={{ background: summaryData.readiness.color }} />
+                      {rec.text}
                     </div>
                   ))
                 )}
@@ -407,7 +546,7 @@ export default function MorningCheckup({
           ) : (
             <div className="mcu-footer-btns">
               {!viewOnly && (
-                <button className="mcu-secondary-btn" onClick={() => { setStep(0); setData({ sleepQuality: null, bedtime: "", wakeTime: "", restedScore: null, energyScore: null, clarityScore: null, dayPressure: "", focusChoices: [] }); }}>
+                <button className="mcu-secondary-btn" onClick={() => { setStep(0); setShowSleepTimes(false); setData({ ...EMPTY_CHECKUP_DATA }); }}>
                   Edit check-up
                 </button>
               )}

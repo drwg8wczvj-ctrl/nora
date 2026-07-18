@@ -96,6 +96,17 @@ CREATE POLICY "user_profile_update"
   USING (auth.uid() = user_id);
 
 
+-- 4. Morning Check-Up — Phase 2 (adaptive, sleep-science redesign) columns.
+-- The `morning_checkups` table itself has no migration anywhere in this file
+-- (it predates migration tracking here) — this only adds new, nullable JSONB
+-- columns to whatever that table already looks like in your project, so it's
+-- additive and safe to re-run. Existing rows are untouched; old rows simply
+-- have NULLs here and the app already renders that gracefully.
+ALTER TABLE morning_checkups ADD COLUMN IF NOT EXISTS sleep_analysis       jsonb;
+ALTER TABLE morning_checkups ADD COLUMN IF NOT EXISTS readiness_subscores  jsonb;
+ALTER TABLE morning_checkups ADD COLUMN IF NOT EXISTS adaptive_question    jsonb;
+
+
 -- ─────────────────────────────────────────────────────────────
 -- OPTIONAL: server-side 24h cleanup via pg_cron
 -- (requires pg_cron extension — Supabase Settings → Extensions)

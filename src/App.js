@@ -755,6 +755,11 @@ export default function App() {
       readinessLabel: raw.readinessLabel ?? raw.readiness_label  ?? null,
       noraSummary:    raw.noraSummary    ?? raw.nora_summary     ?? null,
       noraTips:       Array.isArray(raw.noraTips) ? raw.noraTips : (raw.nora_tips ?? []),
+      // New (Phase 2) fields — absent on legacy checkups, rendered defensively.
+      subScores:                raw.subScores                ?? raw.readiness_subscores ?? null,
+      sleepAnalysis:            raw.sleepAnalysis             ?? raw.sleep_analysis      ?? null,
+      candidateRecommendations: raw.candidateRecommendations  ?? [],
+      adaptiveQuestion:         raw.adaptiveQuestion           ?? raw.adaptive_question   ?? null,
     };
   };
 
@@ -1170,7 +1175,7 @@ export default function App() {
     sleepState, userConfidence, assessmentSummary, keySignals, noraState,
     behaviorProfile, predictiveSignals, adaptivePlanData, weekData, weekTrend,
     metrics, interpretations, patterns, emotionalDrift, flowPrediction,
-    aiCoach, actionCenter, implementationIntention,
+    aiCoach, actionCenter, implementationIntention, taskWeights, recoveryTrendDeclining3d,
   } = statusEngine;
   const contextMode = noraState; // UI alias — keeps all existing JSX working
 
@@ -1833,6 +1838,24 @@ export default function App() {
     // Save coaching insights
     if (checkup.bedtime)  setUserPrefs(p => ({ ...p, typical_bedtime: checkup.bedtime }));
     if (checkup.wakeTime) setUserPrefs(p => ({ ...p, typical_wake_time: checkup.wakeTime }));
+    // Snapshot into dailyMetrics[today] so tomorrow's sleep-science estimates
+    // (consistency/regularity/circadian/debt) have real day-over-day history to read.
+    setDailyMetrics(prev => {
+      const next = {
+        ...prev,
+        [checkup.date]: {
+          ...(prev[checkup.date] ?? {}),
+          bedtime: checkup.bedtime || null,
+          wakeTime: checkup.wakeTime || null,
+          sleepDurationHours: checkup.sleepDuration ?? null,
+          sleepDebtHours: checkup.sleepAnalysis?.debt?.value ?? null,
+          restedScore: checkup.restedScore ?? null,
+          readinessSubScores: checkup.subScores ?? null,
+        },
+      };
+      localStorage.setItem("nora_daily_metrics", JSON.stringify(next));
+      return next;
+    });
     // Persist to Supabase (fails gracefully if table doesn't exist)
     saveMorningCheckup({
       date: checkup.date, sleep_quality: checkup.sleepQuality,
@@ -1842,6 +1865,9 @@ export default function App() {
       day_pressure: checkup.dayPressure || null,
       readiness_score: checkup.readinessScore, readiness_label: checkup.readinessLabel,
       nora_summary: checkup.noraSummary, nora_tips: checkup.noraTips,
+      sleep_analysis: checkup.sleepAnalysis ?? null,
+      readiness_subscores: checkup.subScores ?? null,
+      adaptive_question: checkup.adaptiveQuestion ?? null,
     }).catch(console.warn);
     // Also cache locally
     localStorage.setItem(`nora_checkup_${checkup.date}`, JSON.stringify(checkup));
@@ -3081,7 +3107,7 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
       toggleNote, updateNote, deleteNote, patchNote, createStickyNote, createNote, getGroup,
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
       metrics, interpretations, patterns, emotionalDrift, flowPrediction,
-      aiCoach, actionCenter, implementationIntention,
+      aiCoach, actionCenter, implementationIntention, taskWeights, recoveryTrendDeclining3d,
       microStartMode, setMicroStartMode,
       boards,
       rescheduleTask, setRescheduleTask, saveReschedule,
@@ -4607,6 +4633,11 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
           onClose={() => { setShowMorningCheckup(false); setReviewCheckupMode(false); }}
           viewOnly={reviewCheckupMode && !!morningCheckup}
           existingData={reviewCheckupMode ? morningCheckup : null}
+          engineContext={{
+            dailyMetrics, deferredTasks, recoveryState, userPrefs,
+            metrics, workloadForecast, taskWeights, tasks,
+            recoveryTrendDeclining3d, emotionalDrift,
+          }}
         />
       )}
 

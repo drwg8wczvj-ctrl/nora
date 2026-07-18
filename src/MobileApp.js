@@ -510,6 +510,13 @@ export default function MobileApp({ ctx }) {
           onClose={() => { ctx.setShowMorningCheckup(false); ctx.setReviewCheckupMode && ctx.setReviewCheckupMode(false); }}
           viewOnly={ctx.reviewCheckupMode && !!ctx.morningCheckup}
           existingData={ctx.reviewCheckupMode ? ctx.morningCheckup : null}
+          engineContext={{
+            dailyMetrics: ctx.dailyMetrics, deferredTasks: ctx.deferredTasks,
+            recoveryState: ctx.recoveryState, userPrefs: ctx.userPrefs,
+            metrics: ctx.metrics, workloadForecast: ctx.workloadForecast,
+            taskWeights: ctx.taskWeights, tasks: ctx.tasks,
+            recoveryTrendDeclining3d: ctx.recoveryTrendDeclining3d, emotionalDrift: ctx.emotionalDrift,
+          }}
         />
       )}
       {rescheduleTask && (

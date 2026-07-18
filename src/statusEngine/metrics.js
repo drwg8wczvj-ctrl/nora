@@ -109,6 +109,21 @@ export function computeDeepWorkCapacity({ energy, workloadForecast, recoveryStat
   return { value, confident, bucket };
 }
 
+// ── Recovery trend (3-day decline) ───────────────────────────────────────────
+// Reads recoveryScore straight from the daily-metrics history App.js already
+// persists — a monotonic 3-day decline OR a ≥15-point cumulative drop over
+// the last 4 recorded days. Extracted from useStatusEngine.js so the adaptive
+// Morning Check-up can reuse the exact same detector, not a re-derived copy.
+export function computeRecoveryTrendDeclining3d(dailyMetrics) {
+  const dates = Object.keys(dailyMetrics ?? {}).sort().slice(-4); // last 4 days incl. today
+  const scores = dates.map((d) => dailyMetrics[d]?.recoveryScore).filter((s) => s != null);
+  if (scores.length < 3) return false;
+  const last3 = scores.slice(-3);
+  const monotonicDecline = last3[0] > last3[1] && last3[1] > last3[2];
+  const cumulativeDrop = scores[0] - scores[scores.length - 1] >= 15;
+  return monotonicDecline || cumulativeDrop;
+}
+
 // ── Attention Stability ───────────────────────────────────────────────────────
 // Purely session-log-derived (no energy/load blending) — needs a minimum of
 // real focus-session history before it's trustworthy, otherwise it's gated.
