@@ -201,18 +201,24 @@ button.status-card {
 /* ══════════════════════════════════════════════════════════════════
    AI Coach Card
    ══════════════════════════════════════════════════════════════════ */
+/* !important on border-top-color only: the Liquid Glass desktop theme has
+   a much higher-specificity rule (.glass.app:not(.mob-app) .status-card,
+   in glass.css) that resets border-color on every status card for the
+   glass look — otherwise silently winning and leaving this card's one
+   always-on accent edge a neutral glass grey instead of Nora's/Atlas's
+   color, in both themes. */
 .status-coach-card {
-  border-top: 3px solid var(--accent);
+  border-top: 3px solid var(--accent) !important;
 }
 .status-coach-card[data-tone="urgent"],
 .status-coach-card[data-tone="warning"] {
-  border-top-color: var(--danger);
+  border-top-color: var(--danger) !important;
 }
 .status-coach-card[data-tone="positive"] {
-  border-top-color: var(--success);
+  border-top-color: var(--success) !important;
 }
 .status-coach-card[data-persona="atlas"] {
-  border-top-color: var(--atlas-accent);
+  border-top-color: var(--atlas-accent) !important;
 }
 .status-coach-card[data-persona="atlas"] .status-ghost-btn:hover {
   border-color: var(--atlas-accent);
