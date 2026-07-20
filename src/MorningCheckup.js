@@ -7,6 +7,7 @@ import { selectAdaptiveQuestion, buildAdaptiveCheckupInputs } from "./statusEngi
 import { selectCandidateRecommendations } from "./statusEngine/morningRecommendations";
 import { mineAllPatterns } from "./statusEngine/patterns";
 import { containsBannedLanguage } from "./statusEngine/interpretations";
+import { buildSleepCheckupInsights } from "./lib/healthKit";
 
 // Re-exported so App.js/MobileApp.js's `import { computeReadiness } from "./MorningCheckup"`
 // keeps working unchanged — the real implementation now lives in statusEngine/readiness.js
@@ -88,6 +89,7 @@ export default function MorningCheckup({
   onComplete, onClose,
   viewOnly = false, existingData = null,
   engineContext = {},
+  healthSleep = null, // { sessions, stats } from useHealthKit()'s context.sleep, or null if unavailable
 }) {
   const TOTAL_STEPS = 3;
 
@@ -95,6 +97,21 @@ export default function MorningCheckup({
   const [step, setStep] = useState(viewOnly ? TOTAL_STEPS : 0);
   const [data, setData] = useState(viewOnly && existingData ? existingData : { ...EMPTY_CHECKUP_DATA });
   const [showSleepTimes, setShowSleepTimes] = useState(false);
+  const [sleepPrefilled, setSleepPrefilled] = useState(false);
+
+  // Auto-prefill bedtime/wake time from last night's real HealthKit sleep
+  // session, once, the first time this checkup opens with nothing entered
+  // yet — the user only has to correct it, never re-enter it from scratch.
+  useEffect(() => {
+    if (viewOnly || data.bedtime || data.wakeTime) return;
+    const last = healthSleep?.stats?.hasData ? healthSleep.stats.last : null;
+    if (!last?.bedtime || !last?.wakeTime) return;
+    const toTimeInput = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    setData((d) => ({ ...d, bedtime: toTimeInput(last.bedtime), wakeTime: toTimeInput(last.wakeTime) }));
+    setShowSleepTimes(true);
+    setSleepPrefilled(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const focusBubbles = useMemo(() => buildFocusBubbles(todayTasks), [todayTasks]);
 
@@ -324,6 +341,9 @@ export default function MorningCheckup({
                 </button>
               ) : (
                 <>
+                  {sleepPrefilled && (
+                    <div className="mcu-health-prefill-badge">Filled in from Apple Health — edit if this looks off</div>
+                  )}
                   <div className="mcu-time-row">
                     <div className="mcu-time-field">
                       <label className="mcu-time-label">Bedtime</label>
@@ -345,6 +365,13 @@ export default function MorningCheckup({
                       </div>
                     ) : null;
                   })()}
+                  {healthSleep?.stats?.hasData && (
+                    <ul className="mcu-health-insights">
+                      {buildSleepCheckupInsights(healthSleep.sessions, healthSleep.stats).slice(1).map((line, i) => (
+                        <li key={i}>{line}</li>
+                      ))}
+                    </ul>
+                  )}
                 </>
               )}
             </div>

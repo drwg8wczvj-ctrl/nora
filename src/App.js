@@ -22,6 +22,9 @@ import PWABanners from "./PWABanners";
 import { useMobile } from "./hooks/useMobile";
 import { useNotifications } from "./hooks/useNotifications";
 import { useAssistantMode } from "./hooks/useAssistantMode";
+import { useHealthKit } from "./hooks/useHealthKit";
+import HealthSettings from "./components/HealthSettings";
+import { buildHealthPromptContext } from "./lib/healthPromptContext";
 import { apiUrl } from "./lib/apiBase";
 import { buildWellbeingStateBlock } from "./lib/wellbeingPromptBlock";
 import { DesktopAtlasChat } from "./aiHub/AtlasChat";
@@ -990,6 +993,9 @@ export default function App() {
     subscribeToPush,
     forceResubscribe:  forceResubscribePush,
   } = useNotifications();
+
+  // ── Apple Health (HealthKit) ────────────────────────────
+  const health = useHealthKit();
 
   // ── Intelligence Layer ─────────────────────────────────────────────────────
   const intel = useIntelligence({
@@ -2025,6 +2031,7 @@ export default function App() {
   };
 
   const buildPlannerSystem = () => {
+    const healthPromptBlock = buildHealthPromptContext(health);
     const taskLines = tasks.length
       ? tasks.map((t) => {
           const g = getGroup(t.groupId);
@@ -2600,7 +2607,9 @@ High Load → 1 essential task/day focus. Recovery Needed → max 2 tasks, prote
 Burnout Risk → never add tasks, only reorganize and remove.
 
 Never frame deferred tasks as failures. Never use "you only completed X%". No guilt, no urgency when state is elevated. Focus forward only.
-
+${healthPromptBlock ? `
+${healthPromptBlock}
+` : ""}
 ━━━ ADAPTIVE SCHEDULING (silent — never explain to user) ━━━━
 ${adaptivePlanData ? `
 Profile (${adaptivePlanData.sampleSize} completions): best hours ${adaptivePlanData.topHours.slice(0, 2).map((h) => fmtTime(h, 0)).join(", ")} · avg session ~${adaptivePlanData.avgDur ?? 60} min · best day ${adaptivePlanData.bestDayName ?? "?"} · hard task rate ${adaptivePlanData.hardRate != null ? `${adaptivePlanData.hardRate}%` : "?"}${adaptivePlanData.hardRate != null && adaptivePlanData.hardRate < 50 ? " (break into sub-steps)" : ""} · long sessions ${adaptivePlanData.longTasksFail ? "cap at 60–75 min" : "fine"}
@@ -2693,6 +2702,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
   // responsibly, plus identity/tone/boundaries and the shared wellbeing
   // snapshot.
   const buildAtlasSystem = () => {
+    const healthPromptBlock = buildHealthPromptContext(health);
     const todayDayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(today + "T00:00:00").getDay()];
     const todayItems = tasks.filter((t) => t.date === today && !t.completed);
     const todayHasBreak = todayItems.some((t) => t.type === "break");
@@ -2746,6 +2756,10 @@ Next 7 days, occupied time blocks (includes recurring items — never schedule o
 ${occupiedBlocks}
 
 Use this to stay grounded and to avoid double-booking — you are not here to manage the schedule the way Planner does, but what you build together has to actually fit.
+${healthPromptBlock ? `
+${healthPromptBlock}
+When the user describes how they're feeling (e.g. "I'm exhausted"), check this health context first — if it already explains why (poor sleep, low HRV, a high-output day), say so plainly instead of asking what's wrong.
+` : ""}
 ${priorInsights.length > 0 ? `
 ━━━ THINGS YOU'VE LEARNED ABOUT THIS PERSON ━━━━━━━━━
 
@@ -3161,6 +3175,8 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
       notifBannerVisible, dismissNotifBanner,
       notifHealth, sendTestNotification,
       testServerPush, forceResubscribe: forceResubscribePush,
+      // Apple Health
+      health,
       // Collaboration
       sharingTask, setSharingTask, sharedObjects, setSharedObjects,
       showJoinCode, setShowJoinCode, handleJoinCode,
@@ -3313,6 +3329,10 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
                 testServerPush={testServerPush}
                 forceResubscribe={forceResubscribePush}
               />
+              <div className="sett-row">
+                <span className="sett-label">Apple Health</span>
+              </div>
+              <HealthSettings health={health} />
             </div>
           )}
         </div>
@@ -4095,7 +4115,7 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
                 setShowMorningCheckup, setReviewCheckupMode, setShowLongTermInsights,
                 setEnergy, setRelaxation, setFocus, setMotivation, setSleepQuality,
               }
-            )} />
+            )} health={health} />
           )}
 
 
@@ -4591,6 +4611,7 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
             metrics, workloadForecast, taskWeights, tasks,
             recoveryTrendDeclining3d, emotionalDrift,
           }}
+          healthSleep={health.context?.sleep ?? null}
         />
       )}
 

@@ -6,6 +6,7 @@ import PatternsSection from "./PatternsSection";
 import ActionCenter from "./ActionCenter";
 import SleepScienceCard from "./SleepScienceCard";
 import WorkMindToggle from "./WorkMindToggle";
+import HealthSection from "./HealthSection";
 
 // Root orchestrator for the Status page. Pure props in, JSX out — this
 // component has zero knowledge of mobile vs. desktop. The only platform
@@ -19,7 +20,7 @@ import WorkMindToggle from "./WorkMindToggle";
 // segmented control. Both `work` and `mind` are always fully computed by the
 // caller (see status/buildStatusProps.js); switching tabs is a pure
 // conditional render, never a lazy/async fetch.
-export default function StatusPage({ work, mind, loading = false }) {
+export default function StatusPage({ work, mind, loading = false, health = null }) {
   const [tab, setTab] = useState("work");
   const active = tab === "mind" ? mind : work;
 
@@ -77,6 +78,8 @@ export default function StatusPage({ work, mind, loading = false }) {
       <PatternsSection patterns={safePatterns} />
 
       <ActionCenter actions={safeActions} />
+
+      {tab === "mind" && <HealthSection health={health} />}
     </div>
   );
 }

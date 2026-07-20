@@ -6,5 +6,9 @@
 	<array>
 		<string>group.tech.dongar.nora</string>
 	</array>
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+	<key>com.apple.developer.healthkit.access</key>
+	<array/>
 </dict>
 </plist>

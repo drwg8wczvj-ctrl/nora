@@ -5,7 +5,7 @@ import {
   Flag, Coffee, Bell, Activity,
   SkipForward, Sparkles, Sparkle, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
-  Share2, Users, Search, KeyRound, PanelLeft,
+  Share2, Users, Search, KeyRound, PanelLeft, HeartPulse,
 } from "lucide-react";
 import { MessagePartsList } from "./conversation/MessagePart";
 import { textPart } from "./conversation/messageParts";
@@ -18,6 +18,7 @@ import LongTermInsights from "./LongTermInsights";
 import FocusSession from "./FocusSession";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
+import HealthSettings from "./components/HealthSettings";
 import ShareModal from "./components/ShareModal";
 import JoinCodeModal from "./components/JoinCodeModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
@@ -284,7 +285,7 @@ export default function MobileApp({ ctx }) {
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
         {mobileView === "boards"   && <MobileWhiteboardView boards={ctx.boards} onAskNora={p => { ctx.setChatInput(p); ctx.setChatOpen(true); }} onClose={() => setMobileView("plan")} />}
-        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} /></div>}
+        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} /></div>}
         {mobileView === "settings" && <MobileSettings ctx={ctx} />}
       </main>
 
@@ -397,6 +398,7 @@ export default function MobileApp({ ctx }) {
             taskWeights: ctx.taskWeights, tasks: ctx.tasks,
             recoveryTrendDeclining3d: ctx.recoveryTrendDeclining3d, emotionalDrift: ctx.emotionalDrift,
           }}
+          healthSleep={ctx.health?.context?.sleep ?? null}
         />
       )}
       {rescheduleTask && (
@@ -2058,6 +2060,12 @@ function MobileSettings({ ctx }) {
           testServerPush={ctx.testServerPush}
           forceResubscribe={ctx.forceResubscribe}
         />
+      </div>
+
+      {/* Apple Health */}
+      <div className="mob-sett-card">
+        <div className="mob-sett-card-title"><HeartPulse size={15} /> Apple Health</div>
+        <HealthSettings health={ctx.health} />
       </div>
 
       {/* Places & Transport */}

@@ -1,0 +1,95 @@
+/* ── Health Settings Panel ──────────────────────────────── */
+/* All colors use the app's CSS-variable theme system.       */
+
+.hs-root { display: flex; flex-direction: column; gap: 0; font-size: 13px; }
+
+.hs-perm-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-radius: 10px; margin-bottom: 10px;
+  font-size: 12px; font-weight: 500;
+}
+.hs-perm-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.hs-perm-text { flex: 1; }
+
+.hs-perm-granted { background: rgba(var(--success-rgb, 34,197,94), .12); color: var(--success); }
+.hs-perm-granted .hs-perm-dot { background: var(--success); }
+.hs-perm-denied { background: rgba(var(--danger-rgb, 220,38,38), .1); color: var(--danger); }
+.hs-perm-denied .hs-perm-dot { background: var(--danger); }
+.hs-perm-default { background: var(--accent-light); color: var(--accent); }
+.hs-perm-default .hs-perm-dot { background: var(--accent); }
+
+.hs-intro {
+  font-size: 12px; color: var(--text-muted); line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.hs-cats { display: flex; flex-direction: column; }
+.hs-cat-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 2px; border-bottom: 1px solid var(--border);
+}
+.hs-cat-row:last-child { border-bottom: none; }
+.hs-cat-icon { flex-shrink: 0; color: var(--text-muted); display: flex; align-items: center; }
+.hs-cat-text { flex: 1; min-width: 0; }
+.hs-cat-label { display: block; font-weight: 500; color: var(--text); font-size: 13px; }
+.hs-cat-desc { display: block; font-size: 11px; color: var(--text-muted); margin-top: 1px; line-height: 1.4; }
+
+.hs-toggle {
+  flex-shrink: 0; width: 38px; height: 22px; border-radius: 11px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  cursor: pointer; position: relative;
+  transition: background var(--tr), border-color var(--tr); padding: 0;
+}
+.hs-toggle.on { background: var(--accent); border-color: var(--accent); }
+.hs-toggle.disabled { opacity: .4; cursor: not-allowed; }
+.hs-knob {
+  position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--surface-solid);
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+.hs-toggle.on .hs-knob { transform: translateX(16px); }
+
+.hs-refresh-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+}
+.hs-refresh-btn {
+  padding: 7px 14px; background: var(--accent-light); color: var(--accent);
+  border: 1px solid var(--border-glow); border-radius: 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  transition: background var(--tr);
+}
+.hs-refresh-btn:hover:not(:disabled) { background: rgba(var(--accent-rgb, 124,58,237), .22); }
+.hs-refresh-btn:disabled { opacity: .7; cursor: default; }
+.hs-spin { animation: hsSpin 1s linear infinite; }
+@keyframes hsSpin { to { transform: rotate(360deg); } }
+.hs-refresh-meta { font-size: 11px; color: var(--text-muted); }
+
+.hs-privacy {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin-top: 12px; padding: 10px; background: var(--surface-2);
+  border-radius: 10px;
+}
+.hs-privacy-icon { color: var(--success); flex-shrink: 0; margin-top: 1px; }
+.hs-privacy p { margin: 0; font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+
+.hs-disconnect-row {
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.hs-disconnect-btn {
+  width: 100%; padding: 8px 14px; background: transparent; color: var(--danger);
+  border: 1px solid rgba(239,68,68,.3); border-radius: 8px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: background var(--tr);
+}
+.hs-disconnect-btn:hover { background: rgba(239,68,68,.08); }
+.hs-disconnect-confirm-text { font-size: 12px; color: var(--text); flex: 1; }
+.hs-disconnect-confirm-btn, .hs-disconnect-cancel-btn {
+  padding: 6px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.hs-disconnect-confirm-btn { background: var(--danger); color: #fff; border: none; }
+.hs-disconnect-cancel-btn { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
