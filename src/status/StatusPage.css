@@ -37,10 +37,25 @@
    QuickCheckIn all already do, whether via a stylesheet rule or an inline
    style) to Atlas's amber, with zero changes to those shared components.
    Applied to this existing root rather than a new wrapper div, since the
-   entrance-stagger rule below depends on the exact set of direct children. */
+   entrance-stagger rule below depends on the exact set of direct children.
+   Also overrides --grad (used by the segmented-control active pill and
+   Action Center's primary chips) and, in Liquid Glass theme, the
+   iridescent card-edge tint — so the whole tab reads as Atlas's palette,
+   not just individual accent-colored text/icons. Safe to override here:
+   these are plain CSS custom properties, so the change only cascades to
+   this element's descendants (the Mind tab's own content), never leaking
+   into the Work tab or the rest of the app. */
 .status-mind-view {
   --accent: var(--atlas-accent);
   --accent-light: var(--atlas-accent-light);
+  --grad: linear-gradient(135deg, var(--atlas-accent), #f2b98a);
+  --specular-iris: var(--atlas-accent-light);
+}
+/* The active-pill glow's color is a static rgba literal (not a var()), same
+   as the original purple version — override it directly since --grad alone
+   only changes the pill's background, not its shadow. */
+.status-mind-view .status-worktab-pill {
+  box-shadow: 0 2px 8px rgba(224,138,79,0.35);
 }
 
 /* ── Entrance stagger (reuses the existing noraEnter keyframe) ──────
@@ -505,7 +520,7 @@ button.status-card {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.status-level-btn:hover { border-color: rgba(124,58,237,.3); }
+.status-level-btn:hover { border-color: var(--accent); }
 
 .status-checkin-sleep-levels { display: flex; gap: 8px; }
 .status-sleep-btn {

@@ -221,6 +221,120 @@ export async function deleteOldAtlasChatMessages() {
     .lt("created_at", cutoff);
 }
 
+// ── Conversations — shared multi-conversation AI workspace engine ─────
+// One data model for every AI persona (Planner, Atlas, and future tools),
+// keyed by `toolKey`. Replaces the flat chat_messages/atlas_chat_messages
+// rolling-window tables above (still defined, no longer written to) — see
+// supabase_migrations.sql section 5 for the conversations/
+// conversation_messages schema and its `parts` jsonb rich-message model.
+
+export async function listConversations(toolKey, { includeArchived = false } = {}) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  let query = supabase
+    .from("conversations")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("tool_key", toolKey)
+    .order("pinned", { ascending: false })
+    .order("last_message_at", { ascending: false });
+  if (!includeArchived) query = query.eq("archived", false);
+  const { data, error } = await query;
+  if (error) { console.warn("listConversations:", error.message); return []; }
+  return data ?? [];
+}
+
+export async function createConversation(toolKey, title = "New Chat") {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from("conversations")
+    .insert({ user_id: user.id, tool_key: toolKey, title })
+    .select()
+    .single();
+  if (error) { console.warn("createConversation:", error.message); return null; }
+  return data;
+}
+
+export async function renameConversation(id, title) {
+  const { error } = await supabase
+    .from("conversations")
+    .update({ title, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) console.warn("renameConversation:", error.message);
+}
+
+export async function setConversationPinned(id, pinned) {
+  const { error } = await supabase
+    .from("conversations")
+    .update({ pinned, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) console.warn("setConversationPinned:", error.message);
+}
+
+export async function setConversationArchived(id, archived) {
+  const { error } = await supabase
+    .from("conversations")
+    .update({ archived, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) console.warn("setConversationArchived:", error.message);
+}
+
+export async function deleteConversation(id) {
+  const { error } = await supabase.from("conversations").delete().eq("id", id);
+  if (error) console.warn("deleteConversation:", error.message);
+}
+
+// Bumps last_message_at (drives conversation-list sort order) and optionally
+// patches other fields (e.g. an auto-generated title) in the same call.
+export async function touchConversation(id, patch = {}) {
+  const { error } = await supabase
+    .from("conversations")
+    .update({ last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...patch })
+    .eq("id", id);
+  if (error) console.warn("touchConversation:", error.message);
+}
+
+export async function loadConversationMessages(conversationId) {
+  const { data, error } = await supabase
+    .from("conversation_messages")
+    .select("id, role, parts, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+  if (error) { console.warn("loadConversationMessages:", error.message); return []; }
+  return data ?? [];
+}
+
+// `parts` is the rich-message array — see src/conversation/messageParts.js
+// for the type union. `role` stays "user"/"assistant" only; tool-call
+// bookkeeping lives inside assistant parts, never as its own row/role.
+export async function appendConversationMessage(conversationId, role, parts) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from("conversation_messages")
+    .insert({ conversation_id: conversationId, user_id: user.id, role, parts })
+    .select()
+    .single();
+  if (error) { console.warn("appendConversationMessage:", error.message); return null; }
+  return data;
+}
+
+// ── Generated files (generate_file tool) ───────────────────────
+// Files live in the "generated-files" Storage bucket, one folder per user
+// (RLS-enforced — see supabase_migrations.sql section 6), so the tool can
+// hand back a stable public URL without a signed-URL refresh cycle.
+
+export async function uploadGeneratedFile(filename, blob, contentType) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const path = `${user.id}/${Date.now()}-${filename}`;
+  const { error } = await supabase.storage.from("generated-files").upload(path, blob, { contentType, upsert: false });
+  if (error) { console.warn("uploadGeneratedFile:", error.message); return null; }
+  const { data } = supabase.storage.from("generated-files").getPublicUrl(path);
+  return data?.publicUrl ?? null;
+}
+
 // ── Morning Check-Up ──────────────────────────────────────────
 
 export async function saveMorningCheckup(checkup) {

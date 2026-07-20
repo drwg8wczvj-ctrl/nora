@@ -13,10 +13,13 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^13.5.0",
+    "exceljs": "^4.4.0",
     "i18next": "^26.3.4",
     "i18next-browser-languagedetector": "^8.2.1",
     "lucide-react": "^1.14.0",
     "openai": "^6.35.0",
+    "pdf-lib": "^1.17.1",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-i18next": "^17.0.8",
@@ -27,9 +30,9 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
     "eject": "react-scripts eject",
     "qa": "playwright test --config=qa/playwright.config.js",
     "qa:desktop": "playwright test --config=qa/playwright.config.js --project=desktop",
@@ -56,6 +59,7 @@
     ]
   },
   "devDependencies": {
+    "@craco/craco": "^7.1.0",
     "@playwright/test": "^1.61.0",
     "dotenv": "^17.4.2",
     "typescript": "^6.0.3"

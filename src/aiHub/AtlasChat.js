@@ -1,5 +1,8 @@
 import React, { useRef, useEffect, useState } from "react";
-import { HeartHandshake, X, Send, Wind } from "lucide-react";
+import { HeartHandshake, X, Send, Wind, PanelLeft } from "lucide-react";
+import { MessagePartsList } from "../conversation/MessagePart";
+import { textPart } from "../conversation/messageParts";
+import ConversationSidebar, { ConversationSheet } from "../conversation/ConversationList";
 
 // Atlas's own chat surface — deliberately a separate component from Planner's
 // chat-panel/mob-chat, not a parametrized shared one, so Phase 4's visual
@@ -56,15 +59,18 @@ function AtlasBreathing({ onClose }) {
   );
 }
 
-function AtlasBody({ messages, chatLoading, onStarterPick, onBreathe }) {
+function AtlasBody({ messages, chatLoading, greeting, onStarterPick, onBreathe }) {
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
-  const isEmpty = messages.length <= 1;
+  const isEmpty = messages.length === 0;
 
   return (
     <div className="atlas-chat-messages">
+      {isEmpty && !chatLoading && (
+        <div className="atlas-chat-msg assistant"><div className="atlas-chat-bubble"><MessagePartsList parts={[textPart(greeting)]} /></div></div>
+      )}
       {messages.map((m, i) => (
-        <div key={i} className={`atlas-chat-msg ${m.role}`}><div className="atlas-chat-bubble">{m.content}</div></div>
+        <div key={m.id ?? i} className={`atlas-chat-msg ${m.role}`}><div className="atlas-chat-bubble"><MessagePartsList parts={m.parts} /></div></div>
       ))}
       {chatLoading && (
         <div className="atlas-chat-msg assistant">
@@ -102,13 +108,35 @@ function useAtlasSurface({ open, introSeen, onIntroSeen }) {
   return { showIntro, finishIntro, breathingOpen, setBreathingOpen };
 }
 
-export function DesktopAtlasChat({ open, onClose, messages, chatInput, setChatInput, chatLoading, onSend, introSeen, onIntroSeen }) {
+export function DesktopAtlasChat({
+  open, onClose, messages, chatInput, setChatInput, chatLoading, onSend, introSeen, onIntroSeen,
+  greeting = "Hi, I'm Atlas.",
+  conversations = [], activeConversationId = null, conversationsLoading = false,
+  onSelectConversation, onNewConversation, onRenameConversation, onPinConversation, onArchiveConversation, onDeleteConversation,
+}) {
   const { showIntro, finishIntro, breathingOpen, setBreathingOpen } = useAtlasSurface({ open, introSeen, onIntroSeen });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className={`atlas-chat-panel${open ? " open" : ""}`}>
+      <ConversationSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        conversations={conversations}
+        activeId={activeConversationId}
+        loading={conversationsLoading}
+        onSelect={(id) => { onSelectConversation?.(id); setSidebarOpen(false); }}
+        onNew={() => { onNewConversation?.(); setSidebarOpen(false); }}
+        onRename={onRenameConversation}
+        onPin={onPinConversation}
+        onArchive={onArchiveConversation}
+        onDelete={onDeleteConversation}
+      />
       <div className="atlas-chat-header">
         <div className="atlas-chat-header-info">
+          {!showIntro && (
+            <button className="atlas-chat-close" onClick={() => setSidebarOpen((v) => !v)} title="Conversations"><PanelLeft size={16} /></button>
+          )}
           <div className="atlas-chat-avatar"><HeartHandshake size={20} /></div>
           <div>
             <div className="atlas-chat-title">Atlas</div>
@@ -129,7 +157,7 @@ export function DesktopAtlasChat({ open, onClose, messages, chatInput, setChatIn
         <AtlasIntro onDone={finishIntro} />
       ) : (
         <>
-          <AtlasBody messages={messages} chatLoading={chatLoading}
+          <AtlasBody messages={messages} chatLoading={chatLoading} greeting={greeting}
             onStarterPick={(p) => setChatInput(p)}
             onBreathe={() => setBreathingOpen(true)} />
           <div className="atlas-chat-input-row">
@@ -153,13 +181,22 @@ export function DesktopAtlasChat({ open, onClose, messages, chatInput, setChatIn
   );
 }
 
-export function MobileAtlasChat({ open, onClose, messages, chatInput, setChatInput, chatLoading, onSend, introSeen, onIntroSeen }) {
+export function MobileAtlasChat({
+  open, onClose, messages, chatInput, setChatInput, chatLoading, onSend, introSeen, onIntroSeen,
+  greeting = "Hi, I'm Atlas.",
+  conversations = [], activeConversationId = null, conversationsLoading = false,
+  onSelectConversation, onNewConversation, onRenameConversation, onPinConversation, onArchiveConversation, onDeleteConversation,
+}) {
   const { showIntro, finishIntro, breathingOpen, setBreathingOpen } = useAtlasSurface({ open, introSeen, onIntroSeen });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className={`mob-atlas-chat${open ? " mob-atlas-chat-open" : ""}`}>
       <div className="atlas-chat-header">
         <div className="atlas-chat-header-info">
+          {!showIntro && (
+            <button className="atlas-chat-close" onClick={() => setSidebarOpen(true)} title="Conversations"><PanelLeft size={18} /></button>
+          )}
           <div className="atlas-chat-avatar"><HeartHandshake size={20} /></div>
           <div>
             <div className="atlas-chat-title">Atlas</div>
@@ -180,7 +217,7 @@ export function MobileAtlasChat({ open, onClose, messages, chatInput, setChatInp
         <AtlasIntro onDone={finishIntro} />
       ) : (
         <>
-          <AtlasBody messages={messages} chatLoading={chatLoading}
+          <AtlasBody messages={messages} chatLoading={chatLoading} greeting={greeting}
             onStarterPick={(p) => setChatInput(p)}
             onBreathe={() => setBreathingOpen(true)} />
           <div className="atlas-chat-input-row">
@@ -200,6 +237,19 @@ export function MobileAtlasChat({ open, onClose, messages, chatInput, setChatInp
       )}
 
       {breathingOpen && <AtlasBreathing onClose={() => setBreathingOpen(false)} />}
+      <ConversationSheet
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        conversations={conversations}
+        activeId={activeConversationId}
+        loading={conversationsLoading}
+        onSelect={(id) => { onSelectConversation?.(id); setSidebarOpen(false); }}
+        onNew={() => { onNewConversation?.(); setSidebarOpen(false); }}
+        onRename={onRenameConversation}
+        onPin={onPinConversation}
+        onArchive={onArchiveConversation}
+        onDelete={onDeleteConversation}
+      />
     </div>
   );
 }

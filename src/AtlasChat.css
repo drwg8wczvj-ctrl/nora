@@ -21,6 +21,16 @@
   --atlas-wash-2: rgba(246,200,150,0.10);
 }
 
+/* Conversation sidebar/sheet is a shared component (src/conversation/) also
+   used by Planner, styled against the generic --accent/--accent-light
+   tokens — this scopes those to Atlas's own palette wherever it's mounted
+   inside an Atlas surface, same cascade-override convention as
+   .status-mind-view uses for the Status page's Mind tab. */
+.atlas-chat-panel .conv-sidebar, .mob-atlas-chat .conv-sheet {
+  --accent: var(--atlas-accent);
+  --accent-light: var(--atlas-accent-light);
+}
+
 /* ── Desktop ─────────────────────────────────────────────── */
 .atlas-chat-panel {
   position: fixed; bottom: 90px; right: 24px;

@@ -2,11 +2,16 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { supabase } from "./lib/supabase";
 import {
   loadUserData, saveUserData,
-  saveChatMessage, loadRecentChatMessages, deleteOldChatMessages,
-  saveAtlasChatMessage, loadRecentAtlasChatMessages, deleteOldAtlasChatMessages,
   getUserPreferences, saveUserPreferences,
   saveMorningCheckup, loadTodayCheckup, testServerPush,
+  uploadGeneratedFile,
 } from "./lib/noraApi";
+import { useConversationEngine } from "./conversation/useConversationEngine";
+import { MessagePartsList } from "./conversation/MessagePart";
+import { textPart, fileAttachmentPart } from "./conversation/messageParts";
+import { buildToolConfirmationPart } from "./conversation/toolConfirmation";
+import { generateFileBlob, sizeLabel } from "./conversation/fileGeneration";
+import ConversationSidebar from "./conversation/ConversationList";
 import AuthScreen from "./AuthScreen";
 import MobileApp from "./MobileApp";
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
@@ -47,6 +52,7 @@ import {
   Pencil, SkipForward, Sparkles, Sparkle,
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
   MapPin, Navigation, Car, Bus, Bike, PersonStanding,
+  PanelLeft,
 } from "lucide-react";
 import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, fetchTravelMinutes, getModeLabel, findNearbyPlace } from "./location";
 import LocationField from "./components/LocationField";
@@ -378,6 +384,35 @@ const executeAiTool = (name, input, currentTasks) => {
   }
 };
 
+// Shared by both personas — generates a real downloadable file (attached to
+// the conversation as a file_attachment part) instead of just describing
+// one. Kept outside AI_TOOLS/ATLAS_TOOLS's own literals so it isn't
+// duplicated between them.
+const GENERATE_FILE_TOOL = {
+  type: "function",
+  function: {
+    name: "generate_file",
+    description: "Generate a real, downloadable file and attach it to this conversation. Use when the user asks for a document, spreadsheet, PDF, presentation, checklist export, or plain-text/markdown/CSV file — never just describe file contents in the chat when the user actually wants a file.",
+    parameters: {
+      type: "object",
+      properties: {
+        format:   { type: "string", enum: ["xlsx","pdf","pptx","csv","md","txt"], description: "xlsx=spreadsheet, pdf=PDF, pptx=presentation, csv=comma-separated table, md=Markdown, txt=plain text. Use md or pdf for a Word-document-style request — real .docx export isn't available yet." },
+        filename: { type: "string", description: "Filename without extension, e.g. 'Weekly Study Plan'." },
+        title:    { type: "string", description: "Document/sheet/presentation title (shown inside the file)." },
+        textContent: { type: "string", description: "For pdf/md/txt — the body content. Separate paragraphs with a blank line. Use **bold** where useful." },
+        tableHeaders: { type: "array", items: { type: "string" }, description: "For xlsx/csv — column headers." },
+        tableRows:    { type: "array", items: { type: "array", items: { type: "string" } }, description: "For xlsx/csv — one array of cell values per row, same length/order as tableHeaders." },
+        slides: {
+          type: "array",
+          description: "For pptx — one entry per slide.",
+          items: { type: "object", properties: { heading: { type: "string" }, body: { type: "string" } }, required: ["heading"] },
+        },
+      },
+      required: ["format", "filename"],
+    },
+  },
+};
+
 const AI_TOOLS = [
   {
     type: "function",
@@ -599,6 +634,7 @@ const AI_TOOLS = [
       },
     },
   },
+  GENERATE_FILE_TOOL,
 ];
 
 // ── Atlas (Life Architect persona) tools — shares the task-mutation
@@ -627,6 +663,7 @@ const ATLAS_TOOLS = [
   AI_TOOLS.find((t) => t.function.name === "delete_task"),
   AI_TOOLS.find((t) => t.function.name === "save_insight"),
   FLAG_WELLBEING_SIGNAL_TOOL,
+  GENERATE_FILE_TOOL,
 ];
 
 // ── localStorage hook ──────────────────────────────────
@@ -744,35 +781,12 @@ export default function App() {
     }
   }, []); // eslint-disable-line
 
-  // Load chat history (last 24h) and persistent preferences on login
+  // Load persistent preferences on login. Chat history is no longer loaded
+  // here — each persona's useConversationEngine owns loading its own
+  // conversations/messages from Supabase directly.
   useEffect(() => {
     if (!session) return;
-    (async () => {
-      await deleteOldChatMessages();
-      await deleteOldAtlasChatMessages();
-      const [history, atlasHistory, prefs] = await Promise.all([
-        loadRecentChatMessages(),
-        loadRecentAtlasChatMessages(),
-        getUserPreferences(),
-      ]);
-      // Only restore from Supabase if localStorage has no recent history
-      // (Supabase is a cross-device fallback, localStorage is the primary store)
-      if (history.length > 0) {
-        const lsRaw = localStorage.getItem(CHAT_STORE_KEY);
-        const hasLocalHistory = lsRaw && JSON.parse(lsRaw)?.msgs?.length > 1;
-        if (!hasLocalHistory) {
-          setMessages([{ role: "assistant", content: NORA_GREETING }, ...history]);
-        }
-      }
-      if (atlasHistory.length > 0) {
-        const lsRaw = localStorage.getItem(ATLAS_CHAT_STORE_KEY);
-        const hasLocalHistory = lsRaw && JSON.parse(lsRaw)?.msgs?.length > 1;
-        if (!hasLocalHistory) {
-          setAtlasMessages([{ role: "assistant", content: ATLAS_GREETING }, ...atlasHistory]);
-        }
-      }
-      setUserPrefs(prefs);
-    })().catch(console.error);
+    getUserPreferences().then(setUserPrefs).catch(console.error);
   }, [session]); // eslint-disable-line
 
   // Normalize checkup data (Supabase returns snake_case, component expects camelCase)
@@ -868,7 +882,6 @@ export default function App() {
   const [aiHubOpen,      setAiHubOpen]      = useState(false);
   const [messengerOpen,  setMessengerOpen]  = useState(false);
   const [chatInput,      setChatInput]      = useState("");
-  const [chatLoading,    setChatLoading]    = useState(false);
   const [microStartMode,  setMicroStartMode]  = useState(false);
   const [chatSuggestions, setChatSuggestions] = useState(DEFAULT_CHAT_CHIPS);
   const [desktopSuggestionsVisible, setDesktopSuggestionsVisible] = useState(() => {
@@ -903,54 +916,21 @@ export default function App() {
     ));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Persistent chat history (localStorage, 24-hour TTL) ────────
+  // ── Chat — persistence/history now lives entirely in each persona's
+  // useConversationEngine (Supabase-backed, multi-conversation). These
+  // greeting strings are purely cosmetic empty-state copy, never persisted.
   const NORA_GREETING = "Hi! I'm Nora, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?";
-  const CHAT_STORE_KEY = "nora_chat_v2";
-  const CHAT_TTL_MS_LOCAL = 24 * 60 * 60 * 1000;
-
-  const [messages, setMessages] = useState(() => {
-    try {
-      const raw = localStorage.getItem(CHAT_STORE_KEY);
-      if (!raw) return [{ role: "assistant", content: NORA_GREETING }];
-      const { msgs, savedAt } = JSON.parse(raw);
-      if (!msgs || Date.now() - savedAt > CHAT_TTL_MS_LOCAL) {
-        localStorage.removeItem(CHAT_STORE_KEY);
-        return [{ role: "assistant", content: NORA_GREETING }];
-      }
-      return msgs.length > 0 ? msgs : [{ role: "assistant", content: NORA_GREETING }];
-    } catch {
-      return [{ role: "assistant", content: NORA_GREETING }];
-    }
-  });
+  const ATLAS_GREETING = "Hi, I'm Atlas. This is a space to think out loud — about stress, motivation, or whatever's on your mind. What's going on for you today?";
 
   const [userPrefs,   setUserPrefs]   = useState({});
   const chatEndRef   = useRef(null);
   const chatMsgRef   = useRef(null);
   const chatInputRef = useRef(null);
   const [chatAtBottom, setChatAtBottom] = useState(true);
-
-  // ── Atlas chat (Psychologist persona) — independent state/history from
-  // Planner's, same localStorage-TTL + Supabase-fallback pattern. ────────
-  const ATLAS_GREETING = "Hi, I'm Atlas. This is a space to think out loud — about stress, motivation, or whatever's on your mind. What's going on for you today?";
-  const ATLAS_CHAT_STORE_KEY = "nora_atlas_chat_v1";
+  const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
 
   const [atlasOpen,        setAtlasOpen]        = useState(false);
   const [atlasChatInput,   setAtlasChatInput]   = useState("");
-  const [atlasChatLoading, setAtlasChatLoading] = useState(false);
-  const [atlasMessages, setAtlasMessages] = useState(() => {
-    try {
-      const raw = localStorage.getItem(ATLAS_CHAT_STORE_KEY);
-      if (!raw) return [{ role: "assistant", content: ATLAS_GREETING }];
-      const { msgs, savedAt } = JSON.parse(raw);
-      if (!msgs || Date.now() - savedAt > CHAT_TTL_MS_LOCAL) {
-        localStorage.removeItem(ATLAS_CHAT_STORE_KEY);
-        return [{ role: "assistant", content: ATLAS_GREETING }];
-      }
-      return msgs.length > 0 ? msgs : [{ role: "assistant", content: ATLAS_GREETING }];
-    } catch {
-      return [{ role: "assistant", content: ATLAS_GREETING }];
-    }
-  });
 
   // ── Assistant mode (Planner/Atlas feature flag, OFF by default) ───────
   const { settings: assistantSettings, updateSettings: updateAssistantSettings } = useAssistantMode();
@@ -1326,10 +1306,6 @@ export default function App() {
   }, [view, selectedDate, zoomedH]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (addingAt !== null) addInputRef.current?.focus(); }, [addingAt]);
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    setChatAtBottom(true);
-  }, [messages, chatLoading]);
   useEffect(() => { if (chatOpen) chatInputRef.current?.focus(); }, [chatOpen]);
   // ── Collaboration: load shared objects + realtime ─────────────
   function ensureSharedSubscription(object) {
@@ -1610,17 +1586,6 @@ export default function App() {
       return next;
     });
   }, [doneToday, totalToday, todaySleepQuality, today, session, recoveryState]); // eslint-disable-line
-
-  // Save chat to localStorage on every change (instant persistence across refreshes)
-  useEffect(() => {
-    if (messages.length <= 1) return; // no need to persist if only the greeting
-    localStorage.setItem(CHAT_STORE_KEY, JSON.stringify({ msgs: messages, savedAt: Date.now() }));
-  }, [messages]); // eslint-disable-line
-
-  useEffect(() => {
-    if (atlasMessages.length <= 1) return;
-    localStorage.setItem(ATLAS_CHAT_STORE_KEY, JSON.stringify({ msgs: atlasMessages, savedAt: Date.now() }));
-  }, [atlasMessages]); // eslint-disable-line
 
   // Liquid Glass pointer reactivity — tracks mouse to shift ambient light
   useEffect(() => {
@@ -2802,12 +2767,183 @@ Execute confirmation → 1 sentence: what was added/moved and why it fits.
 No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic or clinical language, ever.`;
   };
 
+  // Shared by both personas' dispatchers — generates the file client-side,
+  // uploads it, and returns a file_attachment part. Never claims success if
+  // the upload actually failed (the model gets a real error to relay).
+  const dispatchGenerateFile = async (input) => {
+    const { format, filename, ...rest } = input;
+    try {
+      const blob = await generateFileBlob(format, rest);
+      const fullFilename = filename.toLowerCase().endsWith(`.${format}`) ? filename : `${filename}.${format}`;
+      const url = await uploadGeneratedFile(fullFilename, blob, blob.type);
+      if (!url) {
+        return { resultText: `File generation succeeded but upload failed — could not attach "${fullFilename}". Tell the user the file couldn't be saved right now.` };
+      }
+      return {
+        resultText: `Generated and attached "${fullFilename}" (${sizeLabel(blob)}).`,
+        parts: [fileAttachmentPart({ filename: fullFilename, format, url, sizeLabel: sizeLabel(blob) })],
+      };
+    } catch (e) {
+      return { resultText: `File generation failed: ${e.message}. Tell the user this specific format isn't available right now.` };
+    }
+  };
+
+  // Planner's tool dispatcher — called once per tool call from inside the
+  // shared conversation engine's loop. workingTasksRef lets several task
+  // tool calls compound within one turn (e.g. add_task then move_task
+  // against the task it just created); onTurnStart resets it to the latest
+  // committed `tasks` before each new send().
+  const plannerWorkingTasksRef = useRef(tasks);
+  const dispatchPlannerToolCall = async (tc) => {
+    const input = JSON.parse(tc.function.arguments);
+    if (tc.function.name === "generate_file") return dispatchGenerateFile(input);
+    if (tc.function.name === "save_insight") {
+      const { key, value, note } = input;
+      setUserPrefs((prev) => {
+        const updated = { ...prev, [key]: value };
+        if (note) updated[`${key}_note`] = note;
+        return updated;
+      });
+      return { resultText: `Insight saved: ${key} = "${value}"${note ? ` (${note})` : ""}` };
+    }
+    if (tc.function.name === "find_nearby_place") {
+      const { category, nearSavedPlace, radiusMeters = 2000 } = input;
+      const anchor = savedPlaces.find((p) => p.name?.toLowerCase() === nearSavedPlace?.toLowerCase()) ?? savedPlaces[0];
+      if (!anchor?.lat || !anchor?.lng) {
+        return { resultText: `Cannot search: saved place "${nearSavedPlace}" has no coordinates. Ask the user to add their address in Settings → Places.` };
+      }
+      const place = await findNearbyPlace(category, anchor.lat, anchor.lng, Math.min(radiusMeters, 5000));
+      if (!place) {
+        return { resultText: `No ${category} found within ${Math.round(radiusMeters / 1000 * 10) / 10} km of ${anchor.name}. Try increasing the radius or asking the user for a specific address.` };
+      }
+      const mode = transportProfile.defaultMode ?? "mixed";
+      const travelMin = await fetchTravelMinutes(anchor, place, mode);
+      const distStr = (place.distanceKm ?? 0) < 1
+        ? `${Math.round((place.distanceKm ?? 0) * 1000)} m`
+        : `${(place.distanceKm ?? 0).toFixed(1)} km`;
+      const addrStr = place.address ? ` at ${place.address}` : "";
+      const openStr = place.openNow === true ? " (open now)" : place.openNow === false ? " (currently closed)" : "";
+      return { resultText: `Nearest ${category} to ${anchor.name}: "${place.name}"${addrStr}${openStr} — ${distStr} away. Travel time (${getModeLabel(mode)}): ~${travelMin} min. Schedule the task at: departure_time + ${travelMin} min. Coordinates: ${place.lat.toFixed(5)},${place.lng.toFixed(5)}.` };
+    }
+    if (tc.function.name === "create_whiteboard") {
+      const { title, blocks: rawBlocks = [], connections: rawConns = [] } = input;
+      const BS_DEFAULTS = { goal:{w:240,h:110}, idea:{w:200,h:88}, task_group:{w:240,h:130}, deadline:{w:220,h:90}, note:{w:240,h:130}, decision:{w:210,h:100} };
+      const COLS = [
+        [0], [1,2], [0,2], [1,2,3], [0,2,4], [1,2,3,4,5]
+      ];
+      const layoutBlocks = rawBlocks.map((b, i) => {
+        const s = BS_DEFAULTS[b.type] ?? { w:220, h:100 };
+        const col = COLS[Math.min(rawBlocks.length-1, 5)][i % 3] ?? i;
+        const row = Math.floor(i / 3);
+        return { id: uid(), type: b.type, title: b.title, content: b.content ?? "", dueDate: b.dueDate ?? null, completed: false, x: 80 + col * 280, y: 60 + row * 180, w: s.w, h: s.h };
+      });
+      const idMap = {};
+      rawBlocks.forEach((_, i) => { idMap[i] = layoutBlocks[i].id; });
+      const layoutConns = rawConns.filter(c => idMap[c.from] && idMap[c.to]).map(c => ({ id: uid(), from: idMap[c.from], to: idMap[c.to] }));
+      const newBoard = { id: uid(), title, description: "", createdAt: Date.now(), updatedAt: Date.now(), blocks: layoutBlocks, connections: layoutConns };
+      setBoards(prev => [...prev, newBoard]);
+      return { resultText: `Whiteboard "${title}" created with ${layoutBlocks.length} blocks.` };
+    }
+    if (tc.function.name === "update_whiteboard") {
+      const { boardTitle, action, blockTitle, block, connectFrom, connectTo } = input;
+      setBoards(prev => prev.map(b => {
+        if (b.title !== boardTitle) return b;
+        if (action === "add_block") {
+          const BS_DEFAULTS = { goal:{w:240,h:110}, idea:{w:200,h:88}, task_group:{w:240,h:130}, deadline:{w:220,h:90}, note:{w:240,h:130}, decision:{w:210,h:100} };
+          const s = BS_DEFAULTS[block?.type] ?? { w:220, h:100 };
+          const maxY = b.blocks.length ? Math.max(...b.blocks.map(x => x.y + x.h)) : 60;
+          const nb = { id: uid(), type: block.type, title: block.title, content: block.content ?? "", dueDate: block.dueDate ?? null, completed: false, x: 80, y: maxY + 30, w: s.w, h: s.h };
+          return { ...b, blocks: [...b.blocks, nb], updatedAt: Date.now() };
+        }
+        if (action === "update_block") {
+          return { ...b, blocks: b.blocks.map(bl => bl.title === blockTitle ? { ...bl, ...block } : bl), updatedAt: Date.now() };
+        }
+        if (action === "delete_block") {
+          const delId = b.blocks.find(bl => bl.title === blockTitle)?.id;
+          return { ...b, blocks: b.blocks.filter(bl => bl.title !== blockTitle), connections: b.connections.filter(c => c.from !== delId && c.to !== delId), updatedAt: Date.now() };
+        }
+        if (action === "add_connection") {
+          const fromId = b.blocks.find(bl => bl.title === connectFrom)?.id;
+          const toId = b.blocks.find(bl => bl.title === connectTo)?.id;
+          if (fromId && toId) return { ...b, connections: [...b.connections, { id: uid(), from: fromId, to: toId }], updatedAt: Date.now() };
+        }
+        return b;
+      }));
+      return { resultText: `Board "${boardTitle}" updated (${action}).` };
+    }
+    if (tc.function.name === "create_note") {
+      const { title = "", content = "", type = "note", color = "cream", pinned = false } = input;
+      const isListType = type === "checklist" || type === "shopping";
+      const items = isListType && content
+        ? content.split("\n").filter(Boolean).map((text) => ({ id: uid(), text: text.replace(/^[-•*]\s*/, "").trim(), done: false }))
+        : [];
+      const newNote = {
+        id: uid(), title, content: isListType ? "" : content,
+        color, type, items, pinned, starred: false,
+        createdAt: Date.now(), updatedAt: Date.now(),
+      };
+      setNotes((prev) => [...prev, newNote]);
+      return { resultText: `Note created (id="${newNote.id}"): "${title || content.slice(0, 40)}"` };
+    }
+    if (tc.function.name === "update_note") {
+      const { noteId, title, content, appendContent, type, color, pinned, starred } = input;
+      let found = false;
+      setNotes((prev) => prev.map((n) => {
+        if (n.id !== noteId) return n;
+        found = true;
+        const patch = { updatedAt: Date.now() };
+        if (title !== undefined)   patch.title   = title;
+        if (type  !== undefined)   patch.type    = type;
+        if (color !== undefined)   patch.color   = color;
+        if (pinned !== undefined)  patch.pinned  = pinned;
+        if (starred !== undefined) patch.starred = starred;
+        if (appendContent !== undefined) {
+          patch.content = ((n.content ?? "") + "\n" + appendContent).trimStart();
+        } else if (content !== undefined) {
+          const isListType = (patch.type ?? n.type) === "checklist" || (patch.type ?? n.type) === "shopping";
+          if (isListType) {
+            patch.items = content.split("\n").filter(Boolean).map((text) => ({ id: uid(), text: text.replace(/^[-•*✓]\s*/, "").trim(), done: false }));
+            patch.content = "";
+          } else {
+            patch.content = content;
+          }
+        }
+        return { ...n, ...patch };
+      }));
+      return { resultText: found ? `Note "${noteId}" updated.` : `Note "${noteId}" not found.` };
+    }
+    if (tc.function.name === "delete_note") {
+      const { noteId } = input;
+      setNotes((prev) => prev.filter((n) => n.id !== noteId));
+      return { resultText: `Note "${noteId}" deleted.` };
+    }
+    // Task tools — same pure executeAiTool dispatcher Atlas also uses,
+    // threaded across however many task calls land within this one turn.
+    const { result, nextTasks } = executeAiTool(tc.function.name, input, plannerWorkingTasksRef.current);
+    plannerWorkingTasksRef.current = nextTasks;
+    setTasks(nextTasks);
+    const part = buildToolConfirmationPart(tc.function.name, input, nextTasks);
+    return { resultText: result, parts: part ? [part] : [] };
+  };
+
+  const plannerEngine = useConversationEngine({
+    toolKey: "planner",
+    session,
+    buildSystemPrompt: buildPlannerSystem,
+    tools: AI_TOOLS,
+    dispatchToolCall: dispatchPlannerToolCall,
+    onTurnStart: () => { plannerWorkingTasksRef.current = tasks; },
+  });
+  const { messages, loading: chatLoading } = plannerEngine;
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setChatAtBottom(true);
+  }, [messages, chatLoading]);
+
   const sendChat = async () => {
     const text = chatInput.trim();
     if (!text || chatLoading) return;
-    const uiHistory = [...messages, { role: "user", content: text }];
-    setMessages(uiHistory); setChatInput(""); setChatLoading(true);
-    saveChatMessage("user", text).catch(console.warn);
+    setChatInput("");
 
     // Joining by invite code is deterministic and should not depend on the AI
     // choosing a tool correctly. Generated codes are seven unambiguous chars.
@@ -2816,255 +2952,69 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
       try {
         const object = await handleJoinCode(inviteCode);
         const title = object?.data?.title ?? object?.data?.name ?? "the shared task";
-        const reply = `Connected you to “${title}” and added it to your planner.`;
-        setMessages((current) => [...current, { role: "assistant", content: reply }]);
-        saveChatMessage("assistant", reply).catch(console.warn);
+        await plannerEngine.appendExchange(text, [textPart(`Connected you to “${title}” and added it to your planner.`)]);
       } catch (error) {
-        const reply = `I couldn't join that task: ${error?.message ?? "invalid invite code"}.`;
-        setMessages((current) => [...current, { role: "assistant", content: reply }]);
-        saveChatMessage("assistant", reply).catch(console.warn);
-      } finally {
-        setChatLoading(false);
+        await plannerEngine.appendExchange(text, [textPart(`I couldn't join that task: ${error?.message ?? "invalid invite code"}.`)]);
       }
       return;
     }
 
-    const toApiMsgs = (msgs) => {
-      const flat = msgs.filter((m) => m.role === "user" || m.role === "assistant");
-      const first = flat.findIndex((m) => m.role === "user");
-      return first >= 0 ? flat.slice(first).slice(-20) : [];
-    };
-
-    try {
-      let workingTasks = tasks;
-      let apiMsgs = [{ role: "system", content: buildPlannerSystem() }, ...toApiMsgs(uiHistory)];
-      let finalText = "";
-
-      for (let iter = 0; iter < 10; iter++) {
-        const res = await fetch(apiUrl("/api/chat"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: apiMsgs, tools: AI_TOOLS }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? `API error ${res.status}`);
-        }
-        const data = await res.json();
-        const msg = data.choices[0].message;
-        apiMsgs = [...apiMsgs, msg];
-        if (!msg.tool_calls || msg.tool_calls.length === 0) { finalText = msg.content ?? ""; break; }
-        const toolResults = [];
-        for (const tc of msg.tool_calls) {
-          const input = JSON.parse(tc.function.arguments);
-          // save_insight is handled client-side — doesn't modify tasks
-          if (tc.function.name === "save_insight") {
-            const { key, value, note } = input;
-            setUserPrefs((prev) => {
-              const updated = { ...prev, [key]: value };
-              if (note) updated[`${key}_note`] = note;
-              return updated;
-            });
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Insight saved: ${key} = "${value}"${note ? ` (${note})` : ""}` });
-          } else if (tc.function.name === "find_nearby_place") {
-            const { category, nearSavedPlace, radiusMeters = 2000 } = input;
-            const anchor = savedPlaces.find((p) => p.name?.toLowerCase() === nearSavedPlace?.toLowerCase()) ?? savedPlaces[0];
-            if (!anchor?.lat || !anchor?.lng) {
-              toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Cannot search: saved place "${nearSavedPlace}" has no coordinates. Ask the user to add their address in Settings → Places.` });
-            } else {
-              const place = await findNearbyPlace(category, anchor.lat, anchor.lng, Math.min(radiusMeters, 5000));
-              if (!place) {
-                toolResults.push({ role: "tool", tool_call_id: tc.id, content: `No ${category} found within ${Math.round(radiusMeters / 1000 * 10) / 10} km of ${anchor.name}. Try increasing the radius or asking the user for a specific address.` });
-              } else {
-                const mode = transportProfile.defaultMode ?? "mixed";
-                const travelMin = await fetchTravelMinutes(anchor, place, mode);
-                const distStr = (place.distanceKm ?? 0) < 1
-                  ? `${Math.round((place.distanceKm ?? 0) * 1000)} m`
-                  : `${(place.distanceKm ?? 0).toFixed(1)} km`;
-                const addrStr = place.address ? ` at ${place.address}` : "";
-                const openStr = place.openNow === true ? " (open now)" : place.openNow === false ? " (currently closed)" : "";
-                toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Nearest ${category} to ${anchor.name}: "${place.name}"${addrStr}${openStr} — ${distStr} away. Travel time (${getModeLabel(mode)}): ~${travelMin} min. Schedule the task at: departure_time + ${travelMin} min. Coordinates: ${place.lat.toFixed(5)},${place.lng.toFixed(5)}.` });
-              }
-            }
-          } else if (tc.function.name === "create_whiteboard") {
-            const { title, blocks: rawBlocks = [], connections: rawConns = [] } = input;
-            const BS_DEFAULTS = { goal:{w:240,h:110}, idea:{w:200,h:88}, task_group:{w:240,h:130}, deadline:{w:220,h:90}, note:{w:240,h:130}, decision:{w:210,h:100} };
-            const COLS = [
-              [0], [1,2], [0,2], [1,2,3], [0,2,4], [1,2,3,4,5]
-            ];
-            const layoutBlocks = rawBlocks.map((b, i) => {
-              const s = BS_DEFAULTS[b.type] ?? { w:220, h:100 };
-              const col = COLS[Math.min(rawBlocks.length-1, 5)][i % 3] ?? i;
-              const row = Math.floor(i / 3);
-              return { id: uid(), type: b.type, title: b.title, content: b.content ?? "", dueDate: b.dueDate ?? null, completed: false, x: 80 + col * 280, y: 60 + row * 180, w: s.w, h: s.h };
-            });
-            const idMap = {};
-            rawBlocks.forEach((_, i) => { idMap[i] = layoutBlocks[i].id; });
-            const layoutConns = rawConns.filter(c => idMap[c.from] && idMap[c.to]).map(c => ({ id: uid(), from: idMap[c.from], to: idMap[c.to] }));
-            const newBoard = { id: uid(), title, description: "", createdAt: Date.now(), updatedAt: Date.now(), blocks: layoutBlocks, connections: layoutConns };
-            setBoards(prev => [...prev, newBoard]);
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Whiteboard "${title}" created with ${layoutBlocks.length} blocks.` });
-          } else if (tc.function.name === "update_whiteboard") {
-            const { boardTitle, action, blockTitle, block, connectFrom, connectTo } = input;
-            setBoards(prev => prev.map(b => {
-              if (b.title !== boardTitle) return b;
-              if (action === "add_block") {
-                const BS_DEFAULTS = { goal:{w:240,h:110}, idea:{w:200,h:88}, task_group:{w:240,h:130}, deadline:{w:220,h:90}, note:{w:240,h:130}, decision:{w:210,h:100} };
-                const s = BS_DEFAULTS[block?.type] ?? { w:220, h:100 };
-                const maxY = b.blocks.length ? Math.max(...b.blocks.map(x => x.y + x.h)) : 60;
-                const nb = { id: uid(), type: block.type, title: block.title, content: block.content ?? "", dueDate: block.dueDate ?? null, completed: false, x: 80, y: maxY + 30, w: s.w, h: s.h };
-                return { ...b, blocks: [...b.blocks, nb], updatedAt: Date.now() };
-              }
-              if (action === "update_block") {
-                return { ...b, blocks: b.blocks.map(bl => bl.title === blockTitle ? { ...bl, ...block } : bl), updatedAt: Date.now() };
-              }
-              if (action === "delete_block") {
-                const delId = b.blocks.find(bl => bl.title === blockTitle)?.id;
-                return { ...b, blocks: b.blocks.filter(bl => bl.title !== blockTitle), connections: b.connections.filter(c => c.from !== delId && c.to !== delId), updatedAt: Date.now() };
-              }
-              if (action === "add_connection") {
-                const fromId = b.blocks.find(bl => bl.title === connectFrom)?.id;
-                const toId = b.blocks.find(bl => bl.title === connectTo)?.id;
-                if (fromId && toId) return { ...b, connections: [...b.connections, { id: uid(), from: fromId, to: toId }], updatedAt: Date.now() };
-              }
-              return b;
-            }));
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Board "${boardTitle}" updated (${action}).` });
-          } else if (tc.function.name === "create_note") {
-            const { title = "", content = "", type = "note", color = "cream", pinned = false } = input;
-            const isListType = type === "checklist" || type === "shopping";
-            const items = isListType && content
-              ? content.split("\n").filter(Boolean).map((text) => ({ id: uid(), text: text.replace(/^[-•*]\s*/, "").trim(), done: false }))
-              : [];
-            const newNote = {
-              id: uid(), title, content: isListType ? "" : content,
-              color, type, items, pinned, starred: false,
-              createdAt: Date.now(), updatedAt: Date.now(),
-            };
-            setNotes((prev) => [...prev, newNote]);
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Note created (id="${newNote.id}"): "${title || content.slice(0, 40)}"` });
-          } else if (tc.function.name === "update_note") {
-            const { noteId, title, content, appendContent, type, color, pinned, starred } = input;
-            let found = false;
-            setNotes((prev) => prev.map((n) => {
-              if (n.id !== noteId) return n;
-              found = true;
-              const patch = { updatedAt: Date.now() };
-              if (title !== undefined)   patch.title   = title;
-              if (type  !== undefined)   patch.type    = type;
-              if (color !== undefined)   patch.color   = color;
-              if (pinned !== undefined)  patch.pinned  = pinned;
-              if (starred !== undefined) patch.starred = starred;
-              if (appendContent !== undefined) {
-                patch.content = ((n.content ?? "") + "\n" + appendContent).trimStart();
-              } else if (content !== undefined) {
-                const isListType = (patch.type ?? n.type) === "checklist" || (patch.type ?? n.type) === "shopping";
-                if (isListType) {
-                  patch.items = content.split("\n").filter(Boolean).map((text) => ({ id: uid(), text: text.replace(/^[-•*✓]\s*/, "").trim(), done: false }));
-                  patch.content = "";
-                } else {
-                  patch.content = content;
-                }
-              }
-              return { ...n, ...patch };
-            }));
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: found ? `Note "${noteId}" updated.` : `Note "${noteId}" not found.` });
-          } else if (tc.function.name === "delete_note") {
-            const { noteId } = input;
-            setNotes((prev) => prev.filter((n) => n.id !== noteId));
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Note "${noteId}" deleted.` });
-          } else {
-            const { result, nextTasks } = executeAiTool(tc.function.name, input, workingTasks);
-            workingTasks = nextTasks;
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: result });
-          }
-        }
-        setTasks(workingTasks);
-        apiMsgs = [...apiMsgs, ...toolResults];
-      }
-      const reply = finalText || "Done!";
-      setMessages((m) => [...m, { role: "assistant", content: reply }]);
-      saveChatMessage("assistant", reply).catch(console.warn);
-    } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", content: `Error: ${e.message}` }]);
-    } finally { setChatLoading(false); }
+    plannerEngine.send(text);
   };
 
-  // Atlas's own send loop — deliberately not merged into sendChat: Atlas
-  // never receives the note/whiteboard/place schemas Planner has (ATLAS_TOOLS
-  // never includes those), so entangling the two loops would add complexity
-  // for no benefit. Task-mutating tool calls dispatch through the same pure
-  // executeAiTool Planner uses, via the same workingTasks-threaded/
-  // one-setTasks-per-iteration pattern as sendChat. Posts
-  // includeResearchTool:false so Atlas never gets silent access to
-  // Planner's productivity-technique KB tool.
+  // Atlas's own tool dispatcher — deliberately separate from Planner's:
+  // Atlas never receives the note/whiteboard/place schemas Planner has
+  // (ATLAS_TOOLS never includes those), so merging the two would add
+  // complexity for no benefit. Task-mutating tool calls still dispatch
+  // through the same pure executeAiTool Planner uses, via the same
+  // workingTasksRef-threaded pattern. Posts includeResearchTool:false so
+  // Atlas never gets silent access to Planner's productivity-technique KB.
+  const atlasWorkingTasksRef = useRef(tasks);
+  const dispatchAtlasToolCall = async (tc) => {
+    const input = JSON.parse(tc.function.arguments);
+    if (tc.function.name === "generate_file") return dispatchGenerateFile(input);
+    if (tc.function.name === "save_insight") {
+      const { key, value, note } = input;
+      setUserPrefs((prev) => {
+        const updated = { ...prev, [key]: value };
+        if (note) updated[`${key}_note`] = note;
+        saveUserPreferences(updated).catch(console.warn);
+        return updated;
+      });
+      return { resultText: `Insight saved: ${key} = "${value}"${note ? ` (${note})` : ""}` };
+    }
+    if (tc.function.name === "flag_wellbeing_signal") {
+      const { level, note, suggestedAction } = input;
+      setUserPrefs((prev) => {
+        const updated = { ...prev, wellbeing_signal: { level, note, suggestedAction, source: "atlas", date: today, createdAt: Date.now(), acknowledged: false } };
+        saveUserPreferences(updated).catch(console.warn);
+        return updated;
+      });
+      return { resultText: `Wellbeing signal flagged for Planner: ${level} — "${note}"` };
+    }
+    const { result, nextTasks } = executeAiTool(tc.function.name, input, atlasWorkingTasksRef.current);
+    atlasWorkingTasksRef.current = nextTasks;
+    setTasks(nextTasks);
+    const part = buildToolConfirmationPart(tc.function.name, input, nextTasks);
+    return { resultText: result, parts: part ? [part] : [] };
+  };
+
+  const atlasEngine = useConversationEngine({
+    toolKey: "atlas",
+    session,
+    buildSystemPrompt: buildAtlasSystem,
+    tools: ATLAS_TOOLS,
+    includeResearchTool: false,
+    dispatchToolCall: dispatchAtlasToolCall,
+    onTurnStart: () => { atlasWorkingTasksRef.current = tasks; },
+  });
+  const { messages: atlasMessages, loading: atlasChatLoading } = atlasEngine;
+
   const sendAtlasChat = async () => {
     const text = atlasChatInput.trim();
     if (!text || atlasChatLoading) return;
-    const uiHistory = [...atlasMessages, { role: "user", content: text }];
-    setAtlasMessages(uiHistory); setAtlasChatInput(""); setAtlasChatLoading(true);
-    saveAtlasChatMessage("user", text).catch(console.warn);
-
-    const toApiMsgs = (msgs) => {
-      const flat = msgs.filter((m) => m.role === "user" || m.role === "assistant");
-      const first = flat.findIndex((m) => m.role === "user");
-      return first >= 0 ? flat.slice(first).slice(-20) : [];
-    };
-
-    try {
-      let apiMsgs = [{ role: "system", content: buildAtlasSystem() }, ...toApiMsgs(uiHistory)];
-      let finalText = "";
-      let workingTasks = tasks;
-
-      for (let iter = 0; iter < 10; iter++) {
-        const res = await fetch(apiUrl("/api/chat"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: apiMsgs, tools: ATLAS_TOOLS, includeResearchTool: false }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? `API error ${res.status}`);
-        }
-        const data = await res.json();
-        const msg = data.choices[0].message;
-        apiMsgs = [...apiMsgs, msg];
-        if (!msg.tool_calls || msg.tool_calls.length === 0) { finalText = msg.content ?? ""; break; }
-        const toolResults = [];
-        for (const tc of msg.tool_calls) {
-          const input = JSON.parse(tc.function.arguments);
-          if (tc.function.name === "save_insight") {
-            const { key, value, note } = input;
-            setUserPrefs((prev) => {
-              const updated = { ...prev, [key]: value };
-              if (note) updated[`${key}_note`] = note;
-              saveUserPreferences(updated).catch(console.warn);
-              return updated;
-            });
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Insight saved: ${key} = "${value}"${note ? ` (${note})` : ""}` });
-          } else if (tc.function.name === "flag_wellbeing_signal") {
-            const { level, note, suggestedAction } = input;
-            setUserPrefs((prev) => {
-              const updated = { ...prev, wellbeing_signal: { level, note, suggestedAction, source: "atlas", date: today, createdAt: Date.now(), acknowledged: false } };
-              saveUserPreferences(updated).catch(console.warn);
-              return updated;
-            });
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Wellbeing signal flagged for Planner: ${level} — "${note}"` });
-          } else {
-            const { result, nextTasks } = executeAiTool(tc.function.name, input, workingTasks);
-            workingTasks = nextTasks;
-            toolResults.push({ role: "tool", tool_call_id: tc.id, content: result });
-          }
-        }
-        setTasks(workingTasks);
-        apiMsgs = [...apiMsgs, ...toolResults];
-      }
-      const reply = finalText || "I'm here.";
-      setAtlasMessages((m) => [...m, { role: "assistant", content: reply }]);
-      saveAtlasChatMessage("assistant", reply).catch(console.warn);
-    } catch (e) {
-      setAtlasMessages((m) => [...m, { role: "assistant", content: `Error: ${e.message}` }]);
-    } finally { setAtlasChatLoading(false); }
+    setAtlasChatInput("");
+    atlasEngine.send(text);
   };
 
   // ── New item helper ────────────────────────────────────
@@ -3161,9 +3111,28 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
       inAppAlert, setInAppAlert, reminderMins, setReminderMins,
       setDark, theme, setTheme, isOnline,
       chatOpen, setChatOpen, aiHubOpen, setAiHubOpen, messengerOpen, setMessengerOpen,
-      chatInput, setChatInput, chatLoading, messages, sendChat,
+      chatInput, setChatInput, chatLoading, messages, sendChat, noraGreeting: NORA_GREETING,
+      plannerConversations: plannerEngine.conversations,
+      plannerActiveConversationId: plannerEngine.activeId,
+      plannerConversationsLoading: plannerEngine.conversationsLoading,
+      onSelectPlannerConversation: plannerEngine.selectConversation,
+      onNewPlannerConversation: plannerEngine.newConversation,
+      onRenamePlannerConversation: plannerEngine.rename,
+      onPinPlannerConversation: plannerEngine.pin,
+      onArchivePlannerConversation: plannerEngine.archive,
+      onDeletePlannerConversation: plannerEngine.remove,
       atlasOpen, setAtlasOpen, atlasMessages, atlasChatInput, setAtlasChatInput,
       atlasChatLoading, sendAtlasChat, assistantSettings, updateAssistantSettings, visibleAiTools,
+      atlasGreeting: ATLAS_GREETING,
+      atlasConversations: atlasEngine.conversations,
+      atlasActiveConversationId: atlasEngine.activeId,
+      atlasConversationsLoading: atlasEngine.conversationsLoading,
+      onSelectAtlasConversation: atlasEngine.selectConversation,
+      onNewAtlasConversation: atlasEngine.newConversation,
+      onRenameAtlasConversation: atlasEngine.rename,
+      onPinAtlasConversation: atlasEngine.pin,
+      onArchiveAtlasConversation: atlasEngine.archive,
+      onDeleteAtlasConversation: atlasEngine.remove,
       editingTask, setEditingTask, draft, setDraft,
       todayTasks, deferredTasks, contextMode, aiFocus,
       momentum, recoveryState, workloadForecast, weekData, weekTrend,
@@ -4407,8 +4376,22 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
       </button>
 
       <div className={`chat-panel${chatOpen ? " open" : ""}`}>
+        <ConversationSidebar
+          open={chatSidebarOpen}
+          onClose={() => setChatSidebarOpen(false)}
+          conversations={plannerEngine.conversations}
+          activeId={plannerEngine.activeId}
+          loading={plannerEngine.conversationsLoading}
+          onSelect={(id) => { plannerEngine.selectConversation(id); setChatSidebarOpen(false); }}
+          onNew={() => { plannerEngine.newConversation(); setChatSidebarOpen(false); }}
+          onRename={plannerEngine.rename}
+          onPin={plannerEngine.pin}
+          onArchive={plannerEngine.archive}
+          onDelete={plannerEngine.remove}
+        />
         <div className="chat-header">
           <div className="chat-header-info">
+            <button className="chat-close" onClick={() => setChatSidebarOpen((v) => !v)} title="Conversations"><PanelLeft size={16} /></button>
             <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="chat-avatar-logo" alt="Nora" />
             <div><div className="chat-title">Nora</div><div className="chat-subtitle">Your productivity coach</div></div>
           </div>
@@ -4420,8 +4403,11 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
               const el = e.currentTarget;
               setChatAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
             }}>
+            {messages.length === 0 && !chatLoading && (
+              <div className="chat-msg assistant"><div className="chat-bubble"><MessagePartsList parts={[textPart(NORA_GREETING)]} /></div></div>
+            )}
             {messages.map((m, i) => (
-              <div key={i} className={`chat-msg ${m.role}`}><div className="chat-bubble">{m.content}</div></div>
+              <div key={m.id ?? i} className={`chat-msg ${m.role}`}><div className="chat-bubble"><MessagePartsList parts={m.parts} /></div></div>
             ))}
             {chatLoading && <div className="chat-msg assistant"><div className="chat-bubble typing"><span /><span /><span /></div></div>}
             <div ref={chatEndRef} />
@@ -4549,6 +4535,16 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
         onSend={sendAtlasChat}
         introSeen={assistantSettings.atlasIntroSeen}
         onIntroSeen={() => updateAssistantSettings({ atlasIntroSeen: true })}
+        greeting={ATLAS_GREETING}
+        conversations={atlasEngine.conversations}
+        activeConversationId={atlasEngine.activeId}
+        conversationsLoading={atlasEngine.conversationsLoading}
+        onSelectConversation={atlasEngine.selectConversation}
+        onNewConversation={atlasEngine.newConversation}
+        onRenameConversation={atlasEngine.rename}
+        onPinConversation={atlasEngine.pin}
+        onArchiveConversation={atlasEngine.archive}
+        onDeleteConversation={atlasEngine.remove}
       />
       <DesktopToolComingSoon
         open={messengerOpen}

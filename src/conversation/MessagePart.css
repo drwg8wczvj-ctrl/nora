@@ -1,0 +1,91 @@
+/* ── Message parts — shared by every AI persona's chat surface ──────────
+   Reuses the app's existing design tokens (--accent, --surface-2, --border,
+   --text, --text-muted, --success, --danger) — no new palette introduced. */
+
+.mp-list { display: flex; flex-direction: column; gap: 8px; }
+
+.mp-text { margin: 0; white-space: normal; }
+.mp-text strong { font-weight: 700; }
+.mp-text code { background: var(--surface-2); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.9em; }
+.mp-text.mp-streaming::after {
+  content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 3px;
+  border-radius: 50%; background: currentColor; opacity: .5;
+  animation: mpCursorBlink 1s step-start infinite;
+}
+@keyframes mpCursorBlink { 50% { opacity: 0; } }
+
+.mp-card {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 11px 13px;
+}
+
+/* Confirmation card */
+.mp-confirmation { display: flex; gap: 10px; align-items: flex-start; }
+.mp-confirmation-icon {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-light, rgba(124,58,237,.12)); color: var(--accent);
+}
+.mp-confirmation-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mp-confirmation-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); }
+.mp-confirmation-summary { font-size: 13.5px; color: var(--text); line-height: 1.4; }
+.mp-confirmation-meta { font-size: 11.5px; color: var(--text-muted); }
+
+/* Task card */
+.mp-task-card { display: flex; align-items: center; gap: 10px; }
+.mp-task-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.mp-task-dot.done { background: var(--success); }
+.mp-task-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mp-task-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.mp-task-meta { font-size: 11.5px; color: var(--text-muted); }
+
+/* Calendar preview */
+.mp-calendar-head { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .03em; }
+.mp-calendar-list { display: flex; flex-direction: column; gap: 6px; }
+.mp-calendar-row { display: flex; gap: 10px; font-size: 13px; }
+.mp-calendar-time { font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--text-muted); width: 46px; flex-shrink: 0; }
+.mp-calendar-title { color: var(--text); }
+
+/* Checklist */
+.mp-checklist { display: flex; flex-direction: column; gap: 8px; }
+.mp-checklist-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text); }
+.mp-check-on { color: var(--success); flex-shrink: 0; }
+.mp-check-off { color: var(--text-muted); flex-shrink: 0; }
+.mp-checklist-done { text-decoration: line-through; color: var(--text-muted); }
+
+/* Table */
+.mp-table-wrap { padding: 0; overflow-x: auto; }
+.mp-table { width: 100%; border-collapse: collapse; font-size: 12.8px; }
+.mp-table th { text-align: left; padding: 9px 12px; background: var(--surface); color: var(--text-muted); font-weight: 700; font-size: 10.8px; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.mp-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.mp-table tr:last-child td { border-bottom: none; }
+
+/* File attachment */
+.mp-file { display: flex; align-items: center; gap: 11px; text-decoration: none; transition: border-color .15s ease; }
+.mp-file:hover { border-color: var(--accent); }
+.mp-file-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--accent); flex-shrink: 0; }
+.mp-file-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.mp-file-name { font-size: 13.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-file-meta { font-size: 11.5px; color: var(--text-muted); }
+.mp-file-download { color: var(--text-muted); flex-shrink: 0; }
+
+/* Expandable section */
+.mp-expandable { padding: 0; overflow: hidden; }
+.mp-expandable-head { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 11px 13px; background: none; border: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; }
+.mp-expandable-chevron { color: var(--text-muted); transition: transform .18s ease; flex-shrink: 0; }
+.mp-expandable[data-open="true"] .mp-expandable-chevron { transform: rotate(180deg); }
+.mp-expandable-body { padding: 0 13px 13px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 11px; margin-top: -1px; }
+
+/* Banners: warning / success / error */
+.mp-banner { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; font-size: 13px; font-weight: 500; }
+.mp-banner-warning { background: rgba(245,158,11,.12); color: #b9740f; }
+.mp-banner-success { background: rgba(34,197,94,.12); color: var(--success); }
+.mp-banner-error { background: rgba(239,68,68,.12); color: var(--danger); }
+
+/* Progress update */
+.mp-progress { display: flex; align-items: center; gap: 10px; }
+.mp-progress-icon { color: var(--accent); flex-shrink: 0; }
+.mp-progress-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-muted); }
+.mp-progress-stat strong { color: var(--text); font-weight: 700; }

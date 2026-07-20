@@ -5,8 +5,11 @@ import {
   Flag, Coffee, Bell, Activity,
   SkipForward, Sparkles, Sparkle, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
-  Share2, Users, Search, KeyRound,
+  Share2, Users, Search, KeyRound, PanelLeft,
 } from "lucide-react";
+import { MessagePartsList } from "./conversation/MessagePart";
+import { textPart } from "./conversation/messageParts";
+import { ConversationSheet } from "./conversation/ConversationList";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
 import { supabase } from "./lib/supabase";
@@ -138,7 +141,10 @@ export default function MobileApp({ ctx }) {
           notifBannerVisible, dismissNotifBanner, requestNotifPermission,
           sharingTask, setSharingTask, session,
           atlasOpen, setAtlasOpen, atlasMessages, atlasChatInput, setAtlasChatInput,
-          atlasChatLoading, sendAtlasChat, visibleAiTools,
+          atlasChatLoading, sendAtlasChat, visibleAiTools, atlasGreeting,
+          atlasConversations, atlasActiveConversationId, atlasConversationsLoading,
+          onSelectAtlasConversation, onNewAtlasConversation, onRenameAtlasConversation,
+          onPinAtlasConversation, onArchiveAtlasConversation, onDeleteAtlasConversation,
           assistantSettings, updateAssistantSettings } = ctx;
 
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
@@ -331,6 +337,16 @@ export default function MobileApp({ ctx }) {
         onSend={sendAtlasChat}
         introSeen={assistantSettings.atlasIntroSeen}
         onIntroSeen={() => updateAssistantSettings({ atlasIntroSeen: true })}
+        greeting={atlasGreeting}
+        conversations={atlasConversations}
+        activeConversationId={atlasActiveConversationId}
+        conversationsLoading={atlasConversationsLoading}
+        onSelectConversation={onSelectAtlasConversation}
+        onNewConversation={onNewAtlasConversation}
+        onRenameConversation={onRenameAtlasConversation}
+        onPinConversation={onPinAtlasConversation}
+        onArchiveConversation={onArchiveAtlasConversation}
+        onDeleteConversation={onDeleteAtlasConversation}
       />
       <AIHub
         open={aiHubOpen}
@@ -2128,7 +2144,10 @@ function MobileSettings({ ctx }) {
 // ── Chat overlay ─────────────────────────────────────────────
 function MobileChat({ ctx }) {
   const { chatOpen, setChatOpen, messages, chatInput, setChatInput, chatLoading, sendChat,
-          microStartMode, setMicroStartMode, dark,
+          microStartMode, setMicroStartMode, dark, noraGreeting,
+          plannerConversations = [], plannerActiveConversationId = null, plannerConversationsLoading = false,
+          onSelectPlannerConversation, onNewPlannerConversation, onRenamePlannerConversation,
+          onPinPlannerConversation, onArchivePlannerConversation, onDeletePlannerConversation,
           todayTasks = [], deferredTasks = [], energy, focus } = ctx;
   const [chatSuggestions, setChatSuggestions] = useState(DEFAULT_CHAT_CHIPS);
   const [chatGhost,       setChatGhost]       = useState("");
@@ -2138,6 +2157,7 @@ function MobileChat({ ctx }) {
   const endRef      = useRef(null);
   const inputRef    = useRef(null);
   const [chatAtBottom, setChatAtBottom] = useState(true);
+  const [convSheetOpen, setConvSheetOpen] = useState(false);
   const [suggestionsVisible, setSuggestionsVisible] = useState(() => {
     try { return localStorage.getItem("nora_mobile_chat_suggestions") !== "hidden"; }
     catch { return true; }
@@ -2194,6 +2214,9 @@ function MobileChat({ ctx }) {
     <div className={`mob-chat${chatOpen ? " mob-chat-open" : ""}`}>
       <div className="mob-chat-header">
         <div className="mob-chat-brand">
+          <button className="mob-chat-close" onClick={() => setConvSheetOpen(true)} title="Conversations">
+            <PanelLeft size={20} />
+          </button>
           <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="mob-chat-avatar-logo" alt="Nora" />
           <div>
             <div className="mob-chat-title-text">Nora</div>
@@ -2211,9 +2234,14 @@ function MobileChat({ ctx }) {
             const el = e.currentTarget;
             setChatAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
           }}>
+          {messages.length === 0 && !chatLoading && (
+            <div className="mob-chat-msg mob-chat-assistant">
+              <div className="mob-chat-bubble"><MessagePartsList parts={[textPart(noraGreeting)]} /></div>
+            </div>
+          )}
           {messages.map((m, i) => (
-            <div key={i} className={`mob-chat-msg mob-chat-${m.role}`}>
-              <div className="mob-chat-bubble">{m.content}</div>
+            <div key={m.id ?? i} className={`mob-chat-msg mob-chat-${m.role}`}>
+              <div className="mob-chat-bubble"><MessagePartsList parts={m.parts} /></div>
             </div>
           ))}
           {chatLoading && (
@@ -2308,6 +2336,19 @@ function MobileChat({ ctx }) {
           {chatLoading ? <span className="dot-spin" /> : <Send size={18} />}
         </button>
       </div>
+      <ConversationSheet
+        open={convSheetOpen}
+        onClose={() => setConvSheetOpen(false)}
+        conversations={plannerConversations}
+        activeId={plannerActiveConversationId}
+        loading={plannerConversationsLoading}
+        onSelect={(id) => { onSelectPlannerConversation?.(id); setConvSheetOpen(false); }}
+        onNew={() => { onNewPlannerConversation?.(); setConvSheetOpen(false); }}
+        onRename={onRenamePlannerConversation}
+        onPin={onPinPlannerConversation}
+        onArchive={onArchivePlannerConversation}
+        onDelete={onDeletePlannerConversation}
+      />
     </div>
   );
 }
