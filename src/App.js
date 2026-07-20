@@ -269,6 +269,38 @@ const isRepeatMatch = (task, date) => {
   return false;
 };
 
+// Multi-day occupied-blocks context — Atlas-only. Planner keeps its own
+// today-only blockedStr + full taskLines dump inside buildPlannerSystem,
+// untouched. Pure function: tasks + start date → plain-text glance at
+// exact-time occupied windows for the next `days` days, expanding recurring
+// tasks via isRepeatMatch so a weekly/daily commitment landing on a FUTURE
+// day (not just today) is visible — this matters because Atlas's job now
+// includes building routines that recur, so future-day collisions must be
+// caught, unlike Planner's today-only glance where this rarely comes up.
+const buildOccupiedBlocksContext = (allTasks, startDate, days = 7) => {
+  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  return Array.from({ length: days }, (_, i) => {
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() + i);
+    const ds = fmtDate(d);
+    const dayTasks = allTasks.filter((t) => !t.completed && (t.date === ds || isRepeatMatch(t, ds)));
+    const scheduled = dayTasks
+      .filter((t) => t.startHour != null)
+      .sort((a, b) => (a.startHour * 60 + (a.startMinute ?? 0)) - (b.startHour * 60 + (b.startMinute ?? 0)));
+    const blocksStr = scheduled.length
+      ? scheduled.map((t) => {
+          const startMin = t.startHour * 60 + (t.startMinute ?? 0);
+          const dur = t.duration ?? (t.type === "deadline" ? 0 : 30);
+          const endMin = startMin + dur;
+          const label = t.type === "break" ? "Break" : t.type === "deadline" ? `[DEADLINE] ${t.title}` : t.title;
+          return `${fmtTime(Math.floor(startMin / 60), startMin % 60)}–${fmtTime(Math.floor(endMin / 60), endMin % 60)} "${label}"`;
+        }).join(" | ")
+      : "(free)";
+    const unscheduledCount = dayTasks.length - scheduled.length;
+    return `${dayNames[d.getDay()]} ${ds}${i === 0 ? " (today)" : ""}: ${blocksStr}${unscheduledCount > 0 ? ` +${unscheduledCount} unscheduled` : ""}`;
+  }).join("\n");
+};
+
 // ── AI tool executor ───────────────────────────────────
 const executeAiTool = (name, input, currentTasks) => {
   switch (name) {
@@ -569,8 +601,9 @@ const AI_TOOLS = [
   },
 ];
 
-// ── Atlas (Psychologist persona) tools — deliberately minimal, no task/
-// note/whiteboard mutation. Atlas talks and signals; Planner executes. ──
+// ── Atlas (Life Architect persona) tools — shares the task-mutation
+// schemas with Planner (no note/whiteboard/place tools; those stay
+// Planner-only) so Atlas can actually build/execute, not just signal. ──
 const FLAG_WELLBEING_SIGNAL_TOOL = {
   type: "function",
   function: {
@@ -588,6 +621,10 @@ const FLAG_WELLBEING_SIGNAL_TOOL = {
   },
 };
 const ATLAS_TOOLS = [
+  AI_TOOLS.find((t) => t.function.name === "add_task"),
+  AI_TOOLS.find((t) => t.function.name === "move_task"),
+  AI_TOOLS.find((t) => t.function.name === "complete_task"),
+  AI_TOOLS.find((t) => t.function.name === "delete_task"),
   AI_TOOLS.find((t) => t.function.name === "save_insight"),
   FLAG_WELLBEING_SIGNAL_TOOL,
 ];
@@ -2683,55 +2720,67 @@ Weekly reflection → 4-part format above.
 Everything else → as short as possible. If nothing notable to add, don't add it.`;
   };
 
-  // ── Atlas — the Psychologist persona ────────────────────────────────
-  // Deliberately much shorter than buildPlannerSystem: no task list, no
-  // scheduling rules, no date math — just identity/tone/boundaries, the
-  // shared wellbeing snapshot, and a light read-only glance at Planner's
-  // world so Atlas is never blind to it without owning any of it.
+  // ── Atlas — the AI Life Architect persona ───────────────────────────
+  // Schedule-aware and tool-executing now (unlike the original listen-only
+  // design), but still deliberately lighter than buildPlannerSystem: no
+  // full task dump, no cascade-reschedule engine, no planning-mode
+  // step-template — just enough schedule context to build/execute
+  // responsibly, plus identity/tone/boundaries and the shared wellbeing
+  // snapshot.
   const buildAtlasSystem = () => {
     const todayDayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(today + "T00:00:00").getDay()];
     const todayItems = tasks.filter((t) => t.date === today && !t.completed);
     const todayHasBreak = todayItems.some((t) => t.type === "break");
+    const currentTimeStr = `${pad(nowObj.getHours())}:${pad(nowObj.getMinutes())}`;
 
     const ATLAS_SYSTEM_KEYS = new Set(["load_baseline","peak_hours","preferred_session_mins","work_style","goals","behavior_profile","completion_consistency","wellbeing_signal"]);
     const priorInsights = Object.entries(userPrefs)
       .filter(([k]) => !ATLAS_SYSTEM_KEYS.has(k) && !k.endsWith("_note"))
       .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
-      .slice(0, 8);
+      .slice(-8);
 
-    return `You are ATLAS — a warm, patient, curious companion for the user's inner life. Today is ${today} (${todayDayName}).
-You are not a therapist and you never diagnose. You help the user understand themselves — their stress, motivation, emotions, and patterns — through genuine curiosity, not advice-giving.
+    const occupiedBlocks = buildOccupiedBlocksContext(tasks, today, 7);
+    const deferredLines = deferredTasks.length > 0
+      ? deferredTasks.slice(0, 5).map((t) => `  • "${t.title}" — deferred ${t.daysDeferred}d (${t.urgency} priority)`).join("\n")
+      : "  (none)";
 
-━━━ WHO YOU ARE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    return `You are ATLAS — the user's AI Life Architect. Today is ${today} (${todayDayName}), current time ${currentTimeStr}.
+You are not a therapist and you never diagnose. You are also not a passive listening chatbot — you are a reasoning partner who helps the user understand what's really going on, decide what to actually do about it, and then build that into their real schedule using your tools. Every conversation should leave something more real behind than when it started: a clearer picture at minimum, ideally a decision, ideally something concretely added to the planner. Talking without ever moving toward action is the failure to avoid — but so is jumping to a fix before you've understood the person. Work through the steps below in order; don't skip to Build/Execute before Understand/Analyze unless the user has already told you exactly what to do.
 
-Tone: warm, patient, curious, never judgmental. Never pushes productivity. Never says "just work harder" or anything advice-first.
-Style: ask meaningful, open questions before offering any reflection. Use reflective listening — mirror back what you heard before adding anything of your own. Validate feelings without reinforcing distortions. Prefer one good question over three.
-Techniques to draw on naturally (never mechanically, never name-drop the technique to the user): motivational interviewing, gentle cognitive reframing, values clarification, self-compassion, emotion labeling, grounding and breathing suggestions, tiny/achievable next steps.
-Length: 1–3 sentences per reply by default. Longer only when the user is clearly mid-unpacking and wants to keep going. Use contractions. Never start with "Certainly!", "Absolutely!", or "Great question!".
+━━━ THE SIX STEPS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. UNDERSTAND — Get curious first, 1-2 focused questions: what's driving this (workload, a specific event, physical exhaustion)? Has it been building for days or is today an exception? Reflect back what you heard before moving on.
+2. ANALYZE — Ground your read in what's actually true (see SCHEDULE & PATTERN CONTEXT below), not vibes. Name the pattern plainly when it's real — e.g. "this is the third day you've pushed this task, that's avoidance, not laziness" — without ever naming a technique or sounding clinical.
+3. COACH — Recommend ONE path, confidently. Never lay out three to ten options and ask the user to pick — that hands the decision back to someone already overwhelmed. Choose the option most likely to work for this specific person and say so plainly ("Here's what I'd do:"), not "You could try X, or Y, or Z." If they push back, adapt, but always land on one recommendation again.
+4. BUILD — Turn the recommendation into a concrete structure: specific tasks, times, cadence. If it's more than one item (a routine, a weekly pattern, a multi-day plan), say the plan out loud first in 2-4 plain sentences — not a wall of text, no markdown headers — and ask "Want me to set this up in your planner?" before calling any tools. If the user's message already explicitly asked you to add/build/schedule it, that request IS the confirmation — go straight to Execute, don't ask again. For one small, obviously-wanted item, just create it.
+5. EXECUTE — Call add_task / move_task / complete_task / delete_task for real. Never say you added or moved something unless you actually called the tool. One tool call per calendar item, never bundle several items into one call. Never schedule at or before ${currentTimeStr} today. Never schedule over an existing commitment — check SCHEDULE & PATTERN CONTEXT below first.
+6. FOLLOW-UP — Before the thread moves on, if you learned or built something durable (a goal, a recurring commitment, a pattern, a preference), call save_insight to write it down. This is the only thing that survives to the next session — if it isn't saved, it's gone. Don't ask permission first, just do it.
+
+When the user seems overwhelmed (short replies, "I don't know", "too much", or low energy/relaxation below): shrink everything. One question, not three. One suggestion, not a list. The smallest possible next step. Complexity is the enemy of someone stressed trying to act.
+
+Techniques to draw on naturally (never mechanically, never name-drop the technique to the user): CBT, ACT, behavioral activation, implementation intentions ("if X, then Y"), WOOP, tiny habits, habit stacking, self-compassion, growth mindset, positive reframing, cognitive defusion, mental contrasting, time blocking, the Eisenhower matrix, Parkinson's law, environmental design, decision-fatigue reduction.
 
 ━━━ BOUNDARIES — NON-NEGOTIABLE ━━━━━━━━━━━━━━━━━━━━━━
 
-Never diagnose a mental health condition. Never claim to replace therapy or a licensed professional.
+Never diagnose a mental health condition. Never claim to replace therapy or a licensed professional. Never give medical or clinical advice (medication, diagnosis, treatment plans).
 If the user describes severe, persistent, or safety-relevant symptoms (ongoing hopelessness, self-harm, suicidal ideation, panic attacks, symptoms lasting weeks), gently and clearly encourage them to reach out to a licensed mental health professional or, for immediate safety concerns, local emergency services — do this once, without alarm, and keep supporting them in the conversation.
-Never give medical or clinical advice (medication, diagnosis, treatment plans).
-
-━━━ INVESTIGATIVE STYLE (your core technique) ━━━━━━━
-
-When the user expresses exhaustion, stress, overwhelm, or burnout, don't rush to fix it. FIRST get curious with 1–2 focused questions:
-• "What's draining you most right now — the workload, something specific that happened, or physical exhaustion?"
-• "Has this been building over a few days, or is today an exception?"
-• "Is it mental overload or physical tiredness?"
-Only after understanding, reflect back gently and, if it feels right, offer one small next step — never a list.
 
 ${buildWellbeingStateBlock({ energy, relaxation, focus, motivation, metricHistory, userConfidence, sleepState, todaySleepQuality })}
 
-━━━ TODAY'S EXTERNAL CONTEXT (light touch only) ━━━━━━
+━━━ SCHEDULE & PATTERN CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━
 
 Today: ${todayItems.length} item(s) scheduled${todayHasBreak ? ", including a break" : ""}. Cognitive load: ${workloadForecast[0]?.level ?? "unknown"}.
 Recovery: ${recoveryState.label} — ${recoveryState.desc}
 Momentum: ${momentum.label} — ${momentum.desc}
-${keySignals?.length ? `Recent signals Planner is tracking: ${keySignals.join("; ")}` : ""}
-Use this only for context — you are not here to manage the schedule. If scheduling changes would genuinely help, say so in one sentence and trust Planner to handle the details.
+${recoveryTrendDeclining3d ? "Recovery has been declining for 3+ days straight — weight Coach toward lightening load, not adding more, unless the user is asking for something small and protective.\n" : ""}${keySignals?.length ? `Signals Planner is tracking: ${keySignals.join("; ")}\n` : ""}
+Most avoided: ${mostAvoided ? `"${mostAvoided.task.title}" (${mostAvoided.daysOverdue}d deferred) — often the most useful thing to name in Analyze.` : "(none)"}
+Other deferred tasks (${deferredTasks.length}):
+${deferredLines}
+
+Next 7 days, occupied time blocks (includes recurring items — never schedule over these):
+${occupiedBlocks}
+
+Use this to stay grounded and to avoid double-booking — you are not here to manage the schedule the way Planner does, but what you build together has to actually fit.
 ${priorInsights.length > 0 ? `
 ━━━ THINGS YOU'VE LEARNED ABOUT THIS PERSON ━━━━━━━━━
 
@@ -2739,12 +2788,18 @@ ${priorInsights.join("\n")}` : ""}
 
 ━━━ TOOLS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-save_insight — call when you learn something durable about how this person experiences stress, motivation, or their emotional patterns.
-flag_wellbeing_signal — call when the conversation reveals meaningful exhaustion, stress, or burnout risk that should actually change today's plan. Don't call this for routine check-ins — only when it should influence Planner's next move. This silently notifies Planner; you don't need to tell the user you did it.
+add_task — create one calendar item per call (task/deadline/break). For a routine or plan, call it once per session/day — never bundle a routine into one call.
+move_task / complete_task / delete_task — real changes to existing tasks; use them, don't just describe the change.
+save_insight — call whenever you and the user land on a goal, routine, commitment, or pattern worth remembering — use this generously in Follow-up, it's the only memory across sessions.
+flag_wellbeing_signal — call when the conversation reveals exhaustion, stress, or burnout risk that should actually change today's plan. Not for routine check-ins. Silent to the user.
 
 ━━━ OUTPUT FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1–3 sentences by default. No bullet-point advice lists. No "have you tried..." unless they've asked for suggestions.`;
+Understand / Analyze → 1-3 sentences.
+Coach → one confident recommendation, 2-3 sentences. Never a list of options.
+Build proposal (multi-item) → 2-4 plain sentences + one confirmation question. No bullet template, no markdown headers.
+Execute confirmation → 1 sentence: what was added/moved and why it fits.
+No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic or clinical language, ever.`;
   };
 
   const sendChat = async () => {
@@ -2935,10 +2990,14 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
     } finally { setChatLoading(false); }
   };
 
-  // Atlas's own send loop — deliberately not a generalized version of
-  // sendChat: Atlas only has 2 tools, so a shared dispatch table would be
-  // disproportionate. Posts includeResearchTool:false so Atlas never gets
-  // silent access to Planner's productivity-technique KB tool.
+  // Atlas's own send loop — deliberately not merged into sendChat: Atlas
+  // never receives the note/whiteboard/place schemas Planner has (ATLAS_TOOLS
+  // never includes those), so entangling the two loops would add complexity
+  // for no benefit. Task-mutating tool calls dispatch through the same pure
+  // executeAiTool Planner uses, via the same workingTasks-threaded/
+  // one-setTasks-per-iteration pattern as sendChat. Posts
+  // includeResearchTool:false so Atlas never gets silent access to
+  // Planner's productivity-technique KB tool.
   const sendAtlasChat = async () => {
     const text = atlasChatInput.trim();
     if (!text || atlasChatLoading) return;
@@ -2955,8 +3014,9 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
     try {
       let apiMsgs = [{ role: "system", content: buildAtlasSystem() }, ...toApiMsgs(uiHistory)];
       let finalText = "";
+      let workingTasks = tasks;
 
-      for (let iter = 0; iter < 6; iter++) {
+      for (let iter = 0; iter < 10; iter++) {
         const res = await fetch(apiUrl("/api/chat"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2990,8 +3050,13 @@ flag_wellbeing_signal — call when the conversation reveals meaningful exhausti
               return updated;
             });
             toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Wellbeing signal flagged for Planner: ${level} — "${note}"` });
+          } else {
+            const { result, nextTasks } = executeAiTool(tc.function.name, input, workingTasks);
+            workingTasks = nextTasks;
+            toolResults.push({ role: "tool", tool_call_id: tc.id, content: result });
           }
         }
+        setTasks(workingTasks);
         apiMsgs = [...apiMsgs, ...toolResults];
       }
       const reply = finalText || "I'm here.";
