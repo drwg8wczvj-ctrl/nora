@@ -898,3 +898,22 @@ button.status-card {
 .hsec-reasons { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .hsec-reasons li { font-size: 12.5px; color: var(--text-muted); line-height: 1.45; padding-left: 12px; position: relative; }
 .hsec-reasons li::before { content: ''; position: absolute; left: 0; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+.hsec-connect-prompt { flex-direction: row; align-items: center; gap: 12px; }
+.hsec-connect-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-light); color: var(--accent);
+}
+.hsec-connect-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hsec-connect-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.hsec-connect-sub { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
+.hsec-connect-btn {
+  flex-shrink: 0; padding: 8px 14px; border-radius: 9px; border: none;
+  background: var(--accent); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.hsec-connect-btn:hover { filter: brightness(1.05); }
+@container status (max-width: 480px) {
+  .hsec-connect-prompt { flex-wrap: wrap; }
+  .hsec-connect-btn { width: 100%; }
+}

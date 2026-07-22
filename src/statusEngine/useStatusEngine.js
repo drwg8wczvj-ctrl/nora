@@ -14,6 +14,8 @@ import { minePatternsFromHistory, mineAllPatterns, splitPatternsByDomain, comput
 import { getMicroStart, generateInterpretation, generateCoachHeadline, generateAtlasHeadline } from "./interpretations";
 import { buildImplementationIntention } from "./intentions";
 import { computeSleepAnalysis, buildRecentNights } from "./sleepScience";
+import { computeEnergyScore, computeRecoveryScore } from "./healthInsights";
+import { buildPersonalBaseline } from "./personalBaseline";
 import { apiUrl } from "../lib/apiBase";
 
 // Mirrors the shape of src/intelligence/useIntelligence.js: a plain hook that
@@ -33,6 +35,7 @@ export function useStatusEngine({
   energy, relaxation, focus, motivation,
   morningCheckup, dailyMetrics, userPrefs,
   todaySleepQuality = null,
+  health = null, // useHealthKit()'s return value, or null if not connected/unavailable
 }) {
   // ── Week-level completion pattern ──────────────────────────────────────────
   const weekData = useMemo(() => Array.from({ length: 7 }, (_, i) => {
@@ -408,14 +411,75 @@ export function useStatusEngine({
   // ── New engine layer: the 6 status metrics ───────────────────────────────────
   const focusStats = userPrefs?.focus_stats ?? null;
 
+  // Compact Apple Health + personal-baseline summary — optional (null when
+  // Health isn't connected), so every consumer below degrades to exactly
+  // today's behavior for anyone without it connected. Computed once, up
+  // here, so both the metric formulas AND the later status_coach prompt
+  // read the same numbers.
+  const healthSummary = useMemo(() => {
+    const ctx = health?.context;
+    if (!health?.available || !ctx) return null;
+    const sleep = ctx.sleep?.stats;
+    const activity = ctx.activity;
+    const recovery = computeRecoveryScore(ctx.heart);
+    const energyScoreResult = computeEnergyScore({ sleepStats: sleep, heart: ctx.heart, activity });
+    if (!sleep?.hasData && !recovery.hasData && !activity?.stats?.hasData) return null;
+    const baseline = buildPersonalBaseline({
+      sleepSessions: ctx.sleep?.sessions ?? [],
+      activityHistory: activity?.history ?? [],
+      tasks, dailyMetrics,
+    });
+    // Day-to-day step variability (coefficient of variation) — a thin,
+    // already-derived steadiness signal for computeConsistency's optional
+    // Health blend, computed here since activity.history is already in scope.
+    const stepsHistory = (activity?.history ?? []).map((d) => d.steps).filter((s) => s > 0);
+    const stepsMean = stepsHistory.length >= 5 ? stepsHistory.reduce((s, v) => s + v, 0) / stepsHistory.length : null;
+    const stepsStdDev = stepsMean != null
+      ? Math.sqrt(stepsHistory.reduce((s, v) => s + (v - stepsMean) ** 2, 0) / stepsHistory.length)
+      : null;
+    return {
+      sleepLastNightMinutes: sleep?.hasData ? sleep.last.asleepMinutes : null,
+      sleepBaselineMinutes: baseline.sleep.hasData ? baseline.sleep.avgMinutes : null,
+      sleepTrend: sleep?.hasData ? sleep.trend : null,
+      recoveryScore: recovery.hasData ? recovery.score : null,
+      recoveryLabel: recovery.hasData ? recovery.label : null,
+      activityStepsToday: activity?.stats?.hasData ? Math.round(activity.stats.today.steps) : null,
+      activityBaselineSteps: baseline.steps.hasData ? baseline.steps.avgSteps : null,
+      activityTrend: activity?.stats?.hasData ? activity.stats.trend : null,
+      activityVeryActiveDay: activity?.stats?.hasData ? activity.stats.today.activeEnergyKcal > 600 : false,
+      energyScore: energyScoreResult.hasData ? energyScoreResult.score : null,
+      deepWorkBaselinePerDay: baseline.deepWork.hasData ? baseline.deepWork.avgPerDay : null,
+      bestSleepRangeForFeeling: baseline.bestFeeling.hasData ? baseline.bestFeeling.bestRangeLabel : null,
+      sleepBedtimeConsistencyStdMin: sleep?.hasData ? sleep.bedtimeConsistencyStdMin : null,
+      activityStepsCV: stepsMean != null && stepsStdDev != null ? stepsStdDev / stepsMean : null,
+    };
+  }, [health, tasks, dailyMetrics]);
+
+  // Thin health-derived inputs for the 3 metric formulas that blend in real
+  // data — undefined/null fields mean "no effect", so every formula is a
+  // no-op change for anyone without Health connected.
+  const healthSleepForMetrics = useMemo(() => (healthSummary ? {
+    hasData: healthSummary.sleepLastNightMinutes != null,
+    lastNightMinutes: healthSummary.sleepLastNightMinutes,
+    baselineMinutes: healthSummary.sleepBaselineMinutes,
+  } : null), [healthSummary]);
+  const healthActivityForMetrics = useMemo(() => (healthSummary ? {
+    hasData: healthSummary.activityStepsToday != null,
+    veryActiveDay: healthSummary.activityVeryActiveDay,
+  } : null), [healthSummary]);
+  const healthConsistencyForMetrics = useMemo(() => (healthSummary ? {
+    sleepBedtimeStdMin: healthSummary.sleepBedtimeConsistencyStdMin,
+    activityStepsCV: healthSummary.activityStepsCV,
+  } : null), [healthSummary]);
+
   const metrics = useMemo(() => ({
-    mentalBattery: computeMentalBattery({ energy, morningCheckup, taskWeights, userLoadBaseline, todayTasks, recoveryState }),
-    recoveryIndex: computeRecoveryIndex({ recoveryState }),
+    mentalBattery: computeMentalBattery({ energy, morningCheckup, taskWeights, userLoadBaseline, todayTasks, recoveryState, healthSleep: healthSleepForMetrics }),
+    recoveryIndex: computeRecoveryIndex({ recoveryState, healthRecoveryScore: healthSummary?.recoveryScore ?? null }),
     momentum: computeMomentumMetric({ momentum, weekData }),
-    consistency: computeConsistency({ days14: behaviorProfile.days14 }),
-    deepWorkCapacity: computeDeepWorkCapacity({ energy, workloadForecast, recoveryState, focusStats }),
+    consistency: computeConsistency({ days14: behaviorProfile.days14, healthConsistency: healthConsistencyForMetrics }),
+    deepWorkCapacity: computeDeepWorkCapacity({ energy, workloadForecast, recoveryState, focusStats, healthSleep: healthSleepForMetrics, healthActivity: healthActivityForMetrics }),
     attentionStability: computeAttentionStability({ focusStats }),
-  }), [energy, morningCheckup, taskWeights, userLoadBaseline, todayTasks, recoveryState, momentum, weekData, behaviorProfile, workloadForecast, focusStats]);
+  }), [energy, morningCheckup, taskWeights, userLoadBaseline, todayTasks, recoveryState, momentum, weekData, behaviorProfile, workloadForecast, focusStats, healthSleepForMetrics, healthActivityForMetrics, healthConsistencyForMetrics, healthSummary]);
 
   // Per-metric topFactor derivation for interpretation copy. Only Mental
   // Battery needs one today — the other 5 banks key off bucket alone.
@@ -457,13 +521,16 @@ export function useStatusEngine({
     return list;
   }, [metrics, mentalBatteryTopFactor, prevRecoveryScore]);
 
-  // Cheap content hash (not a real hash — just the bucket/topFactor fingerprint)
-  // so a fetch only fires when what would actually change the copy has changed,
-  // not on every render.
-  const coachSignature = useMemo(
-    () => coachItems.map((it) => `${it.key}:${it.bucket}:${it.topFactor ?? ""}`).join("|"),
-    [coachItems]
-  );
+  // Cheap content hash (not a real hash — just the bucket/topFactor fingerprint,
+  // plus a coarse health fingerprint) so a fetch only fires when what would
+  // actually change the copy has changed, not on every render.
+  const coachSignature = useMemo(() => {
+    const base = coachItems.map((it) => `${it.key}:${it.bucket}:${it.topFactor ?? ""}`).join("|");
+    const healthPart = healthSummary
+      ? `|health:${healthSummary.sleepTrend}:${healthSummary.recoveryLabel}:${healthSummary.activityTrend}:${Math.round((healthSummary.energyScore ?? 0) / 10)}`
+      : "";
+    return base + healthPart;
+  }, [coachItems, healthSummary]);
 
   const [aiInterpretations, setAiInterpretations] = useState(null);
   const coachRequestedSignatureRef = useRef(null);
@@ -498,6 +565,7 @@ export function useStatusEngine({
           focusPeak: focusPatterns?.peak?.label,
           sleepQuality: todaySleepQuality,
           dayOfWeek: new Date(today + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" }),
+          health: healthSummary,
         },
       }),
     })
@@ -523,7 +591,7 @@ export function useStatusEngine({
         }
       })
       .catch(() => {/* heuristic interpretations already stand */});
-  }, [coachItems, coachSignature, today, noraState, workloadForecast, deferredTasks, focusPatterns, todaySleepQuality]);
+  }, [coachItems, coachSignature, today, noraState, workloadForecast, deferredTasks, focusPatterns, todaySleepQuality, healthSummary]);
 
   const interpretations = useMemo(() => {
     if (!aiInterpretations) return heuristicInterpretations;

@@ -1192,6 +1192,7 @@ export default function App() {
     energy, relaxation, focus, motivation,
     morningCheckup, dailyMetrics, userPrefs,
     todaySleepQuality,
+    health,
   });
   const {
     userLoadBaseline, momentum, recoveryState, workloadForecast,
@@ -2031,7 +2032,7 @@ export default function App() {
   };
 
   const buildPlannerSystem = () => {
-    const healthPromptBlock = buildHealthPromptContext(health);
+    const healthPromptBlock = buildHealthPromptContext(health, { tasks, dailyMetrics });
     const taskLines = tasks.length
       ? tasks.map((t) => {
           const g = getGroup(t.groupId);
@@ -2702,7 +2703,7 @@ Everything else → as short as possible. If nothing notable to add, don't add i
   // responsibly, plus identity/tone/boundaries and the shared wellbeing
   // snapshot.
   const buildAtlasSystem = () => {
-    const healthPromptBlock = buildHealthPromptContext(health);
+    const healthPromptBlock = buildHealthPromptContext(health, { tasks, dailyMetrics });
     const todayDayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(today + "T00:00:00").getDay()];
     const todayItems = tasks.filter((t) => t.date === today && !t.completed);
     const todayHasBreak = todayItems.some((t) => t.type === "break");
@@ -2734,6 +2735,10 @@ You are not a therapist and you never diagnose. You are also not a passive liste
 When the user seems overwhelmed (short replies, "I don't know", "too much", or low energy/relaxation below): shrink everything. One question, not three. One suggestion, not a list. The smallest possible next step. Complexity is the enemy of someone stressed trying to act.
 
 Techniques to draw on naturally (never mechanically, never name-drop the technique to the user): CBT, ACT, behavioral activation, implementation intentions ("if X, then Y"), WOOP, tiny habits, habit stacking, self-compassion, growth mindset, positive reframing, cognitive defusion, mental contrasting, time blocking, the Eisenhower matrix, Parkinson's law, environmental design, decision-fatigue reduction.
+
+━━━ WHEN THE USER DESCRIBES HOW THEY FEEL PHYSICALLY OR MENTALLY ━━━
+
+For stress, fatigue, burnout, low motivation, anxiety, brain fog, sleepiness, overtraining, or trouble focusing: never answer generically. Check HEALTH CONTEXT and SCHEDULE & PATTERN CONTEXT below FIRST — if the data already explains it (poor sleep, low HRV, an unusually high-output day, several intense Deep Work sessions back to back, a long stretch with no real break), say so plainly and specifically before offering anything else. A real answer sounds like "you walked well beyond your usual step count yesterday, on a shorter night than normal, with four intensive Deep Work sessions on top — physical fatigue today makes complete sense" — not "that sounds tough, have you tried resting?" Blend the psychological technique with the concrete cause: explain WHY using their real data, THEN offer the ONE thing (per the COACH step above) that follows from that specific cause — not a generic wellness tip. If nothing in the data explains it, say that honestly too, rather than inventing a cause.
 
 ━━━ BOUNDARIES — NON-NEGOTIABLE ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -3136,7 +3141,8 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
       onArchivePlannerConversation: plannerEngine.archive,
       onDeletePlannerConversation: plannerEngine.remove,
       atlasOpen, setAtlasOpen, atlasMessages, atlasChatInput, setAtlasChatInput,
-      atlasChatLoading, sendAtlasChat, assistantSettings, updateAssistantSettings, visibleAiTools,
+      atlasChatLoading, sendAtlasChat, sendAtlasMessage: atlasEngine.send,
+      assistantSettings, updateAssistantSettings, visibleAiTools,
       atlasGreeting: ATLAS_GREETING,
       atlasConversations: atlasEngine.conversations,
       atlasActiveConversationId: atlasEngine.activeId,
@@ -4115,7 +4121,8 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
                 setShowMorningCheckup, setReviewCheckupMode, setShowLongTermInsights,
                 setEnergy, setRelaxation, setFocus, setMotivation, setSleepQuality,
               }
-            )} health={health} />
+            )} health={health} onOpenHealthSettings={() => { setSidebarOpen(true); setActiveSettings("program"); }}
+              tasks={tasks} dailyMetrics={dailyMetrics} />
           )}
 
 
@@ -4612,6 +4619,12 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
             recoveryTrendDeclining3d, emotionalDrift,
           }}
           healthSleep={health.context?.sleep ?? null}
+          onAskAtlas={(message) => {
+            setShowMorningCheckup(false);
+            setReviewCheckupMode(false);
+            setAtlasOpen(true);
+            atlasEngine.send(message);
+          }}
         />
       )}
 

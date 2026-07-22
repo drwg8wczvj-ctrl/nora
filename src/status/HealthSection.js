@@ -1,7 +1,8 @@
 import React from "react";
-import { Moon, HeartPulse, Activity as ActivityIcon, Zap, Lightbulb, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { formatHoursMinutes } from "../lib/healthKit";
+import { Moon, HeartPulse, Activity as ActivityIcon, Zap, Lightbulb, HeartHandshake, Fingerprint, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { formatHoursMinutes, computeUsualSleepTimes } from "../lib/healthKit";
 import { computeEnergyScore, computeRecoveryScore, buildHealthNarrativeInsights } from "../statusEngine/healthInsights";
+import { buildPersonalBaseline } from "../statusEngine/personalBaseline";
 
 function TrendIcon({ trend }) {
   if (trend === "up" || trend === "improving") return <TrendingUp size={13} className="hsec-trend-up" />;
@@ -9,11 +10,13 @@ function TrendIcon({ trend }) {
   return <Minus size={13} className="hsec-trend-flat" />;
 }
 
-function SleepCard({ stats }) {
+function SleepCard({ stats, sessions }) {
+  const usual = computeUsualSleepTimes(sessions);
   return (
     <div className="status-card hsec-card">
       <div className="status-card-title-row">
-        <h3 className="status-section-title"><Moon size={13} /> Sleep</h3>
+        <h3 className="status-section-title"><Moon size={13} /> Sleep Science</h3>
+        <span className="status-sleep-disclaimer">From Apple Health</span>
       </div>
       <div className="hsec-hero">
         <span className="hsec-hero-value">{formatHoursMinutes(stats.last.asleepMinutes)}</span>
@@ -39,7 +42,24 @@ function SleepCard({ stats }) {
           <span className="hsec-stat-label">Sleep debt (7d)</span>
           <span className="hsec-stat-value">{stats.debtMinutes > 0 ? formatHoursMinutes(stats.debtMinutes) : "None"}</span>
         </div>
+        {usual && (
+          <>
+            <div className="hsec-stat">
+              <span className="hsec-stat-label">Usual bedtime</span>
+              <span className="hsec-stat-value">{usual.usualBedtime}</span>
+            </div>
+            <div className="hsec-stat">
+              <span className="hsec-stat-label">Usual wake time</span>
+              <span className="hsec-stat-value">{usual.usualWakeTime}</span>
+            </div>
+          </>
+        )}
       </div>
+      {usual && (
+        <p className="hsec-note">
+          Apple doesn't share your Health app's sleep schedule goal with other apps — this is your real average from the last {usual.nightsUsed} nights instead.
+        </p>
+      )}
     </div>
   );
 }
@@ -150,15 +170,61 @@ function NoraInsightsCard({ insights }) {
   );
 }
 
-// Mounted at the end of the Mind tab — see StatusPage.js. Renders nothing
-// until the user has connected at least one Health category and real data
-// has actually come back for it (never a half-populated placeholder card).
-export default function HealthSection({ health }) {
-  const ctx = health?.context;
-  if (!health?.available || !ctx) return null;
+function BaselineCard({ baseline }) {
+  if (!baseline.sentences.length) return null;
+  return (
+    <div className="status-card hsec-card hsec-baseline-card">
+      <div className="status-card-title-row">
+        <h3 className="status-section-title"><Fingerprint size={13} /> Your Personal Baseline</h3>
+      </div>
+      <ul className="hsec-reasons">
+        {baseline.sentences.map((line, i) => <li key={i}>{line}</li>)}
+      </ul>
+      <p className="hsec-note">Learned from your own history — not a generic average.</p>
+    </div>
+  );
+}
+
+function ConnectPrompt({ onOpenHealthSettings }) {
+  return (
+    <div className="status-card hsec-card hsec-connect-prompt">
+      <div className="hsec-connect-icon"><HeartHandshake size={18} /></div>
+      <div className="hsec-connect-text">
+        <span className="hsec-connect-title">See your real sleep, recovery, and activity here</span>
+        <span className="hsec-connect-sub">Connect Apple Health in Settings to replace estimates with your real numbers.</span>
+      </div>
+      {onOpenHealthSettings && (
+        <button type="button" className="hsec-connect-btn" onClick={onOpenHealthSettings}>Open Settings</button>
+      )}
+    </div>
+  );
+}
+
+// Mounted near the top of the Mind tab — see StatusPage.js. Three states:
+// (1) not on iOS / HealthKit unavailable → renders nothing, there's nothing
+// to offer; (2) on iOS, available, but nothing connected yet → a prompt
+// pointing at Settings, so "where's my health data" has an answer right on
+// this page instead of requiring the user to already know Settings has a
+// Health section; (3) connected → the real cards, only the ones that
+// actually have data back yet.
+export default function HealthSection({ health, onOpenHealthSettings = null, tasks = [], dailyMetrics = {} }) {
+  if (!health?.isNativeIOS || !health?.available) return null;
+
+  if (health.enabledCategories.length === 0) {
+    return <ConnectPrompt onOpenHealthSettings={onOpenHealthSettings} />;
+  }
+
+  const ctx = health.context;
+  if (!ctx) return null; // first fetch since connecting hasn't resolved yet
 
   const energy = computeEnergyScore({ sleepStats: ctx.sleep?.stats, heart: ctx.heart, activity: ctx.activity });
   const insights = buildHealthNarrativeInsights({ sleepStats: ctx.sleep?.stats, activity: ctx.activity, heart: ctx.heart });
+  const baseline = buildPersonalBaseline({
+    sleepSessions: ctx.sleep?.sessions ?? [],
+    activityHistory: ctx.activity?.history ?? [],
+    tasks,
+    dailyMetrics,
+  });
   const showSleep = ctx.sleep?.stats?.hasData;
   const showRecovery = ctx.heart?.hasData;
   const showActivity = ctx.activity?.stats?.hasData;
@@ -167,14 +233,12 @@ export default function HealthSection({ health }) {
 
   return (
     <div className="hsec-section">
-      <div className="status-card-title-row hsec-section-title-row">
-        <h3 className="status-section-title">Health</h3>
-      </div>
       <div className="hsec-grid-outer">
-        {showSleep && <SleepCard stats={ctx.sleep.stats} />}
+        {showSleep && <SleepCard stats={ctx.sleep.stats} sessions={ctx.sleep.sessions} />}
         {showRecovery && <RecoveryCard heart={ctx.heart} />}
         {showActivity && <ActivityCard activity={ctx.activity} />}
         {energy.hasData && <EnergyCard energy={energy} />}
+        <BaselineCard baseline={baseline} />
         <NoraInsightsCard insights={insights} />
       </div>
     </div>

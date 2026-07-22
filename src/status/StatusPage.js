@@ -20,7 +20,7 @@ import HealthSection from "./HealthSection";
 // segmented control. Both `work` and `mind` are always fully computed by the
 // caller (see status/buildStatusProps.js); switching tabs is a pure
 // conditional render, never a lazy/async fetch.
-export default function StatusPage({ work, mind, loading = false, health = null }) {
+export default function StatusPage({ work, mind, loading = false, health = null, onOpenHealthSettings = null, tasks = [], dailyMetrics = {} }) {
   const [tab, setTab] = useState("work");
   const active = tab === "mind" ? mind : work;
 
@@ -51,7 +51,13 @@ export default function StatusPage({ work, mind, loading = false, health = null 
         loading={loading || Boolean(active?.aiCoach?.loading)}
       />
 
-      {tab === "mind" && <SleepScienceCard sleepAnalysis={active?.sleepAnalysis} />}
+      {/* Sleep Science (self-reported estimate) only shows once there's no
+          real HealthKit sleep data to show instead — see HealthSection,
+          which takes over this slot the moment Health is connected. */}
+      {tab === "mind" && !health?.context?.sleep?.stats?.hasData && (
+        <SleepScienceCard sleepAnalysis={active?.sleepAnalysis} />
+      )}
+      {tab === "mind" && <HealthSection health={health} onOpenHealthSettings={onOpenHealthSettings} tasks={tasks} dailyMetrics={dailyMetrics} />}
 
       <QuickCheckIn items={checkInItems} sleep={active?.quickCheckIn?.sleep} />
 
@@ -78,8 +84,6 @@ export default function StatusPage({ work, mind, loading = false, health = null 
       <PatternsSection patterns={safePatterns} />
 
       <ActionCenter actions={safeActions} />
-
-      {tab === "mind" && <HealthSection health={health} />}
     </div>
   );
 }

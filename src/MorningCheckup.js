@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { X, ChevronLeft, ChevronRight, Sunrise, Zap, Brain, Moon, Target, Wind, Heart, BatteryCharging } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Sunrise, Zap, Brain, Moon, Target, Wind, Heart, BatteryCharging, HeartHandshake, Send } from "lucide-react";
 import { apiUrl } from "./lib/apiBase";
 import { computeReadiness, computeReadinessSubScores } from "./statusEngine/readiness";
 import { computeSleepAnalysis, estimateSleepDuration, buildRecentNights } from "./statusEngine/sleepScience";
@@ -7,7 +7,7 @@ import { selectAdaptiveQuestion, buildAdaptiveCheckupInputs } from "./statusEngi
 import { selectCandidateRecommendations } from "./statusEngine/morningRecommendations";
 import { mineAllPatterns } from "./statusEngine/patterns";
 import { containsBannedLanguage } from "./statusEngine/interpretations";
-import { buildSleepCheckupInsights } from "./lib/healthKit";
+import { buildSleepCheckupInsights, computeUsualSleepTimes } from "./lib/healthKit";
 
 // Re-exported so App.js/MobileApp.js's `import { computeReadiness } from "./MorningCheckup"`
 // keeps working unchanged — the real implementation now lives in statusEngine/readiness.js
@@ -66,6 +66,17 @@ const BUBBLE_COLORS = [
   "#d97706", "#dc2626", "#7c3aed", "#4f46e5", "#0369a1",
 ];
 
+// Tappable starting points for "Ask Atlas about today's condition" — the
+// user can tap one as-is or edit it before sending; free text always works too.
+const ASK_ATLAS_EXAMPLES = [
+  "I still feel exhausted.",
+  "My sleep score says 85 but I feel terrible.",
+  "I have no motivation.",
+  "I have a headache.",
+  "I feel anxious.",
+  "I think I overtrained yesterday.",
+];
+
 // ── Generate focus bubbles from today's tasks ────────────────────
 function buildFocusBubbles(todayTasks = []) {
   const fromTasks = todayTasks
@@ -90,6 +101,7 @@ export default function MorningCheckup({
   viewOnly = false, existingData = null,
   engineContext = {},
   healthSleep = null, // { sessions, stats } from useHealthKit()'s context.sleep, or null if unavailable
+  onAskAtlas = null,  // (message: string) => void — closes this modal, opens Atlas, and sends the message
 }) {
   const TOTAL_STEPS = 3;
 
@@ -97,19 +109,32 @@ export default function MorningCheckup({
   const [step, setStep] = useState(viewOnly ? TOTAL_STEPS : 0);
   const [data, setData] = useState(viewOnly && existingData ? existingData : { ...EMPTY_CHECKUP_DATA });
   const [showSleepTimes, setShowSleepTimes] = useState(false);
-  const [sleepPrefilled, setSleepPrefilled] = useState(false);
+  const [sleepPrefillSource, setSleepPrefillSource] = useState(null); // null | "lastNight" | "usual"
+  const [askAtlasText, setAskAtlasText] = useState("");
 
-  // Auto-prefill bedtime/wake time from last night's real HealthKit sleep
-  // session, once, the first time this checkup opens with nothing entered
-  // yet — the user only has to correct it, never re-enter it from scratch.
+  // Auto-prefill bedtime/wake time, once, the first time this checkup opens
+  // with nothing entered yet — the user only has to correct it, never
+  // re-enter it from scratch. Prefers last night's actual recorded HealthKit
+  // sleep session; falls back to the user's own historical usual bedtime/
+  // wake time (computeUsualSleepTimes) when there's no recorded session for
+  // last night at all — e.g. the Watch wasn't worn to bed — since an
+  // educated guess from real history still beats an empty field.
   useEffect(() => {
     if (viewOnly || data.bedtime || data.wakeTime) return;
-    const last = healthSleep?.stats?.hasData ? healthSleep.stats.last : null;
-    if (!last?.bedtime || !last?.wakeTime) return;
     const toTimeInput = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    setData((d) => ({ ...d, bedtime: toTimeInput(last.bedtime), wakeTime: toTimeInput(last.wakeTime) }));
-    setShowSleepTimes(true);
-    setSleepPrefilled(true);
+    const last = healthSleep?.stats?.hasData ? healthSleep.stats.last : null;
+    if (last?.bedtime && last?.wakeTime) {
+      setData((d) => ({ ...d, bedtime: toTimeInput(last.bedtime), wakeTime: toTimeInput(last.wakeTime) }));
+      setShowSleepTimes(true);
+      setSleepPrefillSource("lastNight");
+      return;
+    }
+    const usual = healthSleep?.sessions?.length ? computeUsualSleepTimes(healthSleep.sessions) : null;
+    if (usual) {
+      setData((d) => ({ ...d, bedtime: usual.usualBedtime, wakeTime: usual.usualWakeTime }));
+      setShowSleepTimes(true);
+      setSleepPrefillSource("usual");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -140,6 +165,12 @@ export default function MorningCheckup({
       ? d.focusChoices.filter(c => c !== chip)
       : [...d.focusChoices, chip],
   }));
+
+  const submitAskAtlas = (text) => {
+    const message = (text ?? askAtlasText).trim();
+    if (!message || !onAskAtlas) return;
+    onAskAtlas(message);
+  };
 
   const canNext = [
     !!data.sleepQuality,
@@ -341,8 +372,11 @@ export default function MorningCheckup({
                 </button>
               ) : (
                 <>
-                  {sleepPrefilled && (
+                  {sleepPrefillSource === "lastNight" && (
                     <div className="mcu-health-prefill-badge">Filled in from Apple Health — edit if this looks off</div>
+                  )}
+                  {sleepPrefillSource === "usual" && (
+                    <div className="mcu-health-prefill-badge">No sleep recorded last night — filled in from your usual schedule, edit if today was different</div>
                   )}
                   <div className="mcu-time-row">
                     <div className="mcu-time-field">
@@ -554,6 +588,41 @@ export default function MorningCheckup({
                   ))
                 )}
               </div>
+
+              {onAskAtlas && (
+                <div className="mcu-ask-atlas">
+                  <div className="mcu-ask-atlas-header">
+                    <HeartHandshake size={15} />
+                    <span>Ask Atlas about today's condition</span>
+                  </div>
+                  <div className="mcu-ask-atlas-chips">
+                    {ASK_ATLAS_EXAMPLES.map((ex) => (
+                      <button key={ex} type="button" className="mcu-ask-atlas-chip" onClick={() => submitAskAtlas(ex)}>
+                        {ex}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mcu-ask-atlas-input-row">
+                    <input
+                      type="text"
+                      className="mcu-ask-atlas-input"
+                      placeholder="Type anything..."
+                      value={askAtlasText}
+                      onChange={(e) => setAskAtlasText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") submitAskAtlas(); }}
+                    />
+                    <button
+                      type="button"
+                      className="mcu-ask-atlas-send"
+                      disabled={!askAtlasText.trim()}
+                      onClick={() => submitAskAtlas()}
+                      aria-label="Send to Atlas"
+                    >
+                      <Send size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

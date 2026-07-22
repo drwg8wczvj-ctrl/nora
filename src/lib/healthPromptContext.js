@@ -1,14 +1,16 @@
-// Turns the HealthKit context into the plain-text block both
-// buildPlannerSystem and buildAtlasSystem (src/App.js) inject into their
-// system prompts — one function so Planner and Atlas always agree on what
-// today's health data means and what to do about it. Returns "" when no
-// health category is connected or nothing has real data yet, so callers can
-// just string-interpolate it with no extra branching.
+// Turns the HealthKit context (plus the user's own personal baselines) into
+// the plain-text block both buildPlannerSystem and buildAtlasSystem (src/
+// App.js) inject into their system prompts — one function so Planner and
+// Atlas always agree on what today's health data means, how it compares to
+// this specific person's normal, and what to do about it. Returns "" when
+// no health category is connected or nothing has real data yet, so callers
+// can just string-interpolate it with no extra branching.
 
 import { formatHoursMinutes } from "./healthKit";
 import { computeEnergyScore, computeRecoveryScore } from "../statusEngine/healthInsights";
+import { buildPersonalBaseline } from "../statusEngine/personalBaseline";
 
-export function buildHealthPromptContext(health) {
+export function buildHealthPromptContext(health, { tasks = [], dailyMetrics = {} } = {}) {
   const ctx = health?.context;
   if (!health?.available || !ctx) return "";
 
@@ -20,13 +22,28 @@ export function buildHealthPromptContext(health) {
 
   if (!sleep?.hasData && !recovery.hasData && !activity?.stats?.hasData) return "";
 
+  const baseline = buildPersonalBaseline({
+    sleepSessions: ctx.sleep?.sessions ?? [],
+    activityHistory: activity?.history ?? [],
+    tasks,
+    dailyMetrics,
+  });
+
   const lines = [];
   if (sleep?.hasData) {
+    const baselineNote = baseline.sleep.hasData
+      ? ` — your normal is ${formatHoursMinutes(baseline.sleep.avgMinutes)}, so this is ${
+          sleep.last.asleepMinutes < baseline.sleep.avgMinutes - 45 ? "noticeably below your baseline"
+          : sleep.last.asleepMinutes > baseline.sleep.avgMinutes + 45 ? "above your baseline"
+          : "close to your baseline"
+        }`
+      : "";
     lines.push(
       `Sleep: ${formatHoursMinutes(sleep.last.asleepMinutes)} last night` +
       ` (7-day avg ${sleep.weeklyAvgMinutes ? formatHoursMinutes(sleep.weeklyAvgMinutes) : "unknown"}),` +
       ` trend ${sleep.trend ?? "unknown"}, bedtime consistency ${sleep.consistencyLabel ?? "unknown"}` +
-      `${sleep.debtMinutes > 60 ? `, ~${formatHoursMinutes(sleep.debtMinutes)} sleep debt this week` : ""}.`
+      `${sleep.debtMinutes > 60 ? `, ~${formatHoursMinutes(sleep.debtMinutes)} sleep debt this week` : ""}` +
+      `${baselineNote}.`
     );
   }
   if (recovery.hasData) {
@@ -34,14 +51,23 @@ export function buildHealthPromptContext(health) {
   }
   if (activity?.stats?.hasData) {
     const { today, trend } = activity.stats;
+    const stepsBaselineNote = baseline.steps.hasData
+      ? ` (your normal is ${baseline.steps.avgSteps.toLocaleString()})`
+      : "";
     lines.push(
-      `Activity: ${Math.round(today.steps)} steps today, ${Math.round(today.activeEnergyKcal)} kcal active energy,` +
+      `Activity: ${Math.round(today.steps)} steps today${stepsBaselineNote}, ${Math.round(today.activeEnergyKcal)} kcal active energy,` +
       ` trend ${trend ?? "unknown"} vs last week.` +
       `${activity.workouts.length ? ` ${activity.workouts.length} workout(s) logged this week.` : ""}`
     );
   }
   if (energy.hasData) {
     lines.push(`Energy Score: ${energy.score}/100 (${energy.label}).`);
+  }
+  if (baseline.deepWork.hasData) {
+    lines.push(`Normally completes ${baseline.deepWork.avgPerDay} Deep Work block${baseline.deepWork.avgPerDay === 1 ? "" : "s"} a day.`);
+  }
+  if (baseline.bestFeeling.hasData) {
+    lines.push(`This person's own history shows they tend to feel best after ${baseline.bestFeeling.bestRangeLabel} of sleep — use THIS, not a generic "8 hours" rule, when talking about sleep targets.`);
   }
 
   // Threshold-based guidance — this is what makes the data change what
@@ -66,9 +92,17 @@ export function buildHealthPromptContext(health) {
   }
 
   return [
-    "━━━ HEALTH CONTEXT (Apple Health) ━━━━━━━━━━━━━━━━━━━",
+    "━━━ HEALTH CONTEXT (Apple Health + this person's own history) ━━━━━━━━━━━━━━━━━━━",
     ...lines,
     guidance.length ? "How this should change your plan:" : null,
     ...guidance,
-  ].filter(Boolean).join("\n");
+    "",
+    "REASONING STYLE: when more than one of these signals points the same",
+    "direction (e.g. a high-activity day + shorter-than-usual sleep + several",
+    "intense Deep Work sessions), weave them into ONE causal explanation —",
+    "\"you walked over 20,000 steps yesterday; combined with a shorter night",
+    "and four Deep Work sessions, today's fatigue makes sense\" — not a list of",
+    "disconnected facts. Always explain WHY before WHAT. Compare against THIS",
+    "person's own baseline above, never a generic population average.",
+  ].filter((l) => l !== null).join("\n");
 }

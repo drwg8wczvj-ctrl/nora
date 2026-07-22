@@ -285,7 +285,7 @@ export default function MobileApp({ ctx }) {
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
         {mobileView === "boards"   && <MobileWhiteboardView boards={ctx.boards} onAskNora={p => { ctx.setChatInput(p); ctx.setChatOpen(true); }} onClose={() => setMobileView("plan")} />}
-        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} /></div>}
+        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} onOpenHealthSettings={() => setMobileView("settings")} tasks={ctx.tasks || []} dailyMetrics={ctx.dailyMetrics || {}} /></div>}
         {mobileView === "settings" && <MobileSettings ctx={ctx} />}
       </main>
 
@@ -399,6 +399,12 @@ export default function MobileApp({ ctx }) {
             recoveryTrendDeclining3d: ctx.recoveryTrendDeclining3d, emotionalDrift: ctx.emotionalDrift,
           }}
           healthSleep={ctx.health?.context?.sleep ?? null}
+          onAskAtlas={(message) => {
+            ctx.setShowMorningCheckup(false);
+            ctx.setReviewCheckupMode && ctx.setReviewCheckupMode(false);
+            ctx.setAtlasOpen(true);
+            ctx.sendAtlasMessage(message);
+          }}
         />
       )}
       {rescheduleTask && (

@@ -8,7 +8,7 @@ export function clamp(min, max, v) {
 // `computeReadinessFn` is accepted for future callers but intentionally unused —
 // morningCheckup.readinessScore is already the normalized 0-100 score computed
 // elsewhere (App.js's normalizeCheckup), so we just read it instead of recomputing.
-export function computeMentalBattery({ energy, morningCheckup, computeReadinessFn, taskWeights, userLoadBaseline, todayTasks, recoveryState }) {
+export function computeMentalBattery({ energy, morningCheckup, computeReadinessFn, taskWeights, userLoadBaseline, todayTasks, recoveryState, healthSleep = null }) {
   const baseline = morningCheckup?.readinessScore != null
     ? Math.round(morningCheckup.readinessScore * 0.6 + energy * 10 * 0.4)
     : energy * 10;
@@ -23,11 +23,21 @@ export function computeMentalBattery({ energy, morningCheckup, computeReadinessF
   const RECOVERY_PENALTY = { burnout: 15, recovery: 10, high: 5, mild: 0, stable: 0 };
   const recoveryPenalty = RECOVERY_PENALTY[recoveryState.level] ?? 0;
 
-  const value = clamp(0, 100, baseline - drainPenalty - recoveryPenalty);
+  // Optional real-sleep adjustment — only applies once Apple Health is
+  // connected and has last night's actual duration + this person's own
+  // baseline; zero effect for anyone without it (healthSleep stays null).
+  let sleepAdjustment = 0;
+  if (healthSleep?.hasData && healthSleep.baselineMinutes != null) {
+    const deltaMinutes = healthSleep.lastNightMinutes - healthSleep.baselineMinutes;
+    sleepAdjustment = clamp(-15, 10, Math.round(deltaMinutes / 12)); // ~1 pt per 12 real minutes off baseline
+  }
+
+  const value = clamp(0, 100, baseline - drainPenalty - recoveryPenalty + sleepAdjustment);
   const bucket = value >= 70 ? "charged" : value >= 45 ? "adequate" : value >= 25 ? "low" : "depleted";
 
   let topFactor;
-  if (recoveryPenalty > 0 && recoveryPenalty >= drainPenalty) topFactor = "recovery_state";
+  if (sleepAdjustment <= -10) topFactor = "short_sleep_vs_baseline";
+  else if (recoveryPenalty > 0 && recoveryPenalty >= drainPenalty) topFactor = "recovery_state";
   else if (drainPenalty > 0) topFactor = "heavy_today";
   else if (morningCheckup?.readinessScore == null) topFactor = "baseline_only";
   else topFactor = "low_readiness";
@@ -39,13 +49,23 @@ export function computeMentalBattery({ energy, morningCheckup, computeReadinessF
 // Re-exposes recoveryState under the new metric shape — no new math, just a
 // consistent { value, bucket, ... } envelope so the UI can treat every metric
 // uniformly.
-export function computeRecoveryIndex({ recoveryState }) {
+// `healthRecoveryScore` is healthInsights.js's computeRecoveryScore(heart)
+// result (0-100, derived from real HRV/resting-heart-rate trend) — when
+// Health is connected, it's blended 50/50 with the existing behavior-based
+// score for a more objective number; the qualitative label/desc/advice stay
+// from the proven behavior-based system either way. Zero change when Health
+// isn't connected (healthRecoveryScore stays null).
+export function computeRecoveryIndex({ recoveryState, healthRecoveryScore = null }) {
+  const value = healthRecoveryScore != null
+    ? Math.round(recoveryState.score * 0.5 + healthRecoveryScore * 0.5)
+    : recoveryState.score;
   return {
-    value: recoveryState.score,
+    value,
     bucket: recoveryState.level,
     label: recoveryState.label,
     desc: recoveryState.desc,
     advice: recoveryState.advice,
+    blendedWithHealth: healthRecoveryScore != null,
   };
 }
 
@@ -68,7 +88,13 @@ export function computeMomentumMetric({ momentum, weekData }) {
 // Standard deviation of the daily completion rate over the trailing window —
 // low variance reads as "steady", high variance as "erratic". Distinct from
 // momentum (which tracks direction/level), this tracks predictability.
-export function computeConsistency({ days14 }) {
+// `healthConsistency` is optional real-data variability (bedtime stdDev in
+// minutes, day-to-day step coefficient of variation) — when Health is
+// connected, each available signal is converted to its own 0-100 steadiness
+// score and blended 50/50 against the planner-only score, so Consistency
+// reflects real-life steadiness (sleep, activity), not just task completion.
+// Zero effect for anyone without Health connected (healthConsistency stays null).
+export function computeConsistency({ days14, healthConsistency = null }) {
   const rates = days14.map((d) => d.rate);
   if (rates.length < 5) return { value: null, bucket: "building", sampleSize: rates.length };
 
@@ -76,17 +102,30 @@ export function computeConsistency({ days14 }) {
   const variance = rates.reduce((s, r) => s + (r - mean) ** 2, 0) / rates.length;
   const stdDev = Math.sqrt(variance);
 
-  const value = clamp(0, 100, Math.round(100 - stdDev * 140));
+  const plannerScore = clamp(0, 100, Math.round(100 - stdDev * 140));
+
+  const healthScores = [];
+  if (healthConsistency?.sleepBedtimeStdMin != null) {
+    healthScores.push(clamp(0, 100, Math.round(100 - healthConsistency.sleepBedtimeStdMin * 1.1)));
+  }
+  if (healthConsistency?.activityStepsCV != null) {
+    healthScores.push(clamp(0, 100, Math.round(100 - healthConsistency.activityStepsCV * 100)));
+  }
+  const healthScore = healthScores.length
+    ? Math.round(healthScores.reduce((s, v) => s + v, 0) / healthScores.length)
+    : null;
+
+  const value = healthScore != null ? Math.round(plannerScore * 0.5 + healthScore * 0.5) : plannerScore;
   const bucket = value >= 75 ? "steady" : value >= 50 ? "variable" : "erratic";
 
-  return { value, bucket, sampleSize: rates.length };
+  return { value, bucket, sampleSize: rates.length, blendedWithHealth: healthScore != null };
 }
 
 // ── Deep Work Capacity ───────────────────────────────────────────────────────
 // Predicts how much focused, high-quality attention is realistically available
 // right now, blending energy/load/recovery with real focus-session history
 // once there's enough of it to trust.
-export function computeDeepWorkCapacity({ energy, workloadForecast, recoveryState, focusStats }) {
+export function computeDeepWorkCapacity({ energy, workloadForecast, recoveryState, focusStats, healthSleep = null, healthActivity = null }) {
   let score = energy * 10;
 
   const LOAD_PENALTY = { heavy: 20, moderate: 8, light: 0, free: 0 };
@@ -101,6 +140,19 @@ export function computeDeepWorkCapacity({ energy, workloadForecast, recoveryStat
     const completionRate = focusStats.sessions_completed / Math.max(1, focusStats.sessions_started);
     score += Math.round((completionRate - 0.7) * 30);
     score -= Math.min(15, (focusStats.avg_distractions_per_session ?? 0) * 6);
+  }
+
+  // Real sleep vs. this person's own baseline — a short night measurably
+  // caps how much focused cognitive work is realistic today, independent of
+  // how "energetic" they self-report feeling. No effect without Health connected.
+  if (healthSleep?.hasData && healthSleep.baselineMinutes != null) {
+    const deltaMinutes = healthSleep.lastNightMinutes - healthSleep.baselineMinutes;
+    score += clamp(-18, 8, Math.round(deltaMinutes / 15));
+  }
+  // An unusually high-output activity day yesterday reduces today's realistic
+  // capacity — the body is still recovering, whatever energy is self-reported.
+  if (healthActivity?.hasData && healthActivity.veryActiveDay) {
+    score -= 10;
   }
 
   const value = clamp(0, 100, score);

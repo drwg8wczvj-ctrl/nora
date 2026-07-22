@@ -2049,6 +2049,39 @@
   100% { background-position: -200% 0; }
 }
 
+/* Ask Atlas about today's condition */
+.mcu-ask-atlas {
+  width: 100%; margin-top: 18px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.mcu-ask-atlas-header {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 700; color: var(--text);
+}
+.mcu-ask-atlas-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mcu-ask-atlas-chip {
+  padding: 6px 11px; border-radius: 20px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 11.5px; cursor: pointer; transition: all .15s;
+}
+.mcu-ask-atlas-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.mcu-ask-atlas-input-row { display: flex; gap: 8px; }
+.mcu-ask-atlas-input {
+  flex: 1; padding: 11px 14px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 13.5px; font-family: inherit; outline: none;
+  transition: border-color .15s;
+}
+.mcu-ask-atlas-input:focus { border-color: var(--accent); }
+.mcu-ask-atlas-send {
+  width: 42px; height: 42px; flex-shrink: 0; border-radius: 12px; border: none;
+  background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: opacity .15s;
+}
+.mcu-ask-atlas-send:disabled { opacity: .4; cursor: not-allowed; }
+.mcu-ask-atlas-send:not(:disabled):hover { opacity: .85; }
+
 /* Footer */
 .mcu-footer { padding: 14px 24px 22px; flex-shrink: 0; border-top: 1px solid var(--border); }
 .mcu-footer-btns { display: flex; gap: 10px; }

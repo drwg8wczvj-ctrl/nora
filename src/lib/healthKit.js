@@ -133,6 +133,28 @@ function minutesSince6pm(date) {
   const h = date.getHours() + date.getMinutes() / 60;
   return ((h - 18 + 24) % 24) * 60;
 }
+function clockFromMinutesSince6pm(mins) {
+  const totalFromMidnight = (18 * 60 + mins) % (24 * 60);
+  const h = Math.floor(totalFromMidnight / 60);
+  const m = Math.round(totalFromMidnight % 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+// Apple doesn't expose the bedtime/wake-time goal configured in the Health
+// app's Sleep Schedule via any public HealthKit API — only actual recorded
+// sleep sessions are readable, not that internal goal setting. This is the
+// practical substitute: the real average bedtime/wake time from recent
+// nights, which serves the same "what time should I usually be doing this"
+// purpose without pretending to read a setting this app can't see.
+export function computeUsualSleepTimes(sessions, count = 7) {
+  const recent = sessions.slice(0, count).filter((s) => s.bedtime && s.wakeTime);
+  if (recent.length < 2) return null;
+  return {
+    usualBedtime: clockFromMinutesSince6pm(average(recent.map((s) => minutesSince6pm(s.bedtime)))),
+    usualWakeTime: clockFromMinutesSince6pm(average(recent.map((s) => minutesSince6pm(s.wakeTime)))),
+    nightsUsed: recent.length,
+  };
+}
 
 const SLEEP_TARGET_MINUTES = 8 * 60;
 

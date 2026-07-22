@@ -95,13 +95,26 @@ Return a JSON array of 3 strings only. No explanation.
 Example: ["What should I tackle first today?","Help me fit in the math homework","I'm low on energy, what's realistic?"]`;
 
   } else if (type === "status_coach") {
-    const { items = [], noraStateKey, workloadToday, deferredCount, focusPeak, sleepQuality, dayOfWeek } = context;
+    const { items = [], noraStateKey, workloadToday, deferredCount, focusPeak, sleepQuality, dayOfWeek, health = null } = context;
 
     const itemSummary = items.length
       ? items.map((it) => `  - ${it.key}: value=${it.value ?? "n/a"}, prevValue=${it.prevValue ?? "n/a"}, bucket=${it.bucket ?? "n/a"}, topFactor="${it.topFactor ?? "none"}"`).join("\n")
       : "  (none)";
 
-    systemPrompt = `You are Nora, a calm, evidence-based cognitive-performance coach. Explain WHY each number is what it is using ONLY the factors given — never invent facts not present in the data. Give one recommended action and one realistic estimated improvement per item. Never generic, never guilt-based language (no "failed", "missed", "should have"); always reframe positively. Max 22 words for the explanation, 12 for the action, 10 for the improvement.`;
+    // Apple Health context is optional (only present once the user connects
+    // it) — when present, this is what turns "why is this the value" into a
+    // real causal explanation instead of a bucket-keyed template, and lets
+    // sentences compare against THIS person's own history, not a generic rule.
+    const healthSummary = health ? [
+      health.sleepLastNightMinutes != null ? `  - Slept ${health.sleepLastNightMinutes} min last night${health.sleepBaselineMinutes != null ? ` (their own normal is ${health.sleepBaselineMinutes} min)` : ""}, trend: ${health.sleepTrend ?? "unknown"}` : null,
+      health.recoveryScore != null ? `  - Recovery: ${health.recoveryLabel ?? ""} (${health.recoveryScore}/100) from HRV/resting heart rate` : null,
+      health.activityStepsToday != null ? `  - Activity: ${health.activityStepsToday} steps today${health.activityBaselineSteps != null ? ` (their own normal is ${health.activityBaselineSteps})` : ""}, trend: ${health.activityTrend ?? "unknown"}` : null,
+      health.energyScore != null ? `  - Combined Energy Score: ${health.energyScore}/100` : null,
+      health.deepWorkBaselinePerDay != null ? `  - Normally completes ${health.deepWorkBaselinePerDay} Deep Work block(s)/day` : null,
+      health.bestSleepRangeForFeeling ? `  - Their own history shows they feel best after ${health.bestSleepRangeForFeeling} of sleep` : null,
+    ].filter(Boolean).join("\n") : null;
+
+    systemPrompt = `You are Nora, a calm, evidence-based cognitive-performance coach. Explain WHY each number is what it is using ONLY the factors given — never invent facts not present in the data. When multiple factors point the same direction (e.g. short sleep + a high-activity day + several intense Deep Work sessions), weave them into ONE causal explanation instead of listing them separately — say "combined with X and Y, Z makes sense" rather than three disconnected facts. Always compare against the person's OWN baseline/history when given, never a generic population number. Give one recommended action and one realistic estimated improvement per item. Never generic, never guilt-based language (no "failed", "missed", "should have"); always reframe positively. Max 32 words for the explanation, 14 for the action, 10 for the improvement.`;
 
     userPrompt = `Status page context:
 - Day: ${dayOfWeek ?? "today"}
@@ -110,13 +123,13 @@ Example: ["What should I tackle first today?","Help me fit in the math homework"
 - Deferred tasks: ${deferredCount ?? 0}
 - Focus peak: ${focusPeak ?? "unknown"}
 - Sleep quality: ${sleepQuality ?? "unknown"}
-
+${healthSummary ? `\nApple Health context (this person's real data):\n${healthSummary}\n` : ""}
 Items to explain (use item.key as the JSON key in your response):
 ${itemSummary}
 
-For each item, return { "key": <same key>, "sentence": <why, grounded only in the given factors>, "action": <one recommended action>, "improvement": <one realistic estimated improvement, phrased as a positive delta> }.
+For each item, return { "key": <same key>, "sentence": <why, grounded only in the given factors — synthesize Health + planner factors into one causal read when both are relevant>, "action": <one recommended action>, "improvement": <one realistic estimated improvement, phrased as a positive delta> }.
 Return a JSON array of these objects, one per item, same order as given. Nothing else.
-Example: [{"key":"mental_battery","sentence":"Your battery is a touch below average after yesterday's three long sessions with only one real break.","action":"Take a 12-minute walk before your next focus block.","improvement":"+15% focus"}]`;
+Example: [{"key":"mental_battery","sentence":"You walked well beyond your usual step count yesterday on a shorter night than normal, with three intense Deep Work sessions on top — today's lower battery tracks with that.","action":"Take a 12-minute walk before your next focus block.","improvement":"+15% focus"}]`;
 
   } else {
     return res.status(400).json({ error: "Unknown tip type" });
