@@ -120,13 +120,15 @@ export async function loadUserData() {
   return data ?? null;
 }
 
-export async function saveUserData({ tasks, groups, notes, preferences, boards }) {
+export async function saveUserData({ tasks, groups, notes, preferences, boards, journeys }) {
   const { data: { user } } = await supabase.auth.getUser();
-  // boards is stored inside preferences JSON to avoid requiring a schema change
-  const prefsWithBoards = boards !== undefined ? { ...preferences, boards } : preferences;
+  // boards/journeys are stored inside preferences JSON to avoid requiring a schema change
+  let mergedPrefs = preferences;
+  if (boards !== undefined) mergedPrefs = { ...mergedPrefs, boards };
+  if (journeys !== undefined) mergedPrefs = { ...mergedPrefs, journeys };
   const { error } = await supabase
     .from("user_app_data")
-    .upsert({ user_id: user.id, tasks, groups, notes, preferences: prefsWithBoards });
+    .upsert({ user_id: user.id, tasks, groups, notes, preferences: mergedPrefs });
   if (error) throw error;
 }
 

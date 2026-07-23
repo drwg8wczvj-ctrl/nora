@@ -743,5 +743,6 @@ export function useStatusEngine({
     atlasCoach,
     actionCenter,
     implementationIntention,
+    healthSummary,
   };
 }

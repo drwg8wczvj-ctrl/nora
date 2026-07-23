@@ -121,6 +121,16 @@ export default function MobileApp({ ctx }) {
     }
   }, [ctx.today]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Consumes a widget deep link's destination view — App.js has no direct
+  // access to this component's own mobileView state, so it hands off the
+  // target through ctx.pendingMobileView instead (see App.js's appUrlOpen listener).
+  useEffect(() => {
+    if (ctx.pendingMobileView) {
+      setMobileView(ctx.pendingMobileView);
+      ctx.setPendingMobileView(null);
+    }
+  }, [ctx.pendingMobileView]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Filter state lives here (root level) so the sheet can be rendered above everything
   const [showFilters,   setShowFilters]   = useState(false);
   const [filterType,    setFilterType]    = useState(null);
@@ -285,7 +295,7 @@ export default function MobileApp({ ctx }) {
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
         {mobileView === "boards"   && <MobileWhiteboardView boards={ctx.boards} onAskNora={p => { ctx.setChatInput(p); ctx.setChatOpen(true); }} onClose={() => setMobileView("plan")} />}
-        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} onOpenHealthSettings={() => setMobileView("settings")} tasks={ctx.tasks || []} dailyMetrics={ctx.dailyMetrics || {}} /></div>}
+        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} onOpenHealthSettings={() => setMobileView("settings")} tasks={ctx.tasks || []} dailyMetrics={ctx.dailyMetrics || {}} journeys={ctx.journeys || []} onAskAtlas={(message) => { ctx.setAtlasChatInput(message); ctx.setAtlasOpen(true); }} /></div>}
         {mobileView === "settings" && <MobileSettings ctx={ctx} />}
       </main>
 

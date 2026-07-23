@@ -3,8 +3,9 @@ import {
   CheckCircle2, Circle, ChevronDown, AlertTriangle, XCircle,
   TrendingUp, CalendarDays, FileText, FileSpreadsheet, FileImage,
   Plus, ArrowRight, Trash2, CheckCheck, Download,
+  Brain, ClipboardList, Zap, BookOpen, Flame, Target, FlaskConical, Heart, NotebookPen, Lightbulb,
 } from "lucide-react";
-import { PART_TYPES } from "./messageParts";
+import { PART_TYPES, parseRichBlocks } from "./messageParts";
 import "./MessagePart.css";
 
 // Dumb text formatter — bold/italic/inline-code/line-breaks only. A full
@@ -20,12 +21,50 @@ function formatInlineMarkdown(text = "") {
   return withInline.split("\n").map((line) => line || "&nbsp;").join("<br/>");
 }
 
+const BLOCK_ICONS = {
+  insight: Lightbulb, psychology: Brain, plan: ClipboardList, next_step: Zap,
+  planner: CalendarDays, explanation: BookOpen, challenge: Flame, goal: Target,
+  keep_in_mind: AlertTriangle, completed: CheckCircle2, research: FlaskConical,
+  wellbeing: Heart, progress: TrendingUp, reflection: NotebookPen,
+};
+
+// Renders one classified chunk from parseRichBlocks — a callout, a list, or
+// a plain paragraph. Recursive: a callout's `body` is itself one of these.
+function RichBlock({ block }) {
+  if (!block) return null;
+  if (block.type === "bullet_list") {
+    return (
+      <ul className="mp-rich-list mp-rich-bullets">
+        {block.items.map((item, i) => <li key={i} dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(item) }} />)}
+      </ul>
+    );
+  }
+  if (block.type === "numbered_list") {
+    return (
+      <ol className="mp-rich-list mp-rich-numbered">
+        {block.items.map((item, i) => <li key={i} dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(item) }} />)}
+      </ol>
+    );
+  }
+  if (block.type === "callout") {
+    const Icon = BLOCK_ICONS[block.blockKey] ?? Lightbulb;
+    return (
+      <div className={`mp-callout mp-callout-${block.blockKey}`}>
+        <div className="mp-callout-head"><Icon size={13} /><span>{block.label}</span></div>
+        <RichBlock block={block.body} />
+      </div>
+    );
+  }
+  return <p className="mp-text" dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(block.text) }} />;
+}
+
 function TextPart({ text, streaming }) {
+  const blocks = parseRichBlocks(text);
   return (
-    <p
-      className={`mp-text${streaming ? " mp-streaming" : ""}`}
-      dangerouslySetInnerHTML={{ __html: formatInlineMarkdown(text) }}
-    />
+    <div className="mp-rich-text">
+      {blocks.map((block, i) => <RichBlock key={i} block={block} />)}
+      {streaming && <span className="mp-stream-cursor" />}
+    </div>
   );
 }
 

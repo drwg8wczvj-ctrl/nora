@@ -59,6 +59,90 @@ export const errorPart = (text) => ({ type: PART_TYPES.ERROR, text });
 
 export const progressUpdatePart = (stats) => ({ type: PART_TYPES.PROGRESS_UPDATE, stats });
 
+// ── Rich response blocks ─────────────────────────────────────────────────
+// Every persona's text output can use these emoji-headed blocks to mark a
+// callout (a key insight, a plan, a warning, ...) instead of plain prose.
+// This vocabulary is the single source of truth shared between the prompt
+// instructions (src/lib/aiConversationStyle.js tells the model exactly this
+// list) and the renderer below — a header the model writes is guaranteed to
+// match here, never silently fall back to literal emoji+text.
+export const RICH_BLOCKS = [
+  { key: "insight",      emoji: "💡", label: "Key Insight" },
+  { key: "psychology",   emoji: "🧠", label: "Psychology" },
+  { key: "plan",         emoji: "📋", label: "Plan" },
+  { key: "next_step",    emoji: "⚡", label: "Next Step" },
+  { key: "planner",      emoji: "📅", label: "Planner" },
+  { key: "explanation",  emoji: "📖", label: "Explanation" },
+  { key: "challenge",    emoji: "💪", label: "Challenge" },
+  { key: "goal",         emoji: "🎯", label: "Goal" },
+  { key: "keep_in_mind", emoji: "⚠️", label: "Keep in Mind" },
+  { key: "completed",    emoji: "✅", label: "Completed" },
+  { key: "research",     emoji: "🔬", label: "Research" },
+  { key: "wellbeing",    emoji: "❤️", label: "Wellbeing" },
+  { key: "progress",     emoji: "📈", label: "Progress" },
+  { key: "reflection",   emoji: "📝", label: "Reflection" },
+];
+
+const BULLET_RE = /^[-•*]\s+/;
+const NUMBERED_RE = /^\d+[.)]\s+/;
+
+// A block header line is "<emoji> Label" — optionally **bold**, optionally
+// colon-terminated, optionally followed by inline content on the same line
+// ("💡 Key Insight: you've been improving steadily."). Matched by exact
+// known label per emoji (not a generic capitalized-words guess) so this
+// never misfires on the model's ordinary use of these emoji in prose.
+function matchBlockHeader(line) {
+  for (const block of RICH_BLOCKS) {
+    if (!line.startsWith(block.emoji)) continue;
+    let rest = line.slice(block.emoji.length).trim().replace(/^\*{1,2}/, "");
+    const labelRe = new RegExp("^" + block.label.replace(/ /g, "\\s+"), "i");
+    if (!labelRe.test(rest)) continue;
+    rest = rest.replace(labelRe, "").replace(/^\*{1,2}/, "").replace(/^:\s*/, "").trim();
+    return { block, inlineBody: rest };
+  }
+  return null;
+}
+
+// Classifies one blank-line-delimited chunk of text as a callout, a bullet
+// list, a numbered list, or a plain paragraph. Recursive on purpose — a
+// callout's body is itself classified this way, so "📋 Plan\n1. ...\n2. ..."
+// renders as a real callout wrapping a real numbered list, not raw text.
+function classifyChunk(raw) {
+  const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return null;
+
+  const header = matchBlockHeader(lines[0]);
+  if (header) {
+    const bodyLines = header.inlineBody ? [header.inlineBody, ...lines.slice(1)] : lines.slice(1);
+    return {
+      type: "callout",
+      blockKey: header.block.key,
+      emoji: header.block.emoji,
+      label: header.block.label,
+      body: bodyLines.length ? classifyChunk(bodyLines.join("\n")) : null,
+    };
+  }
+  if (lines.every((l) => BULLET_RE.test(l))) {
+    return { type: "bullet_list", items: lines.map((l) => l.replace(BULLET_RE, "")) };
+  }
+  if (lines.every((l) => NUMBERED_RE.test(l))) {
+    return { type: "numbered_list", items: lines.map((l) => l.replace(NUMBERED_RE, "")) };
+  }
+  return { type: "paragraph", text: lines.join("\n") };
+}
+
+// Splits a whole message's text on blank lines and classifies each chunk —
+// the one entry point the renderer needs. Pure and synchronous; safe to call
+// on every render since messages are short (a few KB at most).
+export function parseRichBlocks(text = "") {
+  return text
+    .split(/\n\s*\n/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map(classifyChunk)
+    .filter(Boolean);
+}
+
 // Flattens a parts array down to a plain string — used for the conversation
 // list preview line and as the seed text for auto-title generation. Never
 // persisted, only derived at render/request time.

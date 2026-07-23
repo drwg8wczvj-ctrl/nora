@@ -7,12 +7,49 @@
 .mp-text { margin: 0; white-space: normal; }
 .mp-text strong { font-weight: 700; }
 .mp-text code { background: var(--surface-2); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.9em; }
-.mp-text.mp-streaming::after {
-  content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 3px;
+
+@keyframes mpCursorBlink { 50% { opacity: 0; } }
+.mp-stream-cursor {
+  display: inline-block; width: 7px; height: 7px; margin-left: 1px;
   border-radius: 50%; background: currentColor; opacity: .5;
   animation: mpCursorBlink 1s step-start infinite;
 }
-@keyframes mpCursorBlink { 50% { opacity: 0; } }
+
+/* ── Rich response blocks — paragraphs/lists/callouts a text part can
+   contain (see messageParts.js's parseRichBlocks). Short paragraphs get
+   real spacing instead of one dense blob; bullet/numbered runs get real
+   markers; a recognized emoji-header line becomes a styled callout. Every
+   color reuses --accent (so this automatically follows each persona's own
+   accent — gold on Atlas's Mind tab, purple elsewhere) except the three
+   semantic tones below, which follow this file's existing hardcoded-rgba
+   convention for warning/success (see .mp-banner-* above). ── */
+.mp-rich-text { display: flex; flex-direction: column; gap: 10px; }
+
+.mp-rich-list { margin: 0; padding-left: 19px; display: flex; flex-direction: column; gap: 5px; }
+.mp-rich-list li { font-size: 13.5px; color: var(--text); line-height: 1.5; }
+.mp-rich-bullets { list-style: none; padding-left: 3px; }
+.mp-rich-bullets li { position: relative; padding-left: 15px; }
+.mp-rich-bullets li::before { content: ''; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.mp-rich-numbered { list-style: decimal; }
+.mp-rich-numbered li::marker { color: var(--accent); font-weight: 700; }
+
+.mp-callout {
+  --callout-color: var(--accent);
+  --callout-bg: var(--accent-light, rgba(124,58,237,.10));
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--callout-color);
+  background: var(--callout-bg);
+  border-radius: 10px;
+  padding: 10px 13px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.mp-callout-head { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--callout-color); }
+.mp-callout .mp-text { font-size: 13px; }
+.mp-callout .mp-rich-list li { font-size: 13px; }
+
+.mp-callout-keep_in_mind { --callout-color: #b9740f; --callout-bg: rgba(245,158,11,.10); }
+.mp-callout-completed, .mp-callout-progress { --callout-color: var(--success); --callout-bg: rgba(34,197,94,.10); }
+.mp-callout-psychology, .mp-callout-wellbeing { --callout-color: #d1487a; --callout-bg: rgba(209,72,122,.10); }
 
 .mp-card {
   border: 1px solid var(--border);

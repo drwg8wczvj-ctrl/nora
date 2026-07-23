@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
 import { supabase } from "./lib/supabase";
 import {
   loadUserData, saveUserData,
@@ -27,12 +28,14 @@ import HealthSettings from "./components/HealthSettings";
 import { buildHealthPromptContext } from "./lib/healthPromptContext";
 import { apiUrl } from "./lib/apiBase";
 import { buildWellbeingStateBlock } from "./lib/wellbeingPromptBlock";
+import { createJourney, applyJourneyUpdate, applyMilestoneUpdate } from "./lib/journeys";
+import { CONVERSATION_STYLE_GUIDE } from "./lib/aiConversationStyle";
 import { DesktopAtlasChat } from "./aiHub/AtlasChat";
 import "./AtlasChat.css";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
 import ShareModal from "./components/ShareModal";
-import { syncWidgetData } from "./lib/noraWidgetBridge";
+import { syncWidgetData, getPendingWidgetActions } from "./lib/noraWidgetBridge";
 import JoinCodeModal from "./components/JoinCodeModal";
 import UsernameOnboarding from "./components/UsernameOnboarding";
 import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
@@ -659,6 +662,78 @@ const FLAG_WELLBEING_SIGNAL_TOOL = {
     },
   },
 };
+// Guided Journeys — a persistent, cross-conversation project (see
+// src/lib/journeys.js for the lifecycle/shape). These 3 tools are Atlas-only;
+// Planner never creates or edits a Journey, it only sees a short read-only
+// mention of active ones (see buildPlannerSystem/buildAtlasSystem context).
+const CREATE_JOURNEY_TOOL = {
+  type: "function",
+  function: {
+    name: "create_journey",
+    description: "Create a new Guided Journey — a persistent, long-term project Atlas keeps tracking across future conversations (e.g. 'Home Fitness', 'Learn German', 'Prepare for Exams'). Call this once the user has confirmed they want ongoing structured support toward a meaningful goal, after Understand + Research + Plan — never for a one-off question or a task that fits in today's schedule.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short, human name for the journey, e.g. 'Home Fitness'." },
+        objective: { type: "string", description: "One sentence describing what success looks like." },
+        domain: { type: "string", enum: ["fitness","language","career","study","finance","coding","habit","creative","relationships","mental_health","productivity","travel","other"] },
+        estimatedDuration: { type: "string", description: "Plain-language estimate, e.g. '8-12 weeks'." },
+        milestones: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { title: { type: "string" }, effort: { type: "string", description: "Optional plain-language estimate, e.g. '2 weeks' or '3 sessions'." } },
+            required: ["title"],
+          },
+          description: "2-6 concrete milestones breaking the goal into ordered stages.",
+        },
+      },
+      required: ["title", "objective", "domain"],
+    },
+  },
+};
+const UPDATE_JOURNEY_TOOL = {
+  type: "function",
+  function: {
+    name: "update_journey",
+    description: "Update an existing Guided Journey — advance its stage, change its status, log an AI observation, or remember a named resource. Call as the journey genuinely evolves (research finished, plan adjusted, weekly review done, goal completed or archived) — not just because it came up in conversation.",
+    parameters: {
+      type: "object",
+      properties: {
+        journeyId: { type: "string", description: "The journey's id." },
+        stage: { type: "string", enum: ["discover","understand","research","plan","execute","review","adapt","complete"] },
+        status: { type: "string", enum: ["active","completed","archived"] },
+        progress: { type: "number", description: "0-100 estimate. Only takes effect if this journey has no milestones yet — otherwise progress is computed from milestone completion and this is ignored." },
+        observation: { type: "string", description: "One short, third-person AI observation to log permanently, e.g. 'User missed 2 of 3 planned workouts this week — energy has been low.'" },
+        addResource: {
+          type: "object",
+          properties: {
+            label: { type: "string", description: "Name of a real, well-known resource — a book, course, tool, or app by name. Never a fabricated URL." },
+            note: { type: "string" },
+          },
+          description: "A resource worth remembering for this journey.",
+        },
+      },
+      required: ["journeyId"],
+    },
+  },
+};
+const UPDATE_JOURNEY_MILESTONE_TOOL = {
+  type: "function",
+  function: {
+    name: "update_journey_milestone",
+    description: "Mark one Guided Journey milestone complete or incomplete. Overall progress recalculates automatically from milestone completion.",
+    parameters: {
+      type: "object",
+      properties: {
+        journeyId: { type: "string" },
+        milestoneTitle: { type: "string", description: "Exact title of the milestone to update." },
+        done: { type: "boolean" },
+      },
+      required: ["journeyId", "milestoneTitle", "done"],
+    },
+  },
+};
 const ATLAS_TOOLS = [
   AI_TOOLS.find((t) => t.function.name === "add_task"),
   AI_TOOLS.find((t) => t.function.name === "move_task"),
@@ -666,6 +741,9 @@ const ATLAS_TOOLS = [
   AI_TOOLS.find((t) => t.function.name === "delete_task"),
   AI_TOOLS.find((t) => t.function.name === "save_insight"),
   FLAG_WELLBEING_SIGNAL_TOOL,
+  CREATE_JOURNEY_TOOL,
+  UPDATE_JOURNEY_TOOL,
+  UPDATE_JOURNEY_MILESTONE_TOOL,
   GENERATE_FILE_TOOL,
 ];
 
@@ -760,6 +838,7 @@ export default function App() {
       if (Array.isArray(data.notes)  && data.notes.length)  setNotes(data.notes);
       const p = data.preferences ?? {};
       if (Array.isArray(p.boards) && p.boards.length) setBoards(p.boards);
+      if (Array.isArray(p.journeys) && p.journeys.length) setJourneys(p.journeys);
       if (p.accountName  != null) setAccountName(p.accountName);
       if (p.dark         != null) setDark(p.dark);
       if (p.reminderMins != null) setReminderMins(p.reminderMins);
@@ -861,6 +940,13 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("nora_whiteboards") ?? "[]") || []; } catch { return []; }
   });
   useEffect(() => { try { localStorage.setItem("nora_whiteboards", JSON.stringify(boards)); } catch {} }, [boards]);
+  // Guided Journeys — Atlas's persistent, cross-conversation project tracker.
+  // Stored the same way as boards: local-first, synced inside `preferences`
+  // (see noraApi.js's saveUserData) so no schema change is needed.
+  const [journeys, setJourneys] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("nora_journeys") ?? "[]") || []; } catch { return []; }
+  });
+  useEffect(() => { try { localStorage.setItem("nora_journeys", JSON.stringify(journeys)); } catch {} }, [journeys]);
   const [dark,         setDark]         = useLocalStorage("nora_dark", false);
   const { t, i18n } = useTranslation();
   const [dragOver,     setDragOver]     = useState(null);
@@ -934,6 +1020,10 @@ export default function App() {
 
   const [atlasOpen,        setAtlasOpen]        = useState(false);
   const [atlasChatInput,   setAtlasChatInput]   = useState("");
+  // Bridges a deep-link's destination view into MobileApp.js's own internal
+  // `mobileView` state (App.js has no direct access to it) — set here, read
+  // and cleared by MobileApp.js's own effect. No-op on desktop.
+  const [pendingMobileView, setPendingMobileView] = useState(null);
 
   // ── Assistant mode (Planner/Atlas feature flag, OFF by default) ───────
   const { settings: assistantSettings, updateSettings: updateAssistantSettings } = useAssistantMode();
@@ -1073,10 +1163,10 @@ export default function App() {
   // the most recent values without depending on stale closures.
   useEffect(() => {
     latestSyncDataRef.current = {
-      tasks, groups, notes, boards,
+      tasks, groups, notes, boards, journeys,
       preferences: { accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile },
     };
-  }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile]); // eslint-disable-line
+  }, [tasks, groups, notes, boards, journeys, accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile]); // eslint-disable-line
 
   // Sync all app data to Supabase 1 s after the last change
   useEffect(() => {
@@ -1088,7 +1178,7 @@ export default function App() {
         saveUserData(latestSyncDataRef.current).catch(() => { pendingSyncRef.current = true; });
       }
     }, 1000);
-  }, [tasks, groups, notes, boards, accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile]); // eslint-disable-line
+  }, [tasks, groups, notes, boards, journeys, accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile]); // eslint-disable-line
 
   // Flush immediately when the PWA goes to background (iOS swipe-away, tab switch).
   // Without this, the 1-second debounce above is killed before it fires and the
@@ -1112,6 +1202,29 @@ export default function App() {
     };
   }, [session]); // eslint-disable-line
 
+  // Reconcile actions an interactive widget button performed while the app
+  // wasn't running (currently just "Complete Task") — the widget's own copy
+  // already shows this optimistically; this is where it becomes real. Runs
+  // on cold launch and every time the app comes back to the foreground.
+  useEffect(() => {
+    const applyPendingWidgetActions = async () => {
+      const actions = await getPendingWidgetActions();
+      if (!actions.length) return;
+      setTasks((prev) => {
+        let next = prev;
+        for (const action of actions) {
+          if (action.type !== "complete_task") continue;
+          next = next.map((t) => (t.id === action.taskId ? { ...t, completed: true } : t));
+        }
+        return next;
+      });
+    };
+    applyPendingWidgetActions();
+    const onVisible = () => { if (document.visibilityState === "visible") applyPendingWidgetActions(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []); // eslint-disable-line
+
   // Track online/offline state and flush any pending save when reconnected.
   useEffect(() => {
     const goOnline  = () => setIsOnline(true);
@@ -1132,35 +1245,32 @@ export default function App() {
     }
   }, [isOnline, session]); // eslint-disable-line
 
-  // Push a widget-friendly snapshot to the iOS WidgetKit extension whenever
-  // tasks or wellbeing dials change.  No-op on web/PWA.
+  // Widget deep links (nora://...) — registered once; works identically on
+  // desktop and mobile since atlasOpen/showMorningCheckup are shared
+  // top-level state. `view` (desktop) has no mobile equivalent reachable
+  // from here, so mobile routes go through pendingMobileView instead (see
+  // MobileApp.js's own effect that consumes and clears it).
   useEffect(() => {
-    const dayTasks = tasks.filter((t) => t.date === today || isRepeatMatch(t, today));
-    const completedToday = dayTasks.filter((t) => t.completed).length;
-    const readiness = computeReadiness(morningCheckup ?? undefined) ?? { label: "—", pct: 0 };
-    const dateLabel = new Intl.DateTimeFormat("en-US", {
-      weekday: "long", month: "short", day: "numeric",
-    }).format(new Date());
-
-    syncWidgetData({
-      date: dateLabel,
-      lastUpdated: new Date().toISOString(),
-      totalToday: dayTasks.length,
-      completedToday,
-      todayTasks: dayTasks.slice(0, 10).map((t) => ({
-        id: t.id,
-        title: t.title,
-        completed: !!t.completed,
-        startHour:   t.startHour   ?? null,
-        startMinute: t.startMinute ?? null,
-      })),
-      energy,
-      focus,
-      relaxation,
-      readinessLabel: readiness.label,
-      readinessPct:   readiness.pct ?? 0,
+    const sub = CapacitorApp.addListener("appUrlOpen", ({ url }) => {
+      let route = "";
+      try { route = new URL(url).hostname; } catch { return; }
+      if (route === "atlas") {
+        setAtlasOpen(true);
+      } else if (route === "journey") {
+        setAtlasChatInput("Tell me about my current journey.");
+        setAtlasOpen(true);
+      } else if (route === "checkup") {
+        setShowMorningCheckup(true);
+      } else if (route === "status") {
+        setView("status");
+        setPendingMobileView("status");
+      } else if (route === "planner" || route === "open") {
+        setView("day");
+        setPendingMobileView("plan");
+      }
     });
-  }, [tasks, today, energy, focus, relaxation, morningCheckup]); // eslint-disable-line
+    return () => { sub.then((handle) => handle.remove()); };
+  }, []); // eslint-disable-line
 
   // ── Repeat-aware task lookup ─────────────────────────
   const getTasksForDate = (date) => {
@@ -1201,9 +1311,87 @@ export default function App() {
     behaviorProfile, predictiveSignals, adaptivePlanData, weekData, weekTrend,
     metrics, interpretations, patterns, workPatterns, mindPatterns, emotionalDrift, flowPrediction,
     aiCoach, atlasCoach, actionCenter, implementationIntention, taskWeights, recoveryTrendDeclining3d,
-    sleepAnalysis,
+    sleepAnalysis, healthSummary,
   } = statusEngine;
   const contextMode = noraState; // UI alias — keeps all existing JSX working
+
+  // Push a widget-friendly snapshot to the iOS WidgetKit extension whenever
+  // tasks, wellbeing dials, metrics, health, or journeys change. No-op on
+  // web/PWA. Every optional section (metrics/health/checkup/journey/insight)
+  // degrades to undefined rather than a fabricated value — the widget itself
+  // renders an honest empty/connect state for whatever's missing.
+  useEffect(() => {
+    const dayTasks = tasks.filter((t) => t.date === today || isRepeatMatch(t, today));
+    const completedToday = dayTasks.filter((t) => t.completed).length;
+    const readiness = computeReadiness(morningCheckup ?? undefined) ?? { label: "—", pct: 0 };
+    const dateLabel = new Intl.DateTimeFormat("en-US", {
+      weekday: "long", month: "short", day: "numeric",
+    }).format(new Date());
+
+    const metricEntry = (m) => (m?.value != null ? { value: m.value, label: m.bucket ?? "" } : null);
+    const ratedDays14 = (behaviorProfile?.days14 ?? []).filter((d) => d.rate !== null);
+    let consistencyStreakDays = 0;
+    for (let i = ratedDays14.length - 1; i >= 0; i--) {
+      if (ratedDays14[i].rate >= 0.5) consistencyStreakDays++; else break;
+    }
+
+    const activeJourney = [...journeys]
+      .filter((j) => j.status === "active")
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
+
+    const insightHeadline = atlasCoach?.headline || aiCoach?.headline || null;
+
+    syncWidgetData({
+      date: dateLabel,
+      lastUpdated: new Date().toISOString(),
+      totalToday: dayTasks.length,
+      completedToday,
+      todayTasks: dayTasks.slice(0, 10).map((t) => ({
+        id: t.id,
+        title: t.title,
+        completed: !!t.completed,
+        startHour:   t.startHour   ?? null,
+        startMinute: t.startMinute ?? null,
+        type: t.type ?? "task",
+        complexity: t.complexity ?? null,
+      })),
+      energy,
+      focus,
+      relaxation,
+      readinessLabel: readiness.label,
+      readinessPct:   readiness.pct ?? 0,
+      metrics: {
+        recoveryIndex:    metricEntry(metrics?.recoveryIndex),
+        mentalBattery:    metricEntry(metrics?.mentalBattery),
+        momentum:         metricEntry(metrics?.momentum),
+        deepWorkCapacity: metricEntry(metrics?.deepWorkCapacity),
+        consistencyStreakDays,
+      },
+      health: healthSummary ? {
+        sleepLastNightMinutes: healthSummary.sleepLastNightMinutes,
+        sleepBaselineMinutes:  healthSummary.sleepBaselineMinutes,
+        recoveryScore:         healthSummary.recoveryScore,
+        stepsToday:            healthSummary.activityStepsToday,
+        stepsBaseline:         healthSummary.activityBaselineSteps,
+      } : null,
+      checkup: {
+        completedToday: morningCheckup?.date === today,
+        readinessLabel: readiness.label,
+        readinessPct:   readiness.pct ?? 0,
+      },
+      journey: activeJourney ? {
+        id: activeJourney.id,
+        title: activeJourney.title,
+        domain: activeJourney.domain,
+        stage: activeJourney.stage,
+        progress: activeJourney.progress,
+        milestones: activeJourney.milestones.map((m) => ({ id: m.id, title: m.title, done: m.done })),
+        estimatedDuration: activeJourney.estimatedDuration ?? null,
+      } : null,
+      insight: insightHeadline ? { headline: insightHeadline, detail: assessmentSummary ?? null } : null,
+      weeklyCompletionPct: weekData.map((d) => Math.round((d.rate ?? 0) * 100)),
+    });
+  }, [tasks, today, energy, focus, relaxation, morningCheckup, metrics, healthSummary, journeys, behaviorProfile, atlasCoach, aiCoach, assessmentSummary, weekData]); // eslint-disable-line
 
   // Auto-save inferred preferences when behavioral data is ready
   useEffect(() => {
@@ -1830,7 +2018,7 @@ export default function App() {
 
     // Best-effort immediate cloud save; the normal autosave retries this too.
     saveUserData({
-      tasks: remainingTasks, groups, notes, boards,
+      tasks: remainingTasks, groups, notes, boards, journeys,
       preferences: { accountName, dark, reminderMins, relaxation, energy, theme, savedPlaces, transportProfile },
     }).catch((error) => console.warn("[Delete task] App-data sync queued:", error?.message ?? error));
     flushPendingSharedDeletions();
@@ -2695,13 +2883,12 @@ Weekly reflection → 4-part format above.
 Everything else → as short as possible. If nothing notable to add, don't add it.`;
   };
 
-  // ── Atlas — the AI Life Architect persona ───────────────────────────
-  // Schedule-aware and tool-executing now (unlike the original listen-only
-  // design), but still deliberately lighter than buildPlannerSystem: no
-  // full task dump, no cascade-reschedule engine, no planning-mode
-  // step-template — just enough schedule context to build/execute
-  // responsibly, plus identity/tone/boundaries and the shared wellbeing
-  // snapshot.
+  // ── Atlas — Nora's cognitive partner / strategist / execution coach ──
+  // Schedule-aware and tool-executing: real task tools plus Guided Journeys
+  // (src/lib/journeys.js) for goals that span many conversations. Still
+  // deliberately lighter than buildPlannerSystem on raw schedule mechanics
+  // (no full task dump, no cascade-reschedule engine) — what it adds instead
+  // is the reasoning arc, research/personalization, and long-term tracking.
   const buildAtlasSystem = () => {
     const healthPromptBlock = buildHealthPromptContext(health, { tasks, dailyMetrics });
     const todayDayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(today + "T00:00:00").getDay()];
@@ -2720,25 +2907,62 @@ Everything else → as short as possible. If nothing notable to add, don't add i
       ? deferredTasks.slice(0, 5).map((t) => `  • "${t.title}" — deferred ${t.daysDeferred}d (${t.urgency} priority)`).join("\n")
       : "  (none)";
 
-    return `You are ATLAS — the user's AI Life Architect. Today is ${today} (${todayDayName}), current time ${currentTimeStr}.
-You are not a therapist and you never diagnose. You are also not a passive listening chatbot — you are a reasoning partner who helps the user understand what's really going on, decide what to actually do about it, and then build that into their real schedule using your tools. Every conversation should leave something more real behind than when it started: a clearer picture at minimum, ideally a decision, ideally something concretely added to the planner. Talking without ever moving toward action is the failure to avoid — but so is jumping to a fix before you've understood the person. Work through the steps below in order; don't skip to Build/Execute before Understand/Analyze unless the user has already told you exactly what to do.
+    const activeJourneys = journeys.filter((j) => j.status === "active");
+    const journeysBlock = activeJourneys.length > 0
+      ? activeJourneys.map((j) => {
+          const nextMilestone = j.milestones.find((m) => !m.done);
+          return `  • "${j.title}" (${j.domain}, id: ${j.id}) — stage: ${j.stage}, progress: ${j.progress}%${nextMilestone ? `, next milestone: "${nextMilestone.title}"` : j.milestones.length ? "" : " (no milestones set)"}`;
+        }).join("\n")
+      : null;
 
-━━━ THE SIX STEPS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    return `You are ATLAS — Nora's cognitive partner: part psychologist, part strategist, part execution coach. Today is ${today} (${todayDayName}), current time ${currentTimeStr}.
 
-1. UNDERSTAND — Get curious first, 1-2 focused questions: what's driving this (workload, a specific event, physical exhaustion)? Has it been building for days or is today an exception? Reflect back what you heard before moving on.
-2. ANALYZE — Ground your read in what's actually true (see SCHEDULE & PATTERN CONTEXT below), not vibes. Name the pattern plainly when it's real — e.g. "this is the third day you've pushed this task, that's avoidance, not laziness" — without ever naming a technique or sounding clinical.
-3. COACH — Recommend ONE path, confidently. Never lay out three to ten options and ask the user to pick — that hands the decision back to someone already overwhelmed. Choose the option most likely to work for this specific person and say so plainly ("Here's what I'd do:"), not "You could try X, or Y, or Z." If they push back, adapt, but always land on one recommendation again.
-4. BUILD — Turn the recommendation into a concrete structure: specific tasks, times, cadence. If it's more than one item (a routine, a weekly pattern, a multi-day plan), say the plan out loud first in 2-4 plain sentences — not a wall of text, no markdown headers — and ask "Want me to set this up in your planner?" before calling any tools. If the user's message already explicitly asked you to add/build/schedule it, that request IS the confirmation — go straight to Execute, don't ask again. For one small, obviously-wanted item, just create it.
-5. EXECUTE — Call add_task / move_task / complete_task / delete_task for real. Never say you added or moved something unless you actually called the tool. One tool call per calendar item, never bundle several items into one call. Never schedule at or before ${currentTimeStr} today. Never schedule over an existing commitment — check SCHEDULE & PATTERN CONTEXT below first.
-6. FOLLOW-UP — Before the thread moves on, if you learned or built something durable (a goal, a recurring commitment, a pattern, a preference), call save_insight to write it down. This is the only thing that survives to the next session — if it isn't saved, it's gone. Don't ask permission first, just do it.
+You are not a chatbot that answers a question and waits for the next one. Your purpose is helping the user accomplish things that actually matter to them. Every conversation should move them somewhere real: a clearer understanding at minimum, ideally a decision, ideally something concretely built into their actual schedule. Psychology, research, planning, and execution are not separate modes — blend whatever the moment needs. You are not a therapist and you never diagnose (see BOUNDARIES below).
 
-When the user seems overwhelmed (short replies, "I don't know", "too much", or low energy/relaxation below): shrink everything. One question, not three. One suggestion, not a list. The smallest possible next step. Complexity is the enemy of someone stressed trying to act.
+━━━ HOW A CONVERSATION MOVES ━━━━━━━━━━━━━━━━━━━━━━━━
+
+Understand → Research → Explain → Discuss → Plan → Execute → Follow-up → Reflect → Improve.
+
+Not every message needs all nine — "move this to 3pm" only needs Understand and Execute. A meaningful new goal deserves the fuller arc below, usually across several messages, not one giant reply. Work through it in order: don't jump to Plan before you've actually understood the person, and don't over-explain something they've clearly already decided.
+
+1. UNDERSTAND — What's actually driving this? Motivation, time available, experience, limitations, what they expect. 1-2 focused questions, not an interrogation — reflect back what you heard before moving on.
+2. RESEARCH — For anything requiring real expertise, draw on what you genuinely know: evidence-based methods, best practices, common mistakes. Thorough but never a wall of text.
+3. EXPLAIN — What does this actually look like day to day? What do people usually get wrong, and why? Set realistic expectations so an early setback doesn't feel like failure.
+4. DISCUSS — A conversation, not a lecture. Check what resonates, what worries them, what they'd change — adjust before you plan.
+5. PLAN — A small number of concrete milestones, in plain sentences, not a bullet-point wall. Honest effort/duration estimates. Ask if they want it built in — unless they already asked you to build it, in which case that request IS the confirmation.
+6. EXECUTE — Real tasks, routines, reminders via your tools. One tool call per calendar item, never bundled. Never claim something happened unless you actually called the tool. Never schedule at or before ${currentTimeStr} today, never over an existing commitment — check SCHEDULE & PATTERN CONTEXT below.
+7. FOLLOW-UP — Save what's durable before the thread moves on: save_insight for a goal/preference/pattern worth remembering; create_journey when this deserves ongoing tracking across future conversations.
+8. REFLECT — When they check back in, look first at what actually happened — completed tasks, journey progress, health/recovery signals below — before asking how it went. You usually already know.
+9. IMPROVE — Adjust based on what's real: missed sessions, low motivation, a plan that turned out too ambitious. Adapting the plan is progress, not failure — frame it that way.
+
+When the user seems overwhelmed (short replies, "I don't know", "too much", or low energy/relaxation below): shrink everything. One question, not three. One suggestion, not a list. The smallest possible next step.
 
 Techniques to draw on naturally (never mechanically, never name-drop the technique to the user): CBT, ACT, behavioral activation, implementation intentions ("if X, then Y"), WOOP, tiny habits, habit stacking, self-compassion, growth mindset, positive reframing, cognitive defusion, mental contrasting, time blocking, the Eisenhower matrix, Parkinson's law, environmental design, decision-fatigue reduction.
 
+━━━ MEANINGFUL GOALS → RESEARCH MODE → GUIDED JOURNEYS ━━━
+
+Triggered by things like "I want to start working out," "I want to learn German," "I want to build a startup," "I want to become more disciplined," "I want to train for a marathon," "I want to prepare for university" — any real, non-trivial goal, in any domain (fitness, career, finance, coding, studying, creative work, relationships, habits, anything).
+
+Walk Understand → Research → Explain → Discuss → Plan naturally across the conversation, not all in one reply:
+- RESEARCH means drawing on what you genuinely know — evidence-based methods, best practices, common mistakes. Name real, well-known resources by name: books, creators, apps, official docs. Never invent a specific URL or link you can't be sure is real.
+- Ground everything in THIS person: HEALTH CONTEXT, SCHEDULE & PATTERN CONTEXT, and THINGS YOU'VE LEARNED below (includes their own baseline, never a generic average) — "you already average 9,000 steps and sleep well, so 4 sessions a week is realistic" beats a textbook program.
+- If a written reference genuinely helps (a program, a study plan, a reading list), generate_file it rather than pasting a wall of text into chat.
+
+Once a real plan exists, offer a Guided Journey — a persistent project that survives across sessions and keeps evolving (discover → understand → research → plan → execute → review → adapt → complete), not just this one conversation. Use create_journey with a short human title (e.g. "Home Fitness"), the objective, domain, and 2-6 concrete milestones — check ACTIVE GUIDED JOURNEYS below first so you never create a second Journey for something already being tracked. In later conversations, use update_journey_milestone as milestones are actually completed, and update_journey to advance its stage, log an observation, or remember a resource worth keeping.
+
+━━━ PERSONALITY ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Intelligent, warm, calm, honest, thoughtful, curious. Never robotic, never patronizing, never overly enthusiastic. Challenge the user when it actually serves them ("I don't think that's the real problem — here's what I'm noticing instead") while staying supportive. You're allowed to disagree.
+
+${CONVERSATION_STYLE_GUIDE}
+
 ━━━ WHEN THE USER DESCRIBES HOW THEY FEEL PHYSICALLY OR MENTALLY ━━━
 
-For stress, fatigue, burnout, low motivation, anxiety, brain fog, sleepiness, overtraining, or trouble focusing: never answer generically. Check HEALTH CONTEXT and SCHEDULE & PATTERN CONTEXT below FIRST — if the data already explains it (poor sleep, low HRV, an unusually high-output day, several intense Deep Work sessions back to back, a long stretch with no real break), say so plainly and specifically before offering anything else. A real answer sounds like "you walked well beyond your usual step count yesterday, on a shorter night than normal, with four intensive Deep Work sessions on top — physical fatigue today makes complete sense" — not "that sounds tough, have you tried resting?" Blend the psychological technique with the concrete cause: explain WHY using their real data, THEN offer the ONE thing (per the COACH step above) that follows from that specific cause — not a generic wellness tip. If nothing in the data explains it, say that honestly too, rather than inventing a cause.
+For stress, fatigue, burnout, low motivation, anxiety, brain fog, sleepiness, overtraining, or trouble focusing: never answer generically. Check HEALTH CONTEXT and SCHEDULE & PATTERN CONTEXT below FIRST — if the data already explains it (poor sleep, low HRV, an unusually high-output day, several intense Deep Work sessions back to back, a long stretch with no real break), say so plainly and specifically before offering anything else. A real answer sounds like "you walked well beyond your usual step count yesterday, on a shorter night than normal, with four intensive Deep Work sessions on top — physical fatigue today makes complete sense" — not "that sounds tough, have you tried resting?" Explain WHY using their real data, THEN offer the one thing most likely to help — not a generic wellness tip. If nothing in the data explains it, say that honestly too, rather than inventing a cause.
+
+━━━ BEFORE YOU FINISH A REPLY ━━━━━━━━━━━━━━━━━━━━━━━
+
+Ask yourself: what's the next meaningful thing I can actually help with — creating a Journey, generating a document, scheduling the plan, tracking progress, preparing next week's review, adjusting something that isn't working? Don't force it into every reply, but don't let a conversation end at "that's interesting" when there's a real next step sitting right there.
 
 ━━━ BOUNDARIES — NON-NEGOTIABLE ━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2752,8 +2976,8 @@ ${buildWellbeingStateBlock({ energy, relaxation, focus, motivation, metricHistor
 Today: ${todayItems.length} item(s) scheduled${todayHasBreak ? ", including a break" : ""}. Cognitive load: ${workloadForecast[0]?.level ?? "unknown"}.
 Recovery: ${recoveryState.label} — ${recoveryState.desc}
 Momentum: ${momentum.label} — ${momentum.desc}
-${recoveryTrendDeclining3d ? "Recovery has been declining for 3+ days straight — weight Coach toward lightening load, not adding more, unless the user is asking for something small and protective.\n" : ""}${keySignals?.length ? `Signals Planner is tracking: ${keySignals.join("; ")}\n` : ""}
-Most avoided: ${mostAvoided ? `"${mostAvoided.task.title}" (${mostAvoided.daysOverdue}d deferred) — often the most useful thing to name in Analyze.` : "(none)"}
+${recoveryTrendDeclining3d ? "Recovery has been declining for 3+ days straight — weight Plan toward lightening load, not adding more, unless the user is asking for something small and protective.\n" : ""}${keySignals?.length ? `Signals Planner is tracking: ${keySignals.join("; ")}\n` : ""}
+Most avoided: ${mostAvoided ? `"${mostAvoided.task.title}" (${mostAvoided.daysOverdue}d deferred) — often the most useful thing to name in Understand.` : "(none)"}
 Other deferred tasks (${deferredTasks.length}):
 ${deferredLines}
 
@@ -2761,6 +2985,13 @@ Next 7 days, occupied time blocks (includes recurring items — never schedule o
 ${occupiedBlocks}
 
 Use this to stay grounded and to avoid double-booking — you are not here to manage the schedule the way Planner does, but what you build together has to actually fit.
+${journeysBlock ? `
+━━━ ACTIVE GUIDED JOURNEYS ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${journeysBlock}
+
+If the conversation connects to one of these, refer back to it naturally — it's an ongoing project, not a new topic. Use update_journey / update_journey_milestone to keep it current; only use create_journey for a genuinely new goal not already listed here.
+` : ""}
 ${healthPromptBlock ? `
 ${healthPromptBlock}
 When the user describes how they're feeling (e.g. "I'm exhausted"), check this health context first — if it already explains why (poor sleep, low HRV, a high-output day), say so plainly instead of asking what's wrong.
@@ -2774,16 +3005,11 @@ ${priorInsights.join("\n")}` : ""}
 
 add_task — create one calendar item per call (task/deadline/break). For a routine or plan, call it once per session/day — never bundle a routine into one call.
 move_task / complete_task / delete_task — real changes to existing tasks; use them, don't just describe the change.
-save_insight — call whenever you and the user land on a goal, routine, commitment, or pattern worth remembering — use this generously in Follow-up, it's the only memory across sessions.
-flag_wellbeing_signal — call when the conversation reveals exhaustion, stress, or burnout risk that should actually change today's plan. Not for routine check-ins. Silent to the user.
-
-━━━ OUTPUT FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Understand / Analyze → 1-3 sentences.
-Coach → one confident recommendation, 2-3 sentences. Never a list of options.
-Build proposal (multi-item) → 2-4 plain sentences + one confirmation question. No bullet template, no markdown headers.
-Execute confirmation → 1 sentence: what was added/moved and why it fits.
-No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic or clinical language, ever.`;
+create_journey — start a persistent Guided Journey once Understand/Research/Plan have actually happened for a meaningful goal. See MEANINGFUL GOALS above.
+update_journey / update_journey_milestone — keep an existing Journey current as it evolves. Check ACTIVE GUIDED JOURNEYS above before ever creating a new one.
+generate_file — produce a real downloadable document (a program, a study plan, a reading list) when that's genuinely more useful than chat text. If it belongs to a Journey, remember it via update_journey's addResource.
+save_insight — call whenever you and the user land on a goal, routine, commitment, or pattern worth remembering — use this generously in Follow-up, it's the only memory across sessions outside of Journeys.
+flag_wellbeing_signal — call when the conversation reveals exhaustion, stress, or burnout risk that should actually change today's plan. Not for routine check-ins. Silent to the user.`;
   };
 
   // Shared by both personas' dispatchers — generates the file client-side,
@@ -2989,6 +3215,11 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
   // workingTasksRef-threaded pattern. Posts includeResearchTool:false so
   // Atlas never gets silent access to Planner's productivity-technique KB.
   const atlasWorkingTasksRef = useRef(tasks);
+  // Same workingRef-threaded pattern as tasks — lets create_journey followed
+  // by update_journey_milestone in the same turn (e.g. pre-marking a
+  // milestone the user already mentioned finishing) see the journey it just
+  // created, before setJourneys' state commit is visible to a re-render.
+  const atlasWorkingJourneysRef = useRef(journeys);
   const dispatchAtlasToolCall = async (tc) => {
     const input = JSON.parse(tc.function.arguments);
     if (tc.function.name === "generate_file") return dispatchGenerateFile(input);
@@ -3011,6 +3242,34 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
       });
       return { resultText: `Wellbeing signal flagged for Planner: ${level} — "${note}"` };
     }
+    if (tc.function.name === "create_journey") {
+      const newJourney = createJourney(input);
+      const nextJourneys = [...atlasWorkingJourneysRef.current, newJourney];
+      atlasWorkingJourneysRef.current = nextJourneys;
+      setJourneys(nextJourneys);
+      return { resultText: `Guided Journey "${newJourney.title}" created (id: ${newJourney.id}), domain=${newJourney.domain}${newJourney.milestones.length ? `, ${newJourney.milestones.length} milestone(s)` : ""}.` };
+    }
+    if (tc.function.name === "update_journey") {
+      const { journeyId, ...patch } = input;
+      const journey = atlasWorkingJourneysRef.current.find((j) => j.id === journeyId);
+      if (!journey) return { resultText: `Journey ${journeyId} not found.` };
+      const updated = applyJourneyUpdate(journey, patch);
+      const nextJourneys = atlasWorkingJourneysRef.current.map((j) => (j.id === journeyId ? updated : j));
+      atlasWorkingJourneysRef.current = nextJourneys;
+      setJourneys(nextJourneys);
+      return { resultText: `Journey "${updated.title}" updated${patch.stage ? ` — stage: ${patch.stage}` : ""}${patch.status ? ` — status: ${patch.status}` : ""}.` };
+    }
+    if (tc.function.name === "update_journey_milestone") {
+      const { journeyId, milestoneTitle, done } = input;
+      const journey = atlasWorkingJourneysRef.current.find((j) => j.id === journeyId);
+      if (!journey) return { resultText: `Journey ${journeyId} not found.` };
+      const { journey: updated, found } = applyMilestoneUpdate(journey, milestoneTitle, done);
+      if (!found) return { resultText: `Milestone "${milestoneTitle}" not found on journey "${journey.title}".` };
+      const nextJourneys = atlasWorkingJourneysRef.current.map((j) => (j.id === journeyId ? updated : j));
+      atlasWorkingJourneysRef.current = nextJourneys;
+      setJourneys(nextJourneys);
+      return { resultText: `Milestone "${milestoneTitle}" marked ${done ? "done" : "not done"} on "${updated.title}" — progress now ${updated.progress}%.` };
+    }
     const { result, nextTasks } = executeAiTool(tc.function.name, input, atlasWorkingTasksRef.current);
     atlasWorkingTasksRef.current = nextTasks;
     setTasks(nextTasks);
@@ -3025,7 +3284,7 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
     tools: ATLAS_TOOLS,
     includeResearchTool: false,
     dispatchToolCall: dispatchAtlasToolCall,
-    onTurnStart: () => { atlasWorkingTasksRef.current = tasks; },
+    onTurnStart: () => { atlasWorkingTasksRef.current = tasks; atlasWorkingJourneysRef.current = journeys; },
   });
   const { messages: atlasMessages, loading: atlasChatLoading } = atlasEngine;
 
@@ -3167,8 +3426,10 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
       sleepAnalysis,
       microStartMode, setMicroStartMode,
       boards,
+      journeys,
       rescheduleTask, setRescheduleTask, saveReschedule,
       morningCheckup, showMorningCheckup, setShowMorningCheckup, handleCheckupComplete,
+      pendingMobileView, setPendingMobileView,
       reviewCheckupMode, setReviewCheckupMode,
       showLongTermInsights, setShowLongTermInsights, dailyMetrics,
       sleepState, todaySleepQuality, setSleepQuality,
@@ -4122,7 +4383,8 @@ No bullet-point advice lists. No "have you tried..." unless asked. No diagnostic
                 setEnergy, setRelaxation, setFocus, setMotivation, setSleepQuality,
               }
             )} health={health} onOpenHealthSettings={() => { setSidebarOpen(true); setActiveSettings("program"); }}
-              tasks={tasks} dailyMetrics={dailyMetrics} />
+              tasks={tasks} dailyMetrics={dailyMetrics} journeys={journeys}
+              onAskAtlas={(message) => { setAtlasChatInput(message); setAtlasOpen(true); }} />
           )}
 
 

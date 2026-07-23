@@ -82,7 +82,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		F47EBAB82FF31D8800D9A9A5 /* Exceptions for "NoraWidget" folder in "NoraWidgetExtension" target */ = {
+		F47EBAB82FF31D8800D9A9A5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -92,18 +92,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		F47EBAA92FF31D8700D9A9A5 /* NoraWidget */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				F47EBAB82FF31D8800D9A9A5 /* Exceptions for "NoraWidget" folder in "NoraWidgetExtension" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = NoraWidget;
-			sourceTree = "<group>";
-		};
+		F47EBAA92FF31D8700D9A9A5 /* NoraWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (F47EBAB82FF31D8800D9A9A5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = NoraWidget; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -532,7 +521,7 @@
 				INFOPLIST_FILE = NoraWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NoraWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -579,7 +568,7 @@
 				INFOPLIST_FILE = NoraWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NoraWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

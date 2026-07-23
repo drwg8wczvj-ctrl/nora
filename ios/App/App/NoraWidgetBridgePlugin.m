@@ -3,4 +3,5 @@
 // Register the plugin with Capacitor's bridge
 CAP_PLUGIN(NoraWidgetBridgePlugin, "NoraWidgetBridge",
     CAP_PLUGIN_METHOD(setWidgetData, CAPPluginReturnPromise);
+    CAP_PLUGIN_METHOD(getPendingWidgetActions, CAPPluginReturnPromise);
 )

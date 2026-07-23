@@ -7,6 +7,7 @@ import ActionCenter from "./ActionCenter";
 import SleepScienceCard from "./SleepScienceCard";
 import WorkMindToggle from "./WorkMindToggle";
 import HealthSection from "./HealthSection";
+import GuidedJourneysCard from "./GuidedJourneysCard";
 
 // Root orchestrator for the Status page. Pure props in, JSX out — this
 // component has zero knowledge of mobile vs. desktop. The only platform
@@ -20,7 +21,7 @@ import HealthSection from "./HealthSection";
 // segmented control. Both `work` and `mind` are always fully computed by the
 // caller (see status/buildStatusProps.js); switching tabs is a pure
 // conditional render, never a lazy/async fetch.
-export default function StatusPage({ work, mind, loading = false, health = null, onOpenHealthSettings = null, tasks = [], dailyMetrics = {} }) {
+export default function StatusPage({ work, mind, loading = false, health = null, onOpenHealthSettings = null, tasks = [], dailyMetrics = {}, journeys = [], onAskAtlas = null }) {
   const [tab, setTab] = useState("work");
   const active = tab === "mind" ? mind : work;
 
@@ -50,6 +51,8 @@ export default function StatusPage({ work, mind, loading = false, health = null,
         persona={active?.aiCoach?.persona}
         loading={loading || Boolean(active?.aiCoach?.loading)}
       />
+
+      {tab === "mind" && <GuidedJourneysCard journeys={journeys} onAskAtlas={onAskAtlas} />}
 
       {/* Sleep Science (self-reported estimate) only shows once there's no
           real HealthKit sleep data to show instead — see HealthSection,

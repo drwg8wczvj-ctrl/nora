@@ -170,17 +170,29 @@ function NoraInsightsCard({ insights }) {
   );
 }
 
-function BaselineCard({ baseline }) {
-  if (!baseline.sentences.length) return null;
+// Always rendered once we're on iOS — even before Health is connected or
+// before enough real history exists — so the feature is discoverable from
+// day one instead of only appearing once it's already fully working. The
+// Deep Work sentence in particular needs nothing but planner history, so
+// there's always *something* honest to show here, even with Health untouched.
+function BaselineCard({ baseline, healthConnected }) {
+  const hasSentences = baseline.sentences.length > 0;
   return (
     <div className="status-card hsec-card hsec-baseline-card">
       <div className="status-card-title-row">
         <h3 className="status-section-title"><Fingerprint size={13} /> Your Personal Baseline</h3>
       </div>
-      <ul className="hsec-reasons">
-        {baseline.sentences.map((line, i) => <li key={i}>{line}</li>)}
-      </ul>
-      <p className="hsec-note">Learned from your own history — not a generic average.</p>
+      {hasSentences ? (
+        <ul className="hsec-reasons">
+          {baseline.sentences.map((line, i) => <li key={i}>{line}</li>)}
+        </ul>
+      ) : (
+        <p className="hsec-note">{baseline.buildingMessage}</p>
+      )}
+      {hasSentences && <p className="hsec-note">Learned from your own history — not a generic average.</p>}
+      {!healthConnected && (
+        <p className="hsec-note hsec-baseline-hint">Connect Apple Health to also learn your sleep and activity baselines.</p>
+      )}
     </div>
   );
 }
@@ -200,45 +212,49 @@ function ConnectPrompt({ onOpenHealthSettings }) {
   );
 }
 
-// Mounted near the top of the Mind tab — see StatusPage.js. Three states:
-// (1) not on iOS / HealthKit unavailable → renders nothing, there's nothing
-// to offer; (2) on iOS, available, but nothing connected yet → a prompt
-// pointing at Settings, so "where's my health data" has an answer right on
-// this page instead of requiring the user to already know Settings has a
-// Health section; (3) connected → the real cards, only the ones that
-// actually have data back yet.
+// Mounted near the top of the Mind tab — see StatusPage.js. The Baseline
+// card is always shown once on iOS (see BaselineCard's own comment above) —
+// every other card is additive on top of it as more of Health connects and
+// resolves data: (1) not on iOS / HealthKit unavailable → Baseline card only,
+// since Health-backed cards genuinely can't exist here; (2) on iOS, available,
+// but nothing connected yet → a Settings prompt alongside the Baseline card;
+// (3) connected → the real cards, only the ones that actually have data back
+// yet, plus the Baseline card.
 export default function HealthSection({ health, onOpenHealthSettings = null, tasks = [], dailyMetrics = {} }) {
-  if (!health?.isNativeIOS || !health?.available) return null;
-
-  if (health.enabledCategories.length === 0) {
-    return <ConnectPrompt onOpenHealthSettings={onOpenHealthSettings} />;
-  }
-
-  const ctx = health.context;
-  if (!ctx) return null; // first fetch since connecting hasn't resolved yet
-
-  const energy = computeEnergyScore({ sleepStats: ctx.sleep?.stats, heart: ctx.heart, activity: ctx.activity });
-  const insights = buildHealthNarrativeInsights({ sleepStats: ctx.sleep?.stats, activity: ctx.activity, heart: ctx.heart });
+  const ctx = health?.isNativeIOS && health?.available ? health.context : null;
   const baseline = buildPersonalBaseline({
-    sleepSessions: ctx.sleep?.sessions ?? [],
-    activityHistory: ctx.activity?.history ?? [],
+    sleepSessions: ctx?.sleep?.sessions ?? [],
+    activityHistory: ctx?.activity?.history ?? [],
     tasks,
     dailyMetrics,
   });
-  const showSleep = ctx.sleep?.stats?.hasData;
-  const showRecovery = ctx.heart?.hasData;
-  const showActivity = ctx.activity?.stats?.hasData;
 
-  if (!showSleep && !showRecovery && !showActivity && !energy.hasData) return null;
+  if (!health?.isNativeIOS || !health?.available) {
+    return (
+      <div className="hsec-section">
+        <div className="hsec-grid-outer">
+          <BaselineCard baseline={baseline} healthConnected={false} />
+        </div>
+      </div>
+    );
+  }
+
+  const healthConnected = health.enabledCategories.length > 0;
+  const energy = ctx ? computeEnergyScore({ sleepStats: ctx.sleep?.stats, heart: ctx.heart, activity: ctx.activity }) : { hasData: false };
+  const insights = ctx ? buildHealthNarrativeInsights({ sleepStats: ctx.sleep?.stats, activity: ctx.activity, heart: ctx.heart }) : [];
+  const showSleep = ctx?.sleep?.stats?.hasData;
+  const showRecovery = ctx?.heart?.hasData;
+  const showActivity = ctx?.activity?.stats?.hasData;
 
   return (
     <div className="hsec-section">
       <div className="hsec-grid-outer">
+        {!healthConnected && <ConnectPrompt onOpenHealthSettings={onOpenHealthSettings} />}
         {showSleep && <SleepCard stats={ctx.sleep.stats} sessions={ctx.sleep.sessions} />}
         {showRecovery && <RecoveryCard heart={ctx.heart} />}
         {showActivity && <ActivityCard activity={ctx.activity} />}
         {energy.hasData && <EnergyCard energy={energy} />}
-        <BaselineCard baseline={baseline} />
+        <BaselineCard baseline={baseline} healthConnected={healthConnected} />
         <NoraInsightsCard insights={insights} />
       </div>
     </div>

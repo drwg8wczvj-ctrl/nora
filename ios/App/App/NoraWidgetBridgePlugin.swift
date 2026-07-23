@@ -13,6 +13,7 @@ public class NoraWidgetBridgePlugin: CAPPlugin {
     // target and the widget extension target.
     private let appGroupID = "group.tech.dongar.nora"
     private let storageKey = "nora_widget_data"
+    private let pendingActionsKey = "nora_widget_pending_actions"
 
     @objc func setWidgetData(_ call: CAPPluginCall) {
         guard let data = call.getObject("data") else {
@@ -43,5 +44,29 @@ public class NoraWidgetBridgePlugin: CAPPlugin {
         }
 
         call.resolve(["ok": true])
+    }
+
+    /// Drains (reads then clears) any actions queued by interactive widget
+    /// buttons — e.g. "Complete Task" tapped without opening the app — so the
+    /// JS app can apply them to the real task list. The widget extension is
+    /// never the source of truth; this is the one path its optimistic local
+    /// updates get reconciled back into it. Call on every app launch/resume.
+    @objc func getPendingWidgetActions(_ call: CAPPluginCall) {
+        guard let defaults = UserDefaults(suiteName: appGroupID) else {
+            call.resolve(["actions": []])
+            return
+        }
+        let actions: [[String: Any]]
+        if
+            let jsonString = defaults.string(forKey: pendingActionsKey),
+            let jsonData = jsonString.data(using: .utf8),
+            let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]]
+        {
+            actions = parsed
+        } else {
+            actions = []
+        }
+        defaults.removeObject(forKey: pendingActionsKey)
+        call.resolve(["actions": actions])
     }
 }

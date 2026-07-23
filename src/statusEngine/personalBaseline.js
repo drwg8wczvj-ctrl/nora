@@ -15,7 +15,7 @@ function average(nums) { return nums.length ? nums.reduce((a, b) => a + b, 0) / 
 
 export function computeSleepBaseline(sleepSessions = []) {
   const nights = sleepSessions.filter((s) => s.asleepMinutes > 0);
-  if (nights.length < MIN_NIGHTS_FOR_BASELINE) return { hasData: false };
+  if (nights.length < MIN_NIGHTS_FOR_BASELINE) return { hasData: false, nightsNeeded: MIN_NIGHTS_FOR_BASELINE - nights.length };
   const avgMinutes = average(nights.map((s) => s.asleepMinutes));
   return {
     hasData: true,
@@ -26,7 +26,7 @@ export function computeSleepBaseline(sleepSessions = []) {
 
 export function computeStepsBaseline(activityHistory = []) {
   const days = activityHistory.filter((d) => d.steps > 0);
-  if (days.length < MIN_DAYS_FOR_STEPS_BASELINE) return { hasData: false };
+  if (days.length < MIN_DAYS_FOR_STEPS_BASELINE) return { hasData: false, daysNeeded: MIN_DAYS_FOR_STEPS_BASELINE - days.length };
   return {
     hasData: true,
     avgSteps: Math.round(average(days.map((d) => d.steps))),
@@ -45,7 +45,7 @@ export function computeDeepWorkBaseline(tasks = [], days = 30) {
   const byDate = new Map();
   for (const t of completedHard) byDate.set(t.date, (byDate.get(t.date) ?? 0) + 1);
   const activeDayCount = new Set(tasks.filter((t) => t.date && new Date(t.date) >= cutoff).map((t) => t.date)).size;
-  if (activeDayCount < MIN_DAYS_FOR_DEEP_WORK_BASELINE) return { hasData: false };
+  if (activeDayCount < MIN_DAYS_FOR_DEEP_WORK_BASELINE) return { hasData: false, daysNeeded: MIN_DAYS_FOR_DEEP_WORK_BASELINE - activeDayCount };
   const totalBlocks = completedHard.length;
   return {
     hasData: true,
@@ -107,5 +107,23 @@ export function buildPersonalBaseline({ sleepSessions = [], activityHistory = []
   if (steps.hasData) sentences.push(`Normally walks ${steps.avgSteps.toLocaleString()} steps a day.`);
   if (bestFeeling.hasData) sentences.push(`Tends to feel best after ${bestFeeling.bestRangeLabel} of sleep.`);
 
-  return { sleep, steps, deepWork, bestFeeling, sentences };
+  // Nothing has cleared its threshold yet — rather than render nothing with
+  // no explanation, surface real progress toward whichever signal is closest,
+  // so "why don't I see my baseline" always has a concrete, honest answer.
+  let buildingMessage = null;
+  if (!sentences.length) {
+    const candidates = [
+      sleep.nightsNeeded != null && { needed: sleep.nightsNeeded, unit: sleep.nightsNeeded === 1 ? "more night" : "more nights", of: "sleep tracking" },
+      steps.daysNeeded != null && { needed: steps.daysNeeded, unit: steps.daysNeeded === 1 ? "more day" : "more days", of: "activity tracking" },
+      deepWork.daysNeeded != null && { needed: deepWork.daysNeeded, unit: deepWork.daysNeeded === 1 ? "more day" : "more days", of: "planner use" },
+    ].filter(Boolean);
+    if (candidates.length) {
+      const closest = candidates.reduce((a, b) => (b.needed < a.needed ? b : a));
+      buildingMessage = closest.needed <= 0
+        ? "Learning your baseline — check back shortly."
+        : `Still learning your baseline — ${closest.needed} ${closest.unit} of ${closest.of} will unlock this.`;
+    }
+  }
+
+  return { sleep, steps, deepWork, bestFeeling, sentences, buildingMessage };
 }
