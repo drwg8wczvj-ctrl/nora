@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { Search, Plus, Pin, Archive, Trash2, Pencil, Check, X } from "lucide-react";
+import { Search, Plus, Pin, Archive, Trash2, Pencil, Check, MoreHorizontal } from "lucide-react";
+import CloseButton from "../components/CloseButton";
+import { isNativeActionMenuAvailable, showNativeActionMenu } from "../lib/nativeActionMenu";
+import { hapticLight } from "../lib/haptics";
 import "./ConversationList.css";
 
 function timeLabel(iso) {
@@ -49,12 +52,53 @@ function ConversationRow({ conv, active, onSelect, onRename, onPin, onArchive, o
         </div>
         <span className="conv-row-time">{timeLabel(conv.last_message_at)}</span>
       </div>
-      <div className="conv-row-actions">
-        <button className="conv-row-icon-btn" title="Rename" onClick={(e) => { e.stopPropagation(); setEditing(true); }}><Pencil size={13} /></button>
-        <button className="conv-row-icon-btn" title={conv.pinned ? "Unpin" : "Pin"} onClick={(e) => { e.stopPropagation(); onPin(conv.id, !conv.pinned); }}><Pin size={13} /></button>
-        <button className="conv-row-icon-btn" title="Archive" onClick={(e) => { e.stopPropagation(); onArchive(conv.id); }}><Archive size={13} /></button>
-        <button className="conv-row-icon-btn conv-row-danger" title="Delete" onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this conversation? This can't be undone.")) onDelete(conv.id); }}><Trash2 size={13} /></button>
-      </div>
+      {isNativeActionMenuAvailable() ? (
+        <div className="conv-row-actions">
+          <button
+            className="conv-row-icon-btn"
+            title="More"
+            onClick={async (e) => {
+              e.stopPropagation();
+              hapticLight();
+              const rect = e.currentTarget.getBoundingClientRect();
+              const sourceRect = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+              let selectedId;
+              try {
+                selectedId = await showNativeActionMenu({
+                  actions: [
+                    { id: "rename", label: "Rename" },
+                    { id: "pin", label: conv.pinned ? "Unpin" : "Pin" },
+                    { id: "archive", label: "Archive" },
+                    { id: "delete", label: "Delete", style: "destructive" },
+                  ],
+                  sourceRect,
+                });
+              } catch { return; }
+              if (selectedId === "rename") setEditing(true);
+              else if (selectedId === "pin") onPin(conv.id, !conv.pinned);
+              else if (selectedId === "archive") onArchive(conv.id);
+              else if (selectedId === "delete") {
+                const confirmed = await showNativeActionMenu({
+                  title: "Delete this conversation?",
+                  message: "This can't be undone.",
+                  actions: [{ id: "confirm-delete", label: "Delete", style: "destructive" }],
+                  sourceRect,
+                }).catch(() => null);
+                if (confirmed === "confirm-delete") onDelete(conv.id);
+              }
+            }}
+          >
+            <MoreHorizontal size={15} />
+          </button>
+        </div>
+      ) : (
+        <div className="conv-row-actions">
+          <button className="conv-row-icon-btn" title="Rename" onClick={(e) => { e.stopPropagation(); setEditing(true); }}><Pencil size={13} /></button>
+          <button className="conv-row-icon-btn" title={conv.pinned ? "Unpin" : "Pin"} onClick={(e) => { e.stopPropagation(); onPin(conv.id, !conv.pinned); }}><Pin size={13} /></button>
+          <button className="conv-row-icon-btn" title="Archive" onClick={(e) => { e.stopPropagation(); onArchive(conv.id); }}><Archive size={13} /></button>
+          <button className="conv-row-icon-btn conv-row-danger" title="Delete" onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this conversation? This can't be undone.")) onDelete(conv.id); }}><Trash2 size={13} /></button>
+        </div>
+      )}
     </div>
   );
 }
@@ -115,7 +159,7 @@ export default function ConversationSidebar({ open, onClose, ...listProps }) {
     <div className={`conv-sidebar${open ? " open" : ""}`}>
       <div className="conv-sidebar-header">
         <span>Conversations</span>
-        <button className="conv-row-icon-btn" onClick={onClose}><X size={15} /></button>
+        <CloseButton onClick={onClose} size={24} />
       </div>
       <ConversationList {...listProps} />
     </div>
@@ -129,7 +173,7 @@ export function ConversationSheet({ open, onClose, ...listProps }) {
     <div className="conv-sheet">
       <div className="conv-sheet-header">
         <span>Conversations</span>
-        <button className="conv-row-icon-btn" onClick={onClose}><X size={17} /></button>
+        <CloseButton onClick={onClose} />
       </div>
       <ConversationList {...listProps} />
     </div>

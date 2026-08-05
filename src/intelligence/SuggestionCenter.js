@@ -1,5 +1,6 @@
 import React from "react";
-import { X, RefreshCw, Sparkles, Plus, AlertCircle } from "lucide-react";
+import { RefreshCw, Sparkles, Plus, AlertCircle } from "lucide-react";
+import CloseButton from "../components/CloseButton";
 import { useTranslation } from "react-i18next";
 import SuggestionCard from "./SuggestionCard";
 
@@ -64,9 +65,7 @@ export default function SuggestionCenter({
             >
               <RefreshCw size={15} />
             </button>
-            <button className="intel-icon-btn" onClick={onClose} title={t("intel.close")}>
-              <X size={17} />
-            </button>
+            <CloseButton onClick={onClose} />
           </div>
         </div>
 

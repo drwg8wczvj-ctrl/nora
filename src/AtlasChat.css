@@ -1,35 +1,16 @@
 /* ─────────────────────────────────────────────────────────────
    Atlas (Psychologist persona) chat — deliberately its own stylesheet,
-   not shared with Planner's .chat-panel/.mob-chat. Phase 4 visual-identity
-   pass: calm/therapeutic — soft ambient warmth, slower motion, fully-rounded
-   organic shapes — diverging genuinely from Planner's layout rather than
-   just recoloring it.
-   ───────────────────────────────────────────────────────────── */
-
-:root {
-  --atlas-accent: #e08a4f;
-  --atlas-accent-light: rgba(224,138,79,0.12);
-  --atlas-radius: 30px;
-  --atlas-dur-ambient: 0.6s;
-  --atlas-wash-1: rgba(224,138,79,0.10);
-  --atlas-wash-2: rgba(242,185,138,0.08);
-}
-.dark {
-  --atlas-accent: #f0a06a;
-  --atlas-accent-light: rgba(240,160,106,0.14);
-  --atlas-wash-1: rgba(240,160,106,0.14);
-  --atlas-wash-2: rgba(246,200,150,0.10);
-}
+   not shared with Planner's .chat-panel/.mob-chat. Calm/therapeutic:
+   soft ambient warmth, slower motion, fully-rounded organic shapes —
+   diverging genuinely from Planner's layout rather than just recoloring
+   it. Colors themselves come from theme.css's .atlas-mode engine (both
+   root elements below carry that class) — nothing here hardcodes a
+   palette, so retuning Atlas's identity only ever happens in one place. */
 
 /* Conversation sidebar/sheet is a shared component (src/conversation/) also
    used by Planner, styled against the generic --accent/--accent-light
-   tokens — this scopes those to Atlas's own palette wherever it's mounted
-   inside an Atlas surface, same cascade-override convention as
-   .status-mind-view uses for the Status page's Mind tab. */
-.atlas-chat-panel .conv-sidebar, .mob-atlas-chat .conv-sheet {
-  --accent: var(--atlas-accent);
-  --accent-light: var(--atlas-accent-light);
-}
+   tokens — .atlas-mode on the panel root (below) already rebinds those,
+   so it just needs to reach this nested, separately-mounted piece too. */
 
 /* ── Desktop ─────────────────────────────────────────────── */
 .atlas-chat-panel {
@@ -38,13 +19,14 @@
   background: var(--chat-panel-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border-radius: var(--atlas-radius);
-  box-shadow: 0 0 50px rgba(224,138,79,0.14), 0 20px 60px rgba(0,0,0,.15);
+  border-radius: var(--radius);
+  box-shadow: 0 0 50px rgba(var(--accent-rgb),0.14), 0 20px 60px rgba(0,0,0,.15);
   border: 1px solid var(--border);
   display: flex; flex-direction: column; overflow: hidden;
   z-index: 210;
   transform: translateY(14px) scale(.97); opacity: 0; pointer-events: none;
-  transition: transform var(--dur-slow) var(--ease-in-out), opacity var(--dur-slow) var(--ease-in-out);
+  transition: transform var(--dur-slow) var(--ease-in-out), opacity var(--dur-slow) var(--ease-in-out),
+    background-color var(--dur-base) var(--ease-in-out), box-shadow var(--dur-base) var(--ease-in-out);
 }
 .atlas-chat-panel.open { transform: translateY(0) scale(1); opacity: 1; pointer-events: all; }
 
@@ -55,7 +37,7 @@
   background: var(--chat-panel-bg);
   backdrop-filter: var(--glass-blur);
   transform: translateY(100%);
-  transition: transform var(--dur-slow) var(--ease-in-out);
+  transition: transform var(--dur-slow) var(--ease-in-out), background-color var(--dur-base) var(--ease-in-out);
   pointer-events: none;
 }
 .mob-atlas-chat.mob-atlas-chat-open { transform: translateY(0); pointer-events: auto; }
@@ -81,14 +63,14 @@
 .atlas-chat-header {
   padding: 14px 16px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between;
-  background: linear-gradient(135deg, var(--atlas-accent-light), transparent);
+  background: linear-gradient(135deg, var(--accent-light), transparent);
   padding-top: calc(14px + env(safe-area-inset-top, 0px));
 }
 .atlas-chat-header-info { display: flex; align-items: center; gap: 10px; }
 .atlas-chat-avatar {
   width: 34px; height: 34px; border-radius: 18px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: var(--atlas-accent); color: #fff;
+  background: var(--accent); color: #fff;
 }
 .atlas-chat-title    { font-size: 14px; font-weight: 700; color: var(--text); }
 .atlas-chat-subtitle { font-size: 11px; color: var(--text-muted); }
@@ -99,7 +81,7 @@
   border: 1px solid var(--border); background: transparent; color: var(--text-muted);
   cursor: pointer; flex-shrink: 0;
 }
-.atlas-chat-close:hover, .atlas-chat-breathe-btn:hover { border-color: var(--atlas-accent); color: var(--atlas-accent); }
+.atlas-chat-close:hover, .atlas-chat-breathe-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 .atlas-chat-messages {
   flex: 1; overflow-y: auto; padding: 20px;
@@ -113,7 +95,7 @@
   font-size: 13.5px; line-height: 1.6; white-space: pre-wrap;
 }
 .atlas-chat-msg.user .atlas-chat-bubble {
-  background: var(--atlas-accent); color: #fff;
+  background: var(--accent); color: #fff;
 }
 .atlas-chat-msg.assistant .atlas-chat-bubble {
   background: var(--surface-2); color: var(--text);
@@ -140,11 +122,11 @@
   padding: 10px 12px; font: inherit; font-size: 13.5px; color: var(--text);
   background: var(--surface-2); max-height: 160px;
 }
-.atlas-chat-input:focus { outline: none; border-color: var(--atlas-accent); }
+.atlas-chat-input:focus { outline: none; border-color: var(--accent); }
 .atlas-chat-send {
   width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  border: none; background: var(--atlas-accent); color: #fff; cursor: pointer;
+  border: none; background: var(--accent); color: #fff; cursor: pointer;
 }
 .atlas-chat-send:disabled { opacity: .5; cursor: not-allowed; }
 
@@ -160,13 +142,13 @@
 .atlas-intro-icon {
   width: 72px; height: 72px; border-radius: 28px;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--atlas-accent), #f2b98a);
+  background: var(--grad);
   color: #fff;
   animation: atlasIntroBreathe 2.6s ease-in-out infinite;
 }
 @keyframes atlasIntroBreathe {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(224,138,79,.35); }
-  50%      { transform: scale(1.08); box-shadow: 0 0 32px 6px rgba(224,138,79,.28); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--accent-rgb),.35); }
+  50%      { transform: scale(1.08); box-shadow: 0 0 32px 6px rgba(var(--accent-rgb),.28); }
 }
 .atlas-intro-title {
   font-size: 19px; font-weight: 700; color: var(--text);
@@ -197,8 +179,8 @@
   color: var(--text); font-size: 13px; text-align: left;
   cursor: pointer; transition: border-color .15s ease, color .15s ease;
 }
-.atlas-starter-chip:hover { border-color: var(--atlas-accent); color: var(--atlas-accent); }
-.atlas-starter-chip-breathe { color: var(--atlas-accent); border-style: dashed; }
+.atlas-starter-chip:hover { border-color: var(--accent); color: var(--accent); }
+.atlas-starter-chip-breathe { color: var(--accent); border-style: dashed; }
 
 /* ── Guided breathing exercise overlay ──────────────────────────────── */
 .atlas-breathing {
@@ -209,10 +191,10 @@
 }
 .atlas-breathing-circle {
   width: 120px; height: 120px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #f6c896, var(--atlas-accent));
+  background: radial-gradient(circle at 35% 30%, #f0ddab, var(--accent));
   transform: scale(.55);
   transition: transform 4s ease-in-out;
-  box-shadow: 0 0 40px rgba(224,138,79,.35);
+  box-shadow: 0 0 40px rgba(var(--accent-rgb),.35);
 }
 .atlas-breathing-in, .atlas-breathing-hold { transform: scale(1); }
 .atlas-breathing-out { transform: scale(.55); }

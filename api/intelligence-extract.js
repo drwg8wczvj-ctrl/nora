@@ -1,11 +1,10 @@
 const OpenAI = require("openai");
-const { createClient } = require("@supabase/supabase-js");
+const { getAdminClient, requireUser } = require("./_auth");
+const { enforceRateLimit } = require("./_rateLimit");
+const { internalError } = require("./_errors");
+const { parseBody, schemas } = require("./_validation");
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const today = () => new Date().toISOString().split("T")[0];
 
@@ -60,19 +59,21 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const auth = await requireUser(req, res);
+  if (!auth) return;
+  if (!await enforceRateLimit(req, res, auth.user.id, "intelligence")) return;
 
+  const parsedBody = parseBody(res, schemas.intelligenceExtract, req.body ?? {});
+  if (!parsedBody.ok) return;
   const {
     message,
     context   = null,   // optional: surrounding conversation thread
-    userId,
     sourceType = "manual",
     sourceId = null,
     senderName = null,
     sourceAccountId = null,
-  } = req.body ?? {};
-
-  if (!message?.trim()) return res.status(400).json({ error: "message required" });
-  if (!userId) return res.status(400).json({ error: "userId required" });
+  } = parsedBody.data;
+  const userId = auth.user.id;
 
   // Build user content: if context is provided, prepend the thread so the AI
   // can resolve relative dates (e.g. "tomorrow") from the conversation.
@@ -81,6 +82,18 @@ module.exports = async function handler(req, res) {
     : message.slice(0, 8000);
 
   try {
+    const supabase = getAdminClient();
+    if (sourceAccountId) {
+      const { data: ownedAccount } = await supabase
+        .from("nora_connected_accounts")
+        .select("id")
+        .eq("id", sourceAccountId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!ownedAccount) {
+        return res.status(403).json({ error: "Source account does not belong to this user" });
+      }
+    }
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -146,7 +159,6 @@ module.exports = async function handler(req, res) {
 
     return res.status(200).json({ suggestions: rows, count: rows.length });
   } catch (err) {
-    console.error("[intelligence-extract]", err);
-    return res.status(500).json({ error: "Extraction failed", detail: err.message });
+    return internalError(res, err, "intelligence-extract");
   }
 };

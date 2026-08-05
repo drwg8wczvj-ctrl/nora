@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Check, KeyRound, X } from "lucide-react";
+import { Check, KeyRound } from "lucide-react";
+import CloseButton from "./CloseButton";
 import "./JoinCodeModal.css";
 
 export default function JoinCodeModal({ onClose, onJoin }) {
@@ -29,7 +30,7 @@ export default function JoinCodeModal({ onClose, onJoin }) {
       <div className="jcm-modal" onClick={event => event.stopPropagation()}>
         <div className="jcm-header">
           <div className="jcm-title"><KeyRound size={16} /> Join shared task</div>
-          <button className="jcm-close" onClick={onClose} aria-label="Close"><X size={16} /></button>
+          <CloseButton onClick={onClose} size={26} />
         </div>
         {joinedTitle ? (
           <div className="jcm-body jcm-success" role="status">

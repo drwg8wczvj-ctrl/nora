@@ -17,7 +17,7 @@
 //   workingTasks ref) to the latest committed state.
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { apiUrl } from "../lib/apiBase";
+import { apiFetch } from "../lib/apiBase";
 import {
   listConversations, createConversation, renameConversation,
   setConversationPinned, setConversationArchived, deleteConversation,
@@ -137,7 +137,7 @@ export function useConversationEngine({
   // conversation from its opening message. Never blocks the reply.
   const autoTitle = useCallback(async (conversationId, firstUserText) => {
     try {
-      const res = await fetch(apiUrl("/api/chat"), {
+      const res = await apiFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -210,7 +210,7 @@ export function useConversationEngine({
       const collectedParts = [];
 
       for (let iter = 0; iter < maxIterations; iter++) {
-        const res = await fetch(apiUrl("/api/chat"), {
+        const res = await apiFetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: apiMsgs, tools, includeResearchTool }),

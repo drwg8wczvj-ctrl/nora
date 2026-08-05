@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { lazy, Suspense, useState, useMemo, useRef, useEffect } from "react";
 import { App as CapacitorApp } from "@capacitor/app";
 import { supabase } from "./lib/supabase";
 import {
@@ -14,19 +14,22 @@ import { buildToolConfirmationPart } from "./conversation/toolConfirmation";
 import { generateFileBlob, sizeLabel } from "./conversation/fileGeneration";
 import ConversationSidebar from "./conversation/ConversationList";
 import AuthScreen from "./AuthScreen";
-import MobileApp from "./MobileApp";
+const MobileApp = lazy(() => import("./MobileApp"));
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
-import LongTermInsights from "./LongTermInsights";
-import FocusSession from "./FocusSession";
-import Whiteboard from "./Whiteboard";
+const LongTermInsights = lazy(() => import("./LongTermInsights"));
+const FocusSession = lazy(() => import("./FocusSession"));
+const Whiteboard = lazy(() => import("./Whiteboard"));
 import PWABanners from "./PWABanners";
 import { useMobile } from "./hooks/useMobile";
+import { useAuthSession } from "./hooks/useAuthSession";
+import { usePersistentState } from "./hooks/usePersistentState";
+import { AppLoadingScreen } from "./app/AppLoadingScreen";
 import { useNotifications } from "./hooks/useNotifications";
 import { useAssistantMode } from "./hooks/useAssistantMode";
 import { useHealthKit } from "./hooks/useHealthKit";
 import HealthSettings from "./components/HealthSettings";
 import { buildHealthPromptContext } from "./lib/healthPromptContext";
-import { apiUrl } from "./lib/apiBase";
+import { apiFetch } from "./lib/apiBase";
 import { buildWellbeingStateBlock } from "./lib/wellbeingPromptBlock";
 import { createJourney, applyJourneyUpdate, applyMilestoneUpdate } from "./lib/journeys";
 import { CONVERSATION_STYLE_GUIDE } from "./lib/aiConversationStyle";
@@ -66,9 +69,10 @@ import SavedPlacesManager from "./components/SavedPlacesManager";
 import { extractJoinInviteCode } from "./utils/sharingIntent";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
-import PricingModal from "./components/PricingModal";
+const PricingModal = lazy(() => import("./components/PricingModal"));
 import "./App.css";
 import "./glass.css";
+import "./theme.css";
 import { useTranslation } from "react-i18next";
 import { useIntelligence } from "./intelligence/useIntelligence";
 import ProactiveOverlay from "./intelligence/ProactiveOverlay";
@@ -83,6 +87,19 @@ import { useStatusEngine } from "./statusEngine/useStatusEngine";
 import StatusPage from "./status/StatusPage";
 import { buildWorkMindProps } from "./status/buildStatusProps";
 import "./status/StatusPage.css";
+import LaunchSplash from "./LaunchSplash";
+import { buildLaunchGreeting, recordAppOpen } from "./statusEngine/launchGreeting";
+import { useTaskDomain } from "./domain/tasks/useTaskDomain";
+import { isRepeatMatch } from "./domain/tasks/taskRecurrence";
+import { buildOccupiedBlocksContext } from "./domain/tasks/taskSelectors";
+import { executeTaskTool } from "./domain/tasks/taskAiTools";
+
+// Cold-launch signature moment plays exactly once per real app process —
+// a plain module-level flag, not React state persisted anywhere, so it
+// resets only on an actual reload/relaunch (this module re-evaluates from
+// scratch) and never on backgrounding/foregrounding (which reuses the same
+// already-loaded JS engine and never re-imports this file).
+let hasShownLaunchSplashThisProcess = false;
 
 // ── Constants ──────────────────────────────────────────
 const COMPLEXITY = {
@@ -266,128 +283,6 @@ const shiftMonth = (dateStr, n) => {
   const d = new Date(dateStr + "T00:00:00");
   d.setMonth(d.getMonth() + n, 1);
   return fmtDate(d);
-};
-
-// Returns true if task repeats on `date` (excluding the task's own origin date)
-const isRepeatMatch = (task, date) => {
-  if (!task.repeat || task.date === date || task.date > date) return false;
-  if (task.repeatEnd && task.repeatEnd < date) return false;
-  const base   = new Date(task.date + "T00:00:00");
-  const target = new Date(date      + "T00:00:00");
-  const days   = Math.round((target - base) / 86400000);
-  if (task.repeat === "daily")   return days > 0;
-  if (task.repeat === "weekly")  return days % 7 === 0;
-  if (task.repeat === "monthly") return target.getDate() === base.getDate() && days > 0;
-  return false;
-};
-
-// Multi-day occupied-blocks context — Atlas-only. Planner keeps its own
-// today-only blockedStr + full taskLines dump inside buildPlannerSystem,
-// untouched. Pure function: tasks + start date → plain-text glance at
-// exact-time occupied windows for the next `days` days, expanding recurring
-// tasks via isRepeatMatch so a weekly/daily commitment landing on a FUTURE
-// day (not just today) is visible — this matters because Atlas's job now
-// includes building routines that recur, so future-day collisions must be
-// caught, unlike Planner's today-only glance where this rarely comes up.
-const buildOccupiedBlocksContext = (allTasks, startDate, days = 7) => {
-  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  return Array.from({ length: days }, (_, i) => {
-    const d = new Date(startDate + "T00:00:00");
-    d.setDate(d.getDate() + i);
-    const ds = fmtDate(d);
-    const dayTasks = allTasks.filter((t) => !t.completed && (t.date === ds || isRepeatMatch(t, ds)));
-    const scheduled = dayTasks
-      .filter((t) => t.startHour != null)
-      .sort((a, b) => (a.startHour * 60 + (a.startMinute ?? 0)) - (b.startHour * 60 + (b.startMinute ?? 0)));
-    const blocksStr = scheduled.length
-      ? scheduled.map((t) => {
-          const startMin = t.startHour * 60 + (t.startMinute ?? 0);
-          const dur = t.duration ?? (t.type === "deadline" ? 0 : 30);
-          const endMin = startMin + dur;
-          const label = t.type === "break" ? "Break" : t.type === "deadline" ? `[DEADLINE] ${t.title}` : t.title;
-          return `${fmtTime(Math.floor(startMin / 60), startMin % 60)}–${fmtTime(Math.floor(endMin / 60), endMin % 60)} "${label}"`;
-        }).join(" | ")
-      : "(free)";
-    const unscheduledCount = dayTasks.length - scheduled.length;
-    return `${dayNames[d.getDay()]} ${ds}${i === 0 ? " (today)" : ""}: ${blocksStr}${unscheduledCount > 0 ? ` +${unscheduledCount} unscheduled` : ""}`;
-  }).join("\n");
-};
-
-// ── AI tool executor ───────────────────────────────────
-const executeAiTool = (name, input, currentTasks) => {
-  switch (name) {
-    case "add_task": {
-      // DUPLICATE PREVENTION — reject if same title + date already active
-      const normTitle = (input.title ?? "").toLowerCase().trim();
-      const existing = currentTasks.find(
-        (t) => t.title.toLowerCase().trim() === normTitle && t.date === input.date && !t.completed
-      );
-      if (existing) {
-        return {
-          result: `Duplicate prevented: "${input.title}" on ${input.date} already exists (id: ${existing.id}). Use move_task to reschedule it or delete_task to remove it first.`,
-          nextTasks: currentTasks,
-        };
-      }
-
-      if (input.startHour != null) {
-        const now = new Date();
-        const todayDate = fmtDate(now);
-        if (input.date === todayDate) {
-          const inputMins = input.startHour * 60 + (input.startMinute ?? 0);
-          const nowMins   = now.getHours() * 60 + now.getMinutes();
-          if (inputMins <= nowMins) {
-            return {
-              result: `Rejected: "${input.title}" at ${fmtTime(input.startHour, input.startMinute ?? 0)} is in the past (now ${pad(now.getHours())}:${pad(now.getMinutes())}). Choose a later time and try again.`,
-              nextTasks: currentTasks,
-            };
-          }
-        }
-      }
-      const task = {
-        id: uid(), title: input.title, date: input.date,
-        type: input.type ?? "task",
-        startHour: input.startHour ?? null, startMinute: input.startMinute ?? null,
-        duration: input.duration ?? null,
-        repeat: input.repeat ?? null, repeatEnd: null,
-        completed: false, notes: input.notes ?? "",
-        complexity: input.complexity ?? null, groupId: input.groupId ?? null,
-        reminderOffset: input.reminderOffset ?? null,
-      };
-      return { result: `Created ${task.type} "${task.title}" on ${task.date}`, nextTasks: [...currentTasks, task] };
-    }
-    case "move_task": {
-      const task = currentTasks.find((t) => t.id === input.taskId);
-      if (!task) return { result: `Task ${input.taskId} not found`, nextTasks: currentTasks };
-      return {
-        result: `Moved "${task.title}" to ${input.date ?? task.date}`,
-        nextTasks: currentTasks.map((t) => t.id !== input.taskId ? t : {
-          ...t,
-          date:        input.date        ?? t.date,
-          startHour:   "startHour"   in input ? input.startHour   : t.startHour,
-          startMinute: "startMinute" in input ? input.startMinute : t.startMinute,
-        }),
-      };
-    }
-    case "complete_task": {
-      const task = currentTasks.find((t) => t.id === input.taskId);
-      if (!task) return { result: `Task ${input.taskId} not found`, nextTasks: currentTasks };
-      const done = input.completed !== false;
-      return {
-        result: `Marked "${task.title}" ${done ? "complete" : "incomplete"}`,
-        nextTasks: currentTasks.map((t) => t.id === input.taskId ? { ...t, completed: done } : t),
-      };
-    }
-    case "delete_task": {
-      const task = currentTasks.find((t) => t.id === input.taskId);
-      if (!task) return { result: `Task ${input.taskId} not found`, nextTasks: currentTasks };
-      return {
-        result: `Deleted "${task.title}"`,
-        nextTasks: currentTasks.filter((t) => t.id !== input.taskId),
-      };
-    }
-    default:
-      return { result: `Unknown tool: ${name}`, nextTasks: currentTasks };
-  }
 };
 
 // Shared by both personas — generates a real downloadable file (attached to
@@ -747,20 +642,6 @@ const ATLAS_TOOLS = [
   GENERATE_FILE_TOOL,
 ];
 
-// ── localStorage hook ──────────────────────────────────
-function useLocalStorage(key, initial) {
-  const [val, setVal] = useState(() => {
-    try {
-      const stored = localStorage.getItem(key);
-      return stored !== null ? JSON.parse(stored) : initial;
-    } catch { return initial; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
-  }, [key, val]);
-  return [val, setVal];
-}
-
 const DELETED_TASK_IDS_KEY = "nora_deleted_task_ids_v1";
 const DELETED_SHARED_IDS_KEY = "nora_deleted_shared_ids_v1";
 const PENDING_SHARED_DELETIONS_KEY = "nora_pending_shared_deletions_v1";
@@ -778,9 +659,12 @@ function storeArray(key, value) {
 
 // ── App ────────────────────────────────────────────────
 export default function App() {
-  const [session,            setSession]            = useState(null);
-  const [authLoading,        setAuthLoading]        = useState(true);
-  const [isResettingPw,      setIsResettingPw]      = useState(false);
+  const {
+    session,
+    loading: authLoading,
+    isResettingPassword: isResettingPw,
+    finishPasswordReset,
+  } = useAuthSession();
   const [morningCheckup,      setMorningCheckup]      = useState(null);
   const [showMorningCheckup,  setShowMorningCheckup]  = useState(false);
   const [reviewCheckupMode,   setReviewCheckupMode]   = useState(false);
@@ -792,22 +676,6 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("nora_metric_history") || "[]"); } catch { return []; }
   });
   const isMobile = useMobile();
-
-  useEffect(() => {
-    // Safety timeout — if Supabase hangs (PWA cache miss, no network) unblock after 8 s
-    const authTimeout = setTimeout(() => setAuthLoading(false), 8000);
-
-    supabase.auth.getSession()
-      .then(({ data: { session } }) => { clearTimeout(authTimeout); setSession(session); setAuthLoading(false); })
-      .catch(() => { clearTimeout(authTimeout); setAuthLoading(false); });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      clearTimeout(authTimeout);
-      setSession(session); setAuthLoading(false);
-      if (event === "PASSWORD_RECOVERY") setIsResettingPw(true);
-    });
-    return () => { clearTimeout(authTimeout); subscription.unsubscribe(); };
-  }, []);
 
   // Load all app data from Supabase when user logs in
   useEffect(() => {
@@ -932,8 +800,9 @@ export default function App() {
       .catch(console.error);
   }, [session]); // eslint-disable-line
 
-  const [tasks,        setTasks]        = useLocalStorage("nora_tasks", []);
-  const [groups,       setGroups]       = useLocalStorage("nora_groups", DEFAULT_GROUPS);
+  const taskDomain = useTaskDomain(session?.user?.id);
+  const { tasks, setTasks, actions: taskActions, getTasksForDate } = taskDomain;
+  const [groups,       setGroups]       = usePersistentState("nora_groups", DEFAULT_GROUPS);
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [view,         setView]         = useState("day");
   const [boards, setBoards] = useState(() => {
@@ -947,7 +816,7 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("nora_journeys") ?? "[]") || []; } catch { return []; }
   });
   useEffect(() => { try { localStorage.setItem("nora_journeys", JSON.stringify(journeys)); } catch {} }, [journeys]);
-  const [dark,         setDark]         = useLocalStorage("nora_dark", false);
+  const [dark,         setDark]         = usePersistentState("nora_dark", false);
   const { t, i18n } = useTranslation();
   const [dragOver,     setDragOver]     = useState(null);
   const [zoomLevel,    setZoomLevel]    = useState(1);
@@ -1020,6 +889,12 @@ export default function App() {
 
   const [atlasOpen,        setAtlasOpen]        = useState(false);
   const [atlasChatInput,   setAtlasChatInput]   = useState("");
+  // Status page's Mind tab is Atlas's world too — not just Atlas Chat itself.
+  // Mirrors StatusPage's own local `tab` state up here (via onMindModeChange)
+  // purely so the app SHELL (header/nav/FAB, both desktop and mobile) can
+  // react via the same .atlas-active class already used for Atlas Chat.
+  const [statusMindActive, setStatusMindActive] = useState(false);
+  const atlasShellActive = atlasOpen || statusMindActive;
   // Bridges a deep-link's destination view into MobileApp.js's own internal
   // `mobileView` state (App.js has no direct access to it) — set here, read
   // and cleared by MobileApp.js's own effect. No-op on desktop.
@@ -1031,7 +906,7 @@ export default function App() {
   const visibleAiTools = AI_HUB_TOOLS.filter((t) => t.id !== "atlas" || assistantSettings.twoAssistantMode);
 
   const [showLanding,    setShowLanding]    = useState(() => !localStorage.getItem("nora_visited"));
-  const [notes,          setNotes]          = useLocalStorage("nora_notes", []);
+  const [notes,          setNotes]          = usePersistentState("nora_notes", []);
   // eslint-disable-next-line no-unused-vars
   const [newNote, setNewNote] = useState("");
   // eslint-disable-next-line no-unused-vars
@@ -1045,14 +920,14 @@ export default function App() {
 
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [activeSettings, setActiveSettings] = useState(null);
-  const [accountName,    setAccountName]    = useLocalStorage("nora_account_name", "");
-  const [reminderMins,   setReminderMins]   = useLocalStorage("nora_reminder_mins", 5);
-  const [theme,          setTheme]          = useLocalStorage("nora_theme", "default");
-  const [relaxation,     setRelaxation]     = useLocalStorage("nora_relaxation", 5);
-  const [energy,         setEnergy]         = useLocalStorage("nora_energy", 5);
-  const [focus,          setFocus]          = useLocalStorage("nora_focus", 5);
-  const [motivation,     setMotivation]     = useLocalStorage("nora_motivation", 5);
-  const [sleepCheckIn, setSleepCheckIn]    = useLocalStorage("nora_sleep_checkin", { date: null, quality: null });
+  const [accountName,    setAccountName]    = usePersistentState("nora_account_name", "");
+  const [reminderMins,   setReminderMins]   = usePersistentState("nora_reminder_mins", 5);
+  const [theme,          setTheme]          = usePersistentState("nora_theme", "default");
+  const [relaxation,     setRelaxation]     = usePersistentState("nora_relaxation", 5);
+  const [energy,         setEnergy]         = usePersistentState("nora_energy", 5);
+  const [focus,          setFocus]          = usePersistentState("nora_focus", 5);
+  const [motivation,     setMotivation]     = usePersistentState("nora_motivation", 5);
+  const [sleepCheckIn, setSleepCheckIn]    = usePersistentState("nora_sleep_checkin", { date: null, quality: null });
   const [userProfile,    setUserProfile]    = useState({});
   const [showOnboarding,  setShowOnboarding]  = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -1250,35 +1125,42 @@ export default function App() {
   // top-level state. `view` (desktop) has no mobile equivalent reachable
   // from here, so mobile routes go through pendingMobileView instead (see
   // MobileApp.js's own effect that consumes and clears it).
+  const applyDeepLinkRoute = (route) => {
+    if (route === "atlas") {
+      setAtlasOpen(true);
+    } else if (route === "journey") {
+      setAtlasChatInput("Tell me about my current journey.");
+      setAtlasOpen(true);
+    } else if (route === "checkup") {
+      setShowMorningCheckup(true);
+    } else if (route === "status") {
+      setView("status");
+      setPendingMobileView("status");
+    } else if (route === "planner" || route === "open") {
+      setView("day");
+      setPendingMobileView("plan");
+    }
+  };
+
   useEffect(() => {
     const sub = CapacitorApp.addListener("appUrlOpen", ({ url }) => {
       let route = "";
       try { route = new URL(url).hostname; } catch { return; }
-      if (route === "atlas") {
-        setAtlasOpen(true);
-      } else if (route === "journey") {
-        setAtlasChatInput("Tell me about my current journey.");
-        setAtlasOpen(true);
-      } else if (route === "checkup") {
-        setShowMorningCheckup(true);
-      } else if (route === "status") {
-        setView("status");
-        setPendingMobileView("status");
-      } else if (route === "planner" || route === "open") {
-        setView("day");
-        setPendingMobileView("plan");
-      }
+      applyDeepLinkRoute(route);
     });
     return () => { sub.then((handle) => handle.remove()); };
   }, []); // eslint-disable-line
 
-  // ── Repeat-aware task lookup ─────────────────────────
-  const getTasksForDate = (date) => {
-    const direct   = tasks.filter((t) => t.date === date);
-    const directIds = new Set(direct.map((t) => t.id));
-    const repeated = tasks.filter((t) => !directIds.has(t.id) && isRepeatMatch(t, date));
-    return [...direct, ...repeated];
-  };
+  // Web has no custom URL scheme to receive nora://... links, so mirror the
+  // same routes via a ?route= query param — lets QA/Playwright reach
+  // native-deep-link-only screens (e.g. the Morning Briefing) in a browser.
+  useEffect(() => {
+    const route = new URLSearchParams(window.location.search).get("route");
+    if (route) {
+      applyDeepLinkRoute(route);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []); // eslint-disable-line
 
   const todayTasks = useMemo(() => getTasksForDate(selectedDate), [tasks, selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
   const filteredTodayTasks = todayTasks.filter((t) => {
@@ -1314,6 +1196,25 @@ export default function App() {
     sleepAnalysis, healthSummary,
   } = statusEngine;
   const contextMode = noraState; // UI alias — keeps all existing JSX working
+
+  // Cold-launch splash — see hasShownLaunchSplashThisProcess's own comment.
+  // The greeting is decided ONCE, right here, from whatever's already
+  // synchronously available (tasks/dailyMetrics are useLocalStorage-cached,
+  // so real recovery/workload/yesterday data exists even before this
+  // session's own network fetch resolves) — never recomputed mid-animation,
+  // so it can't flicker to a different line partway through.
+  const [showLaunchSplash, setShowLaunchSplash] = useState(() => {
+    if (hasShownLaunchSplashThisProcess) return false;
+    hasShownLaunchSplashThisProcess = true;
+    return true;
+  });
+  const [launchRevealing, setLaunchRevealing] = useState(false);
+  const [launchGreeting] = useState(() => buildLaunchGreeting({
+    hour: new Date().getHours(),
+    name: accountName || session?.user?.user_metadata?.name || "",
+    recoveryState, workloadForecast, dailyMetrics, today,
+    lastOpenedAt: recordAppOpen(),
+  }));
 
   // Push a widget-friendly snapshot to the iOS WidgetKit extension whenever
   // tasks, wellbeing dials, metrics, health, or journeys change. No-op on
@@ -1693,7 +1594,7 @@ export default function App() {
     if (!chatOpen || !desktopSuggestionsVisible || aiChatSugFetchedRef.current) return;
     aiChatSugFetchedRef.current = true;
     setAiChatSugLoading(true);
-    fetch(apiUrl("/api/tips"), {
+    apiFetch("/api/tips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1977,10 +1878,7 @@ export default function App() {
 
   const saveTask = () => {
     if (!draft) return;
-    setTasks((p) => {
-      const exists = p.some((t) => t.id === draft.id);
-      return exists ? p.map((t) => t.id === draft.id ? { ...draft } : t) : [...p, draft];
-    });
+    taskActions.upsert(draft);
     setEditingTask(null);
   };
   const deleteTask = (id) => {
@@ -2023,8 +1921,8 @@ export default function App() {
     }).catch((error) => console.warn("[Delete task] App-data sync queued:", error?.message ?? error));
     flushPendingSharedDeletions();
   };
-  const toggleTask = (id) => setTasks((p) => p.map((t) => t.id === id ? { ...t, completed: !t.completed } : t));
-  const saveReschedule = (updated) => { setTasks((p) => p.map((t) => t.id === updated.id ? updated : t)); setRescheduleTask(null); };
+  const toggleTask = taskActions.toggle;
+  const saveReschedule = (updated) => { taskActions.reschedule(updated); setRescheduleTask(null); };
 
   const handleCheckupComplete = async (checkup) => {
     setMorningCheckup(normalizeCheckup(checkup));
@@ -2073,9 +1971,9 @@ export default function App() {
   };
   const skipTask   = (id) => {
     const tomorrow = fmtDate(addDays(today, 1));
-    setTasks((p) => p.map((t) => t.id === id ? { ...t, date: tomorrow, startHour: null, startMinute: null } : t));
+    taskActions.skip(id, tomorrow);
   };
-  const moveToSlot = (id, h, m) => setTasks((p) => p.map((t) => t.id === id ? { ...t, startHour: h, startMinute: m } : t));
+  const moveToSlot = taskActions.moveToSlot;
 
   const navigateTo = (v) => {
     if (v === view) return;
@@ -3164,7 +3062,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
     }
     // Task tools — same pure executeAiTool dispatcher Atlas also uses,
     // threaded across however many task calls land within this one turn.
-    const { result, nextTasks } = executeAiTool(tc.function.name, input, plannerWorkingTasksRef.current);
+    const { result, nextTasks } = executeTaskTool(tc.function.name, input, plannerWorkingTasksRef.current);
     plannerWorkingTasksRef.current = nextTasks;
     setTasks(nextTasks);
     const part = buildToolConfirmationPart(tc.function.name, input, nextTasks);
@@ -3270,7 +3168,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       setJourneys(nextJourneys);
       return { resultText: `Milestone "${milestoneTitle}" marked ${done ? "done" : "not done"} on "${updated.title}" — progress now ${updated.progress}%.` };
     }
-    const { result, nextTasks } = executeAiTool(tc.function.name, input, atlasWorkingTasksRef.current);
+    const { result, nextTasks } = executeTaskTool(tc.function.name, input, atlasWorkingTasksRef.current);
     atlasWorkingTasksRef.current = nextTasks;
     setTasks(nextTasks);
     const part = buildToolConfirmationPart(tc.function.name, input, nextTasks);
@@ -3370,14 +3268,10 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
   );
 
   // ── Auth guard ────────────────────────────────────────
-  if (authLoading) return (
-    <div style={{ minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", background:"#0e0d1e" }}>
-      <div style={{ width:36, height:36, borderRadius:"50%", border:"3px solid rgba(139,92,246,.25)", borderTopColor:"#8b5cf6", animation:"spin .7s linear infinite" }} />
-    </div>
-  );
+  if (authLoading) return <AppLoadingScreen />;
 
   // Password reset flow — triggered when user clicks the email link
-  if (isResettingPw) return <PasswordResetForm dark={dark} glass={theme === "liquid_glass"} onDone={() => setIsResettingPw(false)} />;
+  if (isResettingPw) return <PasswordResetForm dark={dark} glass={theme === "liquid_glass"} onDone={finishPasswordReset} />;
 
   if (!session) return <AuthScreen dark={dark} glass={theme === "liquid_glass"} />;
 
@@ -3399,7 +3293,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       onPinPlannerConversation: plannerEngine.pin,
       onArchivePlannerConversation: plannerEngine.archive,
       onDeletePlannerConversation: plannerEngine.remove,
-      atlasOpen, setAtlasOpen, atlasMessages, atlasChatInput, setAtlasChatInput,
+      atlasOpen, setAtlasOpen, atlasShellActive, setStatusMindActive, atlasMessages, atlasChatInput, setAtlasChatInput,
       atlasChatLoading, sendAtlasChat, sendAtlasMessage: atlasEngine.send,
       assistantSettings, updateAssistantSettings, visibleAiTools,
       atlasGreeting: ATLAS_GREETING,
@@ -3423,7 +3317,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       userPrefs, setUserPrefs, noraState, behaviorProfile, predictiveSignals,
       metrics, interpretations, patterns, workPatterns, mindPatterns, emotionalDrift, flowPrediction,
       aiCoach, atlasCoach, actionCenter, implementationIntention, taskWeights, recoveryTrendDeclining3d,
-      sleepAnalysis,
+      sleepAnalysis, healthSummary,
       microStartMode, setMicroStartMode,
       boards,
       journeys,
@@ -3465,13 +3359,28 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       savedPlaces, setSavedPlaces, transportProfile, setTransportProfile,
       // Pricing
       pricingOpen, setPricingOpen, subscription,
+      // Cold-launch splash — hides the real FAB until the splash logo docks
+      // onto its exact spot, so there's never a moment with two icons visible.
+      showLaunchSplash,
+      launchRevealing,
     };
     // display:contents makes this div invisible to layout but gives the overlays
     // a .dark/.glass ancestor so intelligence.css glass rules match on mobile.
     const themeClass = [dark ? "dark" : "", theme === "liquid_glass" ? "glass" : ""].filter(Boolean).join(" ");
     return (
       <div className={themeClass || undefined} style={{ display: "contents" }}>
-        <MobileApp ctx={mobileCtx} />
+        <Suspense fallback={<AppLoadingScreen />}>
+          <MobileApp ctx={mobileCtx} />
+        </Suspense>
+        {showLaunchSplash && (
+          <LaunchSplash
+            dark={dark}
+            glass={theme === "liquid_glass"}
+            greeting={launchGreeting}
+            onReveal={() => setLaunchRevealing(true)}
+            onComplete={() => { setShowLaunchSplash(false); setLaunchRevealing(false); }}
+          />
+        )}
         {intel.proactiveVisible && !intel.centerOpen && (
           <ProactiveOverlay
             suggestions={intel.suggestions}
@@ -3512,7 +3421,18 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
   // ── Desktop render ────────────────────────────────────
   const tabIdxCur = view === "day" ? 0 : view === "month" ? 1 : 2;
   return (
-    <div className={`app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}${atlasOpen ? " atlas-active" : ""}`}>
+    <Suspense fallback={<AppLoadingScreen />}>
+    <div className={`app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}${atlasShellActive ? " atlas-active" : ""}${showLaunchSplash ? (launchRevealing ? " launch-shell-revealing" : " launch-shell-waiting") : ""}`}>
+
+      {showLaunchSplash && (
+        <LaunchSplash
+          dark={dark}
+          glass={theme === "liquid_glass"}
+          greeting={launchGreeting}
+          onReveal={() => setLaunchRevealing(true)}
+          onComplete={() => { setShowLaunchSplash(false); setLaunchRevealing(false); }}
+        />
+      )}
 
       {/* Ambient warmth wash while Atlas's chat is open — fades in/out via .atlas-active */}
       <div className="app-atlas-tint" aria-hidden="true" />
@@ -4384,7 +4304,8 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
               }
             )} health={health} onOpenHealthSettings={() => { setSidebarOpen(true); setActiveSettings("program"); }}
               tasks={tasks} dailyMetrics={dailyMetrics} journeys={journeys}
-              onAskAtlas={(message) => { setAtlasChatInput(message); setAtlasOpen(true); }} />
+              onAskAtlas={(message) => { setAtlasChatInput(message); setAtlasOpen(true); }}
+              onMindModeChange={setStatusMindActive} />
           )}
 
 
@@ -4652,7 +4573,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
 
       {/* AI FAB — opens the AI Hub launcher; closes whichever AI surface is open */}
       <button
-        className={`chat-fab${(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? " active" : ""}`}
+        className={`chat-fab${(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? " active" : ""}${showLaunchSplash ? " chat-fab-launch-hidden" : ""}`}
         onClick={() => {
           if (aiHubOpen || chatOpen || messengerOpen || atlasOpen) {
             setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false); setAtlasOpen(false);
@@ -4881,6 +4802,8 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
             recoveryTrendDeclining3d, emotionalDrift,
           }}
           healthSleep={health.context?.sleep ?? null}
+          health={health}
+          healthSummary={healthSummary}
           onAskAtlas={(message) => {
             setShowMorningCheckup(false);
             setReviewCheckupMode(false);
@@ -5238,6 +5161,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
         />
       )}
     </div>
+    </Suspense>
   );
 }
 
@@ -5393,7 +5317,7 @@ function RescheduleModal({ task, onSave, onClose }) {
   );
 }
 
-function TaskChip({ task, group, onToggle, onReschedule, onSkip, onClick }) {
+function TaskChip({ task, group, onReschedule, onSkip, onClick }) {
   const cx = task.complexity ? COMPLEXITY[task.complexity] : null;
   const todayLocal = fmtDate(new Date());
   const isDeferred = !task.completed && task.date < todayLocal;

@@ -6,20 +6,24 @@
 const { TelegramClient } = require("telegram");
 const { StringSession }  = require("telegram/sessions");
 const { Api }            = require("telegram");
-const { createClient }   = require("@supabase/supabase-js");
 const { applyCors }      = require("./_cors");
-
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const { getAdminClient, requireUser } = require("./_auth");
+const { enforceRateLimit } = require("./_rateLimit");
+const { internalError } = require("./_errors");
+const { parseBody, schemas } = require("./_validation");
 
 module.exports = async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).end();
+  const auth = await requireUser(req, res);
+  if (!auth) return;
+  if (!await enforceRateLimit(req, res, auth.user.id, "integration_auth")) return;
 
-  const { code, userId, password } = req.body ?? {};
-  if (!code || !userId) return res.status(400).json({ error: "code and userId required" });
+  const parsedBody = parseBody(res, schemas.telegramCode, req.body ?? {});
+  if (!parsedBody.ok) return;
+  const { code, password } = parsedBody.data;
+  const userId = auth.user.id;
+  const supabase = getAdminClient();
 
   const apiId   = parseInt(process.env.TELEGRAM_API_ID, 10);
   const apiHash = process.env.TELEGRAM_API_HASH;
@@ -82,10 +86,11 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ needs2fa: true });
     }
     const isWrongCode = /PHONE_CODE_INVALID|PHONE_CODE_EXPIRED/.test(err.errorMessage ?? "");
-    return res.status(isWrongCode ? 400 : 500).json({
-      error: isWrongCode
-        ? "Incorrect or expired code. Check your Telegram app and try again."
-        : (err.message || "Verification failed"),
-    });
+    if (isWrongCode) {
+      return res.status(400).json({
+        error: "Incorrect or expired code. Check your Telegram app and try again.",
+      });
+    }
+    return internalError(res, err, "telegram-auth-code");
   }
 };

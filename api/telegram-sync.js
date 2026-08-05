@@ -8,13 +8,10 @@
 
 const { TelegramClient } = require("telegram");
 const { StringSession }  = require("telegram/sessions");
-const { createClient }   = require("@supabase/supabase-js");
 const { applyCors }      = require("./_cors");
-
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const { getAdminClient, requireUser } = require("./_auth");
+const { enforceRateLimit } = require("./_rateLimit");
+const { internalError } = require("./_errors");
 
 // Only send to AI if the message looks like it might have calendar content.
 // Covers English, German, and Russian — extend as needed.
@@ -67,9 +64,12 @@ function buildConversationContext(msgs, targetMessageId, contactName) {
 module.exports = async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).end();
+  const auth = await requireUser(req, res);
+  if (!auth) return;
+  if (!await enforceRateLimit(req, res, auth.user.id, "integration_sync")) return;
 
-  const { userId } = req.body ?? {};
-  if (!userId) return res.status(400).json({ error: "userId required" });
+  const userId = auth.user.id;
+  const supabase = getAdminClient();
 
   const { data: account } = await supabase
     .from("nora_connected_accounts")
@@ -170,7 +170,10 @@ module.exports = async function handler(req, res) {
 
         const r = await fetch(`${appUrl}/api/intelligence-extract`, {
           method:  "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${auth.token}`,
+          },
           body:    JSON.stringify({
             message:         msg.text,
             context,
@@ -204,7 +207,6 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ ok: true, scanned: batch.length, suggestions: totalCount });
   } catch (err) {
     await client.disconnect().catch(() => {});
-    console.error("[telegram-sync]", err.message);
-    return res.status(500).json({ error: err.message || "Sync failed" });
+    return internalError(res, err, "telegram-sync");
   }
 };

@@ -1,5 +1,9 @@
 import Stripe from "stripe";
 const { applyCors } = require("./_cors");
+const { requireUser } = require("./_auth");
+const { enforceRateLimit } = require("./_rateLimit");
+const { internalError } = require("./_errors");
+const { parseBody, schemas } = require("./_validation");
 
 const PRICE_IDS = {
   plus_monthly:  process.env.STRIPE_PRICE_PLUS_MONTHLY,
@@ -13,13 +17,18 @@ const PRICE_IDS = {
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const auth = await requireUser(req, res);
+  if (!auth) return;
+  if (!await enforceRateLimit(req, res, auth.user.id, "checkout")) return;
 
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) return res.status(503).json({ error: "Stripe not configured" });
 
-  const { planKey, yearly, userId, email } = req.body ?? {};
-  if (!planKey) return res.status(400).json({ error: "planKey required" });
-
+  const parsedBody = parseBody(res, schemas.checkout, req.body ?? {});
+  if (!parsedBody.ok) return;
+  const { planKey, yearly = false } = parsedBody.data;
+  const userId = auth.user.id;
+  const email = auth.user.email;
   const priceId = PRICE_IDS[`${planKey}_${yearly ? "yearly" : "monthly"}`];
   if (!priceId) return res.status(400).json({ error: `Price ID not configured for ${planKey} ${yearly ? "yearly" : "monthly"}. Set STRIPE_PRICE_${planKey.toUpperCase()}_${yearly ? "YEARLY" : "MONTHLY"} in Vercel environment variables.` });
 
@@ -42,6 +51,6 @@ export default async function handler(req, res) {
     });
     return res.json({ url: session.url });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return internalError(res, e, "stripe-checkout");
   }
 }

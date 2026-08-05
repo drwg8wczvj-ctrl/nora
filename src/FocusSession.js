@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  X, Play, Pause, Check, Coffee, RotateCcw,
+  Play, Pause, Check, Coffee, RotateCcw,
   Music2, SkipForward, Zap, HelpCircle, Clock,
 } from "lucide-react";
 import { saveUserPreferences } from "./lib/noraApi";
-import { apiUrl } from "./lib/apiBase";
+import { apiFetch } from "./lib/apiBase";
+import CloseButton from "./components/CloseButton";
 import "./FocusSession.css";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   useEffect(() => {
     if (phase !== "prepare" || tipFetchedRef.current) return;
     tipFetchedRef.current = true;
-    fetch(apiUrl("/api/tips"), {
+    apiFetch("/api/tips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -137,7 +138,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   // Fetch AI completion note when session ends
   useEffect(() => {
     if (phase !== "completed") return;
-    fetch(apiUrl("/api/tips"), {
+    apiFetch("/api/tips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -254,9 +255,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
       <div className="fs-backdrop" onClick={() => onClose?.()} />
 
       <div className="fs-panel">
-        <button className="fs-close" onClick={() => onClose?.()} aria-label="Close focus session">
-          <X size={18} />
-        </button>
+        <CloseButton onClick={() => onClose?.()} label="Close focus session" className="fs-close-btn" />
 
         {/* ── Friction check ── */}
         {phase === "check" && (

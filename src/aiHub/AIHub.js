@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
 import { AI_HUB_TOOLS } from "./aiToolsRegistry";
+import CloseButton from "../components/CloseButton";
 
 export default function AIHub({ open, onClose, onSelect, badges, tools = AI_HUB_TOOLS }) {
   const { t } = useTranslation();
@@ -16,7 +16,7 @@ export default function AIHub({ open, onClose, onSelect, badges, tools = AI_HUB_
         <div className="ai-hub-handle" />
         <div className="ai-hub-header">
           <span className="ai-hub-title">{t("aiHub.title")}</span>
-          <button className="ai-hub-close" onClick={onClose}><X size={16} /></button>
+          <CloseButton onClick={onClose} size={26} />
         </div>
         <div className="ai-hub-list">
           {tools.map((tool) => {
@@ -25,7 +25,7 @@ export default function AIHub({ open, onClose, onSelect, badges, tools = AI_HUB_
             return (
               <button
                 key={tool.id}
-                className={`ai-hub-card${comingSoon ? " ai-hub-card-soon" : ""}`}
+                className={`ai-hub-card${comingSoon ? " ai-hub-card-soon" : ""}${tool.id === "atlas" ? " atlas-mode" : ""}`}
                 onClick={() => onSelect(tool.id)}
               >
                 <div className="ai-hub-card-icon">

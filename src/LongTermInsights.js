@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback } from "react";
-import { X, TrendingUp, TrendingDown, Minus, Activity, Zap, Wind, Brain, Moon, BarChart2, Maximize2, ChevronLeft } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Activity, Zap, Wind, Brain, Moon, BarChart2, Maximize2, ChevronLeft } from "lucide-react";
+import CloseButton from "./components/CloseButton";
 
 // ── Data helpers ─────────────────────────────────────────────────
 function getRange(metrics, days) {
@@ -425,7 +426,7 @@ export default function LongTermInsights({ dark, glass, metrics, tasks, onClose 
               </>
             )}
           </div>
-          <button className="lti-close" onClick={onClose}><X size={20} /></button>
+          <CloseButton onClick={onClose} />
         </div>
 
         {/* Time range (hidden in focus mode) */}

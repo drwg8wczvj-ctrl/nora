@@ -32,55 +32,18 @@
   container-name: status;
 }
 
-/* Mind tab — recolors every descendant card that reads var(--accent)/
-   var(--accent-light) (MetricCard, PatternsSection, ActionCenter,
-   QuickCheckIn all already do, whether via a stylesheet rule or an inline
-   style) to Atlas's amber, with zero changes to those shared components.
-   Applied to this existing root rather than a new wrapper div, since the
-   entrance-stagger rule below depends on the exact set of direct children.
-   Also overrides --grad (used by the segmented-control active pill and
-   Action Center's primary chips) and, in Liquid Glass theme, the
-   iridescent card-edge tint — so the whole tab reads as Atlas's palette,
-   not just individual accent-colored text/icons. Safe to override here:
-   these are plain CSS custom properties, so the change only cascades to
-   this element's descendants (the Mind tab's own content), never leaking
-   into the Work tab or the rest of the app. */
-.status-mind-view {
-  --accent: var(--atlas-accent);
-  --accent-light: var(--atlas-accent-light);
-  --grad: linear-gradient(135deg, var(--atlas-accent), #f2b98a);
-  --specular-iris: var(--atlas-accent-light);
-}
-/* The active-pill glow's color is a static rgba literal (not a var()), same
-   as the original purple version — override it directly since --grad alone
-   only changes the pill's background, not its shadow. */
+/* Mind tab — Atlas's world, and now the WHOLE screen, not just this page's
+   own cards. StatusPage.js's onMindModeChange callback tells the app shell
+   (App.js/MobileApp.js) to add .atlas-active to the actual app root the
+   moment tab === "mind", so the header/nav bar/FAB/status-bar area (all
+   already reading var(--header-bg)/var(--accent)/etc.) repaint black+gold
+   right along with these cards — .status-mind-view's own .atlas-mode class
+   is now mostly a redundant safety net (the values are inherited from the
+   shell above), not the primary mechanism. Because the SHELL now owns the
+   black background, this element stays transparent — an explicit bg/border/
+   padding here would double-box against the already-black shell behind it. */
 .status-mind-view .status-worktab-pill {
-  box-shadow: 0 2px 8px rgba(224,138,79,0.35);
-}
-
-/* Liquid Glass's press/hover glow on every .status-card (glass.css's
-   `.glass .status-card:hover { box-shadow: var(--shadow-glow) }`) — iOS
-   triggers :hover on tap for elements like these, so this is what actually
-   fires when someone taps a card or a block inside one (e.g. a Sleep
-   Science stat tile). --shadow-glow is a fixed purple rgba(124,58,237,...)
-   defined once on .glass/.glass.dark, with no accent-aware version — that's
-   the real source of the "still glows purple" report, distinct from (and in
-   addition to) the tap-highlight-color fix. Redefining it here, matching
-   glass.css's own light/dark split exactly except with Atlas's amber in
-   place of Nora's purple, makes every card's tap/hover glow gold on Mind. */
-.glass.dark .status-mind-view {
-  --shadow-glow:
-    0 1.5px 0   rgba(255,255,255,0.20) inset,
-    0 0 0 1px   rgba(240,160,106,0.48),
-    0 0 60px    rgba(240,160,106,0.32),
-    0 14px 70px rgba(0,0,0,0.75);
-}
-.glass:not(.dark) .status-mind-view {
-  --shadow-glow:
-    0 1.5px 0   rgba(255,255,255,0.92) inset,
-    0 0 0 1px   rgba(224,138,79,0.30),
-    0 16px 52px rgba(224,138,79,0.28),
-    0 4px 16px  rgba(224,138,79,0.16);
+  box-shadow: 0 2px 8px rgba(var(--accent-rgb),0.35);
 }
 
 /* ── Entrance stagger (reuses the existing noraEnter keyframe) ──────
@@ -243,12 +206,12 @@ button.status-card {
   border-top-color: var(--success) !important;
 }
 .status-coach-card[data-persona="atlas"] {
-  border-top-color: var(--atlas-accent) !important;
+  border-top-color: var(--accent) !important;
 }
 .status-coach-card[data-persona="atlas"] .status-ghost-btn:hover {
-  border-color: var(--atlas-accent);
-  color: var(--atlas-accent);
-  background: var(--atlas-accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
 }
 
 .status-coach-header {

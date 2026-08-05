@@ -8,7 +8,7 @@ export function clamp(min, max, v) {
 // `computeReadinessFn` is accepted for future callers but intentionally unused —
 // morningCheckup.readinessScore is already the normalized 0-100 score computed
 // elsewhere (App.js's normalizeCheckup), so we just read it instead of recomputing.
-export function computeMentalBattery({ energy, morningCheckup, computeReadinessFn, taskWeights, userLoadBaseline, todayTasks, recoveryState, healthSleep = null }) {
+export function computeMentalBattery({ energy, morningCheckup, taskWeights, userLoadBaseline, todayTasks, recoveryState, healthSleep = null }) {
   const baseline = morningCheckup?.readinessScore != null
     ? Math.round(morningCheckup.readinessScore * 0.6 + energy * 10 * 0.4)
     : energy * 10;

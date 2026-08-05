@@ -1,74 +1,91 @@
-<<<<<<< HEAD
-# Getting Started with Create React App
+# Nora
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Nora is a personal planning application for web and iOS. It combines task and
+note management, AI planning, collaboration, wellbeing insights, notifications,
+external-message intelligence, and native widgets.
 
-## Available Scripts
+## Technology
 
-In the project directory, you can run:
+- React 19, TypeScript, Vite, and Capacitor
+- Supabase Auth, PostgreSQL, Realtime, Storage, and Edge Functions
+- Vercel serverless API routes
+- Swift native plugins, HealthKit integration, and WidgetKit extensions
 
-### `npm start`
+## Local development
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Requirements:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- Node.js supported by the installed dependencies
+- A Supabase project with the repository migrations applied
+- Environment variables in `.env.local`
 
-### `npm test`
+```bash
+npm install
+npm start
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+The web application runs at `http://localhost:3000`.
 
-### `npm run build`
+## Required environment variables
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Client:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Server:
 
-### `npm run eject`
+```text
+SUPABASE_SERVICE_ROLE_KEY
+OPENAI_API_KEY
+APP_URL
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Feature-specific integrations additionally require the Stripe, Google,
+Telegram, APNs, and web-push variables referenced by their API routes.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+`OAUTH_STATE_SECRET` is recommended for signing Gmail OAuth state. When it is
+not set, `GOOGLE_CLIENT_SECRET` is used.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Never expose `SUPABASE_SERVICE_ROLE_KEY`, OAuth client secrets, Stripe secrets,
+or messaging sessions through `VITE_*` or `REACT_APP_*` variables.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Database migrations
 
-## Learn More
+The authoritative migration history is the ordered SQL in
+[`supabase/migrations`](supabase/migrations). See
+[`supabase/MIGRATIONS.md`](supabase/MIGRATIONS.md) before provisioning or
+updating an environment.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+The Phase 0 API deployment requires
+`20260805_phase0_api_rate_limits.sql` to be applied first. Authenticated API
+routes fail closed when the rate-limit function is unavailable.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Verification
 
-### Code Splitting
+```bash
+npm run test:unit
+npm run test:integration
+npm run typecheck
+npm run lint
+npm run build
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Run all local, credential-free checks with `npm run verify`. Playwright remains
+the authenticated end-to-end layer under `qa/`.
 
-### Analyzing the Bundle Size
+Deployment health checks, required server configuration, CI behavior, and
+rollback guidance are documented in [`OPERATIONS.md`](OPERATIONS.md).
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Supabase types are checked in at `src/types/database.generated.ts`. After a
+schema migration, set `SUPABASE_PROJECT_ID` locally and run `npm run db:types`.
 
-### Making a Progressive Web App
+End-to-end tests require a dedicated Supabase test account. Setup and commands
+are documented in [`qa/README.md`](qa/README.md).
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Native iOS
 
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-=======
-# my-planner
->>>>>>> 106d0da45cc5cce7df09a6a7f46578df0708240c
+The Capacitor application and WidgetKit targets live under `ios/App`. Native
+source setup notes are available in [`ios-sources/SETUP.md`](ios-sources/SETUP.md).

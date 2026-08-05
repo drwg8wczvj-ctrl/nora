@@ -5,11 +5,14 @@ import {
   Flag, Coffee, Bell, Activity,
   SkipForward, Sparkles, Sparkle, Plus, Settings,
   BarChart2, Zap, List, CheckSquare, Pencil, Layers,
-  Share2, Users, Search, KeyRound, PanelLeft, HeartPulse,
+  Share2, Users, Search, KeyRound, PanelLeft, HeartPulse, MoreHorizontal,
 } from "lucide-react";
 import { MessagePartsList } from "./conversation/MessagePart";
 import { textPart } from "./conversation/messageParts";
 import { ConversationSheet } from "./conversation/ConversationList";
+import CloseButton from "./components/CloseButton";
+import { isNativeActionMenuAvailable, showNativeActionMenu } from "./lib/nativeActionMenu";
+import { hapticLight, hapticSelection } from "./lib/haptics";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
 import { supabase } from "./lib/supabase";
@@ -39,7 +42,7 @@ import { buildWorkMindProps } from "./status/buildStatusProps";
 import "./MobileApp.css";
 import { useTranslation } from "react-i18next";
 import { useNativeTabBar } from "./hooks/useNativeTabBar";
-import { apiUrl } from "./lib/apiBase";
+import { apiFetch } from "./lib/apiBase";
 
 // ── Local helpers ────────────────────────────────────────────
 const uid  = () => Math.random().toString(36).slice(2);
@@ -151,7 +154,7 @@ export default function MobileApp({ ctx }) {
           focusTask, setFocusTask, userPrefs, setUserPrefs, toggleTask,
           notifBannerVisible, dismissNotifBanner, requestNotifPermission,
           sharingTask, setSharingTask, session,
-          atlasOpen, setAtlasOpen, atlasMessages, atlasChatInput, setAtlasChatInput,
+          atlasOpen, setAtlasOpen, atlasShellActive, showLaunchSplash, launchRevealing, atlasMessages, atlasChatInput, setAtlasChatInput,
           atlasChatLoading, sendAtlasChat, visibleAiTools, atlasGreeting,
           atlasConversations, atlasActiveConversationId, atlasConversationsLoading,
           onSelectAtlasConversation, onNewAtlasConversation, onRenameAtlasConversation,
@@ -278,7 +281,7 @@ export default function MobileApp({ ctx }) {
   };
 
   return (
-    <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}${usingNative ? " mob-native-nav" : ""}${atlasOpen ? " atlas-active" : ""}`}>
+    <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}${usingNative ? " mob-native-nav" : ""}${atlasShellActive ? " atlas-active" : ""}${showLaunchSplash ? (launchRevealing ? " launch-shell-revealing" : " launch-shell-waiting") : ""}`}>
 
       {/* Ambient warmth wash while Atlas's chat is open — fades in/out via .atlas-active */}
       <div className="app-atlas-tint" aria-hidden="true" />
@@ -295,7 +298,7 @@ export default function MobileApp({ ctx }) {
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
         {mobileView === "boards"   && <MobileWhiteboardView boards={ctx.boards} onAskNora={p => { ctx.setChatInput(p); ctx.setChatOpen(true); }} onClose={() => setMobileView("plan")} />}
-        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} onOpenHealthSettings={() => setMobileView("settings")} tasks={ctx.tasks || []} dailyMetrics={ctx.dailyMetrics || {}} journeys={ctx.journeys || []} onAskAtlas={(message) => { ctx.setAtlasChatInput(message); ctx.setAtlasOpen(true); }} /></div>}
+        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} onOpenHealthSettings={() => setMobileView("settings")} tasks={ctx.tasks || []} dailyMetrics={ctx.dailyMetrics || {}} journeys={ctx.journeys || []} onAskAtlas={(message) => { ctx.setAtlasChatInput(message); ctx.setAtlasOpen(true); }} onMindModeChange={ctx.setStatusMindActive} /></div>}
         {mobileView === "settings" && <MobileSettings ctx={ctx} />}
       </main>
 
@@ -326,7 +329,7 @@ export default function MobileApp({ ctx }) {
       </nav>
 
       <button
-        className={`mob-ai-fab${(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? " fab-open" : ""}`}
+        className={`mob-ai-fab${(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? " fab-open" : ""}${showLaunchSplash ? " mob-ai-fab-launch-hidden" : ""}`}
         onClick={() => {
           if (aiHubOpen || chatOpen || messengerOpen || atlasOpen) {
             setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false); setAtlasOpen(false);
@@ -409,6 +412,8 @@ export default function MobileApp({ ctx }) {
             recoveryTrendDeclining3d: ctx.recoveryTrendDeclining3d, emotionalDrift: ctx.emotionalDrift,
           }}
           healthSleep={ctx.health?.context?.sleep ?? null}
+          health={ctx.health}
+          healthSummary={ctx.healthSummary}
           onAskAtlas={(message) => {
             ctx.setShowMorningCheckup(false);
             ctx.setReviewCheckupMode && ctx.setReviewCheckupMode(false);
@@ -447,7 +452,7 @@ export default function MobileApp({ ctx }) {
             <div className="mob-modal-handle" />
             <div className="mob-sheet-header">
               <span className="mob-sheet-title">Filters</span>
-              <button className="mob-modal-close" onClick={() => setShowFilters(false)}><X size={20} /></button>
+              <CloseButton onClick={() => setShowFilters(false)} />
             </div>
             <div className="mob-sheet-section">
               <span className="mob-filter-lbl">Type</span>
@@ -505,7 +510,7 @@ export default function MobileApp({ ctx }) {
             <div className="notif-toast-title">{inAppAlert.title}</div>
             <div className="notif-toast-body">Starting in {inAppAlert.offset} min · {inAppAlert.timeStr}</div>
           </div>
-          <button className="notif-toast-close" onClick={() => setInAppAlert(null)}><X size={14} /></button>
+          <CloseButton onClick={() => setInAppAlert(null)} size={22} />
         </div>
       )}
 
@@ -749,8 +754,8 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
       {/* Day / Month toggle */}
       <div className="mob-plan-segs">
         <div className={`mob-seg-pill mob-seg-pill-${subView === "day" ? 0 : 1}`} />
-        <button className={`mob-seg-btn${subView === "day" ? " active" : ""}`} onClick={() => setSubView("day")}>Day</button>
-        <button className={`mob-seg-btn${subView === "month" ? " active" : ""}`} onClick={() => setSubView("month")}>Month</button>
+        <button className={`mob-seg-btn${subView === "day" ? " active" : ""}`} onClick={() => { if (subView !== "day") { hapticSelection(); setSubView("day"); } }}>Day</button>
+        <button className={`mob-seg-btn${subView === "month" ? " active" : ""}`} onClick={() => { if (subView !== "month") { hapticSelection(); setSubView("month"); } }}>Month</button>
       </div>
 
       {subView === "day" && (
@@ -767,10 +772,10 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
           {/* List / Grid + Filters row */}
           <div className="mob-day-controls">
             <div className="mob-day-mode-row" style={{ margin: 0 }}>
-              <button className={`mob-mode-btn${dayMode === "list" ? " active" : ""}`} onClick={() => setDayMode("list")}>
+              <button className={`mob-mode-btn${dayMode === "list" ? " active" : ""}`} onClick={() => { if (dayMode !== "list") { hapticSelection(); setDayMode("list"); } }}>
                 <Sparkles size={13} /> Smart
               </button>
-              <button className={`mob-mode-btn${dayMode === "grid" ? " active" : ""}`} onClick={() => setDayMode("grid")}>
+              <button className={`mob-mode-btn${dayMode === "grid" ? " active" : ""}`} onClick={() => { if (dayMode !== "grid") { hapticSelection(); setDayMode("grid"); } }}>
                 <BarChart2 size={13} /> Grid
               </button>
             </div>
@@ -1600,36 +1605,59 @@ function MobileTasks({ ctx }) {
           </span>
         </div>
 
-        {(tp === "deadline" || !t.completed) && (
+        {tp === "deadline" && (
           <div className="mtr-actions" onClick={(e) => e.stopPropagation()}>
-            {tp === "deadline" && (
-              <button
-                className={`mtr-act mtr-act-done-dl${t.completed ? " dl-done" : ""}`}
-                onClick={() => toggleTask(t.id)}>
-                <Check size={13} />
-              </button>
-            )}
-            {tp === "task" && !t.completed && (
-              <button className="mtr-act mtr-act-focus" title="Start focus session" onClick={() => setFocusTask(t)}>
-                <Zap size={15} />
-              </button>
-            )}
-            {tp === "task" && !t.completed && (
-              <button className="mtr-act" title="Skip to tomorrow" onClick={() => skipTask(t.id)}>
-                <SkipForward size={15} />
-              </button>
-            )}
-            {tp === "task" && !t.completed && (
-              <button className="mtr-act mtr-act-ai" title="Move task" onClick={() => setRescheduleTask(t)}>
-                <CalendarDays size={15} />
-              </button>
-            )}
-            <button className="mtr-act mtr-act-share" title="Share"
-              onClick={() => setSharingTask?.(t)}>
-              {t.sharedObjectId
-                ? <Users size={14} style={{ color: "var(--accent)" }} />
-                : <Share2 size={14} />}
+            <button
+              className={`mtr-act mtr-act-done-dl${t.completed ? " dl-done" : ""}`}
+              onClick={() => toggleTask(t.id)}>
+              <Check size={13} />
             </button>
+          </div>
+        )}
+        {tp === "task" && !t.completed && (
+          <div className="mtr-actions" onClick={(e) => e.stopPropagation()}>
+            {isNativeActionMenuAvailable() ? (
+              <button className="mtr-act" title="More" onClick={async (e) => {
+                hapticLight();
+                const rect = e.currentTarget.getBoundingClientRect();
+                let selectedId;
+                try {
+                  selectedId = await showNativeActionMenu({
+                    actions: [
+                      { id: "focus", label: "Start Focus Session" },
+                      { id: "skip", label: "Skip to Tomorrow" },
+                      { id: "move", label: "Move Task" },
+                      { id: "share", label: t.sharedObjectId ? "Manage Sharing" : "Share" },
+                    ],
+                    sourceRect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+                  });
+                } catch { return; }
+                if (selectedId === "focus") setFocusTask(t);
+                else if (selectedId === "skip") skipTask(t.id);
+                else if (selectedId === "move") setRescheduleTask(t);
+                else if (selectedId === "share") setSharingTask?.(t);
+              }}>
+                <MoreHorizontal size={15} />
+              </button>
+            ) : (
+              <>
+                <button className="mtr-act mtr-act-focus" title="Start focus session" onClick={() => setFocusTask(t)}>
+                  <Zap size={15} />
+                </button>
+                <button className="mtr-act" title="Skip to tomorrow" onClick={() => skipTask(t.id)}>
+                  <SkipForward size={15} />
+                </button>
+                <button className="mtr-act mtr-act-ai" title="Move task" onClick={() => setRescheduleTask(t)}>
+                  <CalendarDays size={15} />
+                </button>
+                <button className="mtr-act mtr-act-share" title="Share"
+                  onClick={() => setSharingTask?.(t)}>
+                  {t.sharedObjectId
+                    ? <Users size={14} style={{ color: "var(--accent)" }} />
+                    : <Share2 size={14} />}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -2018,7 +2046,7 @@ function MobileSettings({ ctx }) {
         <div className="mob-sett-card-title"><Activity size={15} /> {t("settings.appearance")}</div>
         <div className="mob-sett-row">
           <span className="mob-sett-row-label">{t("settings.darkMode")}</span>
-          <button className={`mob-toggle${dark ? " on" : ""}`} onClick={() => setDark((d) => !d)}>
+          <button className={`mob-toggle${dark ? " on" : ""}`} onClick={() => { hapticSelection(); setDark((d) => !d); }}>
             <span className="mob-toggle-knob" />
           </button>
         </div>
@@ -2028,9 +2056,9 @@ function MobileSettings({ ctx }) {
         </div>
         <div className="mob-theme-pills">
           <button className={`mob-theme-pill${theme === "default" ? " active" : ""}`}
-            onClick={() => setTheme("default")}>{t("settings.default")}</button>
+            onClick={() => { if (theme !== "default") hapticSelection(); setTheme("default"); }}>{t("settings.default")}</button>
           <button className={`mob-theme-pill${theme === "liquid_glass" ? " active" : ""}`}
-            onClick={() => setTheme("liquid_glass")}>{t("settings.liquidGlass")}</button>
+            onClick={() => { if (theme !== "liquid_glass") hapticSelection(); setTheme("liquid_glass"); }}>{t("settings.liquidGlass")}</button>
         </div>
         <div className="mob-sett-divider" />
         <div className="mob-sett-row">
@@ -2038,11 +2066,11 @@ function MobileSettings({ ctx }) {
         </div>
         <div className="mob-theme-pills">
           <button className={`mob-theme-pill${i18n.resolvedLanguage === "en" ? " active" : ""}`}
-            onClick={() => i18n.changeLanguage("en")}>🇬🇧 EN</button>
+            onClick={() => { if (i18n.resolvedLanguage !== "en") hapticSelection(); i18n.changeLanguage("en"); }}>🇬🇧 EN</button>
           <button className={`mob-theme-pill${i18n.resolvedLanguage === "de" ? " active" : ""}`}
-            onClick={() => i18n.changeLanguage("de")}>🇩🇪 DE</button>
+            onClick={() => { if (i18n.resolvedLanguage !== "de") hapticSelection(); i18n.changeLanguage("de"); }}>🇩🇪 DE</button>
           <button className={`mob-theme-pill${i18n.resolvedLanguage === "ru" ? " active" : ""}`}
-            onClick={() => i18n.changeLanguage("ru")}>🇷🇺 RU</button>
+            onClick={() => { if (i18n.resolvedLanguage !== "ru") hapticSelection(); i18n.changeLanguage("ru"); }}>🇷🇺 RU</button>
         </div>
       </div>
 
@@ -2052,7 +2080,7 @@ function MobileSettings({ ctx }) {
         <div className="mob-sett-row">
           <span className="mob-sett-row-label">{t("settings.twoAssistantMode")}</span>
           <button className={`mob-toggle${assistantSettings.twoAssistantMode ? " on" : ""}`}
-            onClick={() => updateAssistantSettings({ twoAssistantMode: !assistantSettings.twoAssistantMode })}>
+            onClick={() => { hapticSelection(); updateAssistantSettings({ twoAssistantMode: !assistantSettings.twoAssistantMode }); }}>
             <span className="mob-toggle-knob" />
           </button>
         </div>
@@ -2199,7 +2227,7 @@ function MobileChat({ ctx }) {
     if (!chatOpen || !suggestionsVisible || aiChatSugFetchedRef.current) return;
     aiChatSugFetchedRef.current = true;
     setAiChatSugLoading(true);
-    fetch(apiUrl("/api/tips"), {
+    apiFetch("/api/tips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2247,9 +2275,7 @@ function MobileChat({ ctx }) {
             <div className="mob-chat-sub">Your productivity assistant</div>
           </div>
         </div>
-        <button className="mob-chat-close" onClick={() => setChatOpen(false)}>
-          <X size={20} />
-        </button>
+        <CloseButton onClick={() => setChatOpen(false)} />
       </div>
 
       <div className="mob-chat-messages-wrap">
@@ -2404,7 +2430,7 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
         <div className="mob-modal-handle" />
         <div className="mob-modal-header">
           <span className="mob-reschedule-title">Move task</span>
-          <button className="mob-modal-close" onClick={onClose}><X size={20} /></button>
+          <CloseButton onClick={onClose} />
         </div>
         <div className="mob-reschedule-task-name">{task.title || "Untitled"}</div>
         <div className="mob-modal-body">
@@ -2468,9 +2494,7 @@ function MobileEditModal({ ctx }) {
             placeholder="Task title"
             onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
             autoFocus />
-          <button className="mob-modal-close" onClick={() => ctx.setEditingTask(null)}>
-            <X size={20} />
-          </button>
+          <CloseButton onClick={() => ctx.setEditingTask(null)} />
         </div>
 
         <div className="mob-modal-body">
@@ -2482,7 +2506,7 @@ function MobileEditModal({ ctx }) {
               {[["task","Task"],["deadline","Deadline"],["break","Break"]].map(([val, lbl]) => (
                 <button key={val}
                   className={`mob-type-btn mob-type-${val}${(draft.type ?? "task") === val ? " active" : ""}`}
-                  onClick={() => setDraft((d) => ({ ...d, type: val }))}>
+                  onClick={() => { if ((draft.type ?? "task") !== val) hapticSelection(); setDraft((d) => ({ ...d, type: val })); }}>
                   {lbl}
                 </button>
               ))}
@@ -2575,7 +2599,7 @@ function MobileEditModal({ ctx }) {
                   <button key={val}
                     className={`mob-type-btn mob-complexity-btn${draft.complexity === val ? " active" : ""}`}
                     style={draft.complexity === val ? { background: color + "22", borderColor: color, color } : {}}
-                    onClick={() => setDraft((d) => ({ ...d, complexity: d.complexity === val ? null : val }))}>
+                    onClick={() => { hapticSelection(); setDraft((d) => ({ ...d, complexity: d.complexity === val ? null : val })); }}>
                     {lbl}
                   </button>
                 ))}

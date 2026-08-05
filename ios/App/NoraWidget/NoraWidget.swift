@@ -50,8 +50,8 @@ private struct SmallView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
-                Image(systemName: phaseIcon).font(.system(size: 10, weight: .semibold))
-                Text(phaseLabel).font(.system(size: 10, weight: .semibold)).kerning(0.4)
+                Image(systemName: phaseIcon).font(.system(size: 11, weight: .semibold))
+                Text(phaseLabel).font(.system(size: 11, weight: .semibold)).kerning(0.4)
                 Spacer()
             }
             .foregroundStyle(.secondary)
@@ -64,7 +64,7 @@ private struct SmallView: View {
                 ProgressRing(progress: data.progress, completed: data.completedToday, total: data.totalToday, size: 32)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("\(data.completedToday)/\(data.totalToday)").font(.system(size: 12, weight: .bold, design: .rounded))
-                    Text("tasks today").font(.system(size: 9)).foregroundStyle(.secondary)
+                    Text("tasks today").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
             }
@@ -122,7 +122,7 @@ private struct SmallView: View {
 
     private func heroTask(_ task: WidgetTask, prefix: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(prefix.uppercased()).font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+            Text(prefix.uppercased()).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
             Text(task.title).font(.system(size: 15, weight: .bold)).lineLimit(2)
             if let t = task.timeLabel { Text(t).font(.system(size: 11)).foregroundStyle(.secondary) }
         }
@@ -138,7 +138,7 @@ private struct MediumScheduleView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("TODAY").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary).kerning(0.4)
+                Text("TODAY").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary).kerning(0.4)
                 Text(data.date.components(separatedBy: ",").first ?? data.date)
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .padding(.top, 2)
@@ -149,13 +149,13 @@ private struct MediumScheduleView: View {
 
                 if data.remainingDeepWorkCount > 0 {
                     Label("\(data.remainingDeepWorkCount) Deep Work", systemImage: "brain.head.profile")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(NoraColor.accent)
                         .labelStyle(.titleOnly)
                         .lineLimit(2)
                 } else {
                     Text(data.readinessLabel)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(NoraColor.forBucket(data.readinessLabel))
                 }
             }
@@ -166,18 +166,18 @@ private struct MediumScheduleView: View {
             VStack(alignment: .leading, spacing: 7) {
                 if let next = data.nextTask {
                     HStack(spacing: 4) {
-                        Image(systemName: "clock.fill").font(.system(size: 9)).foregroundStyle(NoraColor.accent)
-                        Text("Next: \(next.title)").font(.system(size: 10.5, weight: .semibold)).lineLimit(1)
+                        Image(systemName: "clock.fill").font(.system(size: 10)).foregroundStyle(NoraColor.accent)
+                        Text("Next: \(next.title)").font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
                         Spacer()
                         if let start = next.startHour {
-                            Text(countdownLabel(hour: start, minute: next.startMinute ?? 0)).font(.system(size: 9.5)).foregroundStyle(.secondary)
+                            Text(countdownLabel(hour: start, minute: next.startMinute ?? 0)).font(.system(size: 10.5)).foregroundStyle(.secondary)
                         }
                     }
                     Divider1px()
                 }
                 ForEach(displayTasks) { task in InteractiveTaskRow(task: task) }
                 if data.totalToday > 4 {
-                    Text("+ \(data.totalToday - 4) more").font(.system(size: 10)).foregroundStyle(.tertiary)
+                    Text("+ \(data.totalToday - 4) more").font(.system(size: 11)).foregroundStyle(.tertiary)
                 }
                 Spacer(minLength: 0)
             }
@@ -202,7 +202,7 @@ private struct LargeView: View {
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                     if data.remainingDeepWorkCount > 0 {
                         Label("\(data.remainingDeepWorkCount) Deep Work session\(data.remainingDeepWorkCount == 1 ? "" : "s") left", systemImage: "brain.head.profile")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(NoraColor.accent)
                     }
                 }
@@ -215,7 +215,7 @@ private struct LargeView: View {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(displayTasks) { task in InteractiveTaskRow(task: task) }
                 if data.totalToday > 7 {
-                    Text("+ \(data.totalToday - 7) more tasks").font(.system(size: 10)).foregroundStyle(.tertiary)
+                    Text("+ \(data.totalToday - 7) more tasks").font(.system(size: 11)).foregroundStyle(.tertiary)
                 }
             }
 
@@ -232,8 +232,8 @@ private struct LargeView: View {
                 if let mb = data.metrics?.mentalBattery, let value = mb.value {
                     HStack(spacing: 5) {
                         Circle().fill(NoraColor.forBucket(mb.label)).frame(width: 6, height: 6)
-                        Text("Battery").font(.system(size: 10)).foregroundStyle(.secondary)
-                        Text("\(value)%").font(.system(size: 10, weight: .semibold))
+                        Text("Battery").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text("\(value)%").font(.system(size: 11, weight: .semibold))
                     }
                 }
             }
@@ -245,8 +245,8 @@ private struct LargeView: View {
     private func statChip(_ label: String, _ value: Int, _ color: Color) -> some View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 6, height: 6)
-            Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
-            Text("\(value)/10").font(.system(size: 10, weight: .semibold))
+            Text(label).font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("\(value)/10").font(.system(size: 11, weight: .semibold))
         }
     }
 }

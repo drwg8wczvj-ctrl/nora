@@ -3,18 +3,35 @@
 
 /* ─── LIGHT NEON THEME (default) ──────────────────────── */
 :root {
-  /* Accent — identical in both modes */
+  /* Accent — identical in both modes. Nora's identity: purple + a
+     deeper, more navy-leaning blue (was a brighter azure, #2563eb) —
+     part of the Nora/Atlas visual-identity pass, still vibrant enough
+     to read as "energetic", just less sky-blue and more structured. */
   --accent:       #7c3aed;
-  --accent-2:     #2563eb;
+  --accent-2:     #2b3f8c;
   --accent-dark:  #6d28d9;
   --accent-light: rgba(124,58,237,0.12);
-  --grad:         linear-gradient(135deg, #7c3aed, #2563eb);
-  --grad-subtle:  linear-gradient(135deg, rgba(124,58,237,0.18), rgba(37,99,235,0.14));
+  --accent-rgb:   124,58,237;
+  --grad:         linear-gradient(135deg, #7c3aed, #2b3f8c);
+  --grad-subtle:  linear-gradient(135deg, rgba(124,58,237,0.18), rgba(43,63,140,0.14));
   --success:      #16a34a;
   --danger:       #dc2626;
   --radius:       16px;
   --glass-blur:   blur(8px);
   --tr:           .18s ease;
+
+  /* ── Corner-radius scale ──────────────────────────────────────────
+     Reusable design-system tiers — new components should reach for one
+     of these rather than a fresh hardcoded px value. Existing call sites
+     (many hand-tuned hardcoded values across the app, predating this
+     scale) are unchanged; unifying every one of them is a larger,
+     separate pass than this one, but every NEW surface (the Atlas/Nora
+     identity work included) is built on top of these five tiers. */
+  --radius-xs:    8px;   /* small chips/badges/inputs */
+  --radius-sm:    12px;  /* buttons, compact controls */
+  --radius-md:    16px;  /* = --radius: standard cards */
+  --radius-lg:    24px;  /* sheets, large panels, Atlas surfaces */
+  --radius-full:  999px; /* pills, circular controls */
 
   /* ── NORA Motion Tokens ── */
   --ease-spring:  cubic-bezier(0.25, 1, 0.35, 1);
@@ -148,9 +165,9 @@
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   opacity: 0;
   background:
-    radial-gradient(ellipse 60% 40% at 10% 0%, var(--atlas-accent-light) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 35% at 100% 100%, var(--atlas-accent-light) 0%, transparent 55%);
-  transition: opacity var(--atlas-dur-ambient) var(--ease-in-out);
+    radial-gradient(ellipse 60% 40% at 10% 0%, var(--accent-light) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 100% 100%, var(--accent-light) 0%, transparent 55%);
+  transition: opacity var(--dur-slow) var(--ease-in-out);
 }
 .app.atlas-active .app-atlas-tint,
 .mob-app.atlas-active .app-atlas-tint { opacity: 1; }
@@ -188,8 +205,8 @@
 .sidebar-atlas-glow {
   position: absolute; inset: 0; z-index: 0; pointer-events: none;
   opacity: 0;
-  background: linear-gradient(180deg, var(--atlas-accent-light) 0%, transparent 50%);
-  transition: opacity var(--atlas-dur-ambient) var(--ease-in-out);
+  background: linear-gradient(180deg, var(--accent-light) 0%, transparent 50%);
+  transition: opacity var(--dur-slow) var(--ease-in-out);
 }
 .app.atlas-active .sidebar-atlas-glow { opacity: 1; }
 
@@ -973,6 +990,23 @@
     0 0 30px rgba(124,58,237,0.55), 0 4px 20px rgba(0,0,0,.2);
 }
 .chat-fab.active { background: var(--surface-2); box-shadow: var(--shadow); }
+.chat-fab-launch-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The cold-launch shell is already mounted under the opaque splash. Its
+   major regions settle in together while Nora docks, making the handoff
+   read as one composition rather than unrelated entrance animations. */
+.app.launch-shell-waiting:not(.mob-app) > .sidebar,
+.app.launch-shell-waiting:not(.mob-app) > .main-wrap {
+  opacity: 0;
+}
+.app.launch-shell-revealing:not(.mob-app) > .sidebar,
+.app.launch-shell-revealing:not(.mob-app) > .main-wrap {
+  opacity: 1;
+  transition: opacity .32s ease;
+}
 
 .chat-panel {
   position: fixed; bottom: 90px; right: 24px;
@@ -1849,259 +1883,6 @@
 .lti-insights-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .lti-insight-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
 .lti-insight-dot { width: 6px; height: 6px; border-radius: 50%; background: #818cf8; flex-shrink: 0; margin-top: 5px; }
-
-/* ── Morning Check-Up modal overlay ─────────────────────── */
-/* ══════════════════════════════════════════════════════════
-   MORNING CHECK-UP — REDESIGNED
-   ══════════════════════════════════════════════════════════ */
-
-.mcu-sunrise-icon { color: #f59e0b; }
-
-.mcu-overlay {
-  position: fixed; inset: 0; z-index: 600;
-  background: rgba(8,6,20,0.85);
-  backdrop-filter: blur(24px) saturate(1.5);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-}
-/* Mobile: slide up from bottom */
-@media (max-width: 640px) {
-  .mcu-overlay { align-items: flex-end; padding: 0; }
-  .mcu-modal { border-radius: 26px 26px 0 0 !important; max-height: 95dvh !important; max-width: 100% !important; }
-}
-/* Sunrise glow decoration */
-.mcu-sunrise-glow {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background: radial-gradient(ellipse 70% 40% at 50% -10%, rgba(251,146,60,0.20) 0%, transparent 60%),
-              radial-gradient(ellipse 50% 30% at 50% 0%, rgba(245,158,11,0.12) 0%, transparent 50%);
-}
-.mcu-overlay.glass .mcu-modal {
-  background: rgba(255,255,255,0.07);
-  backdrop-filter: blur(44px) saturate(1.8);
-  border: 1px solid rgba(255,255,255,0.16);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 48px 120px rgba(0,0,0,0.55);
-}
-.mcu-modal {
-  position: relative; z-index: 1;
-  width: 100%; max-width: 520px; max-height: 92vh;
-  border-radius: 26px;
-  background: var(--modal-bg);
-  border: 1px solid var(--border);
-  box-shadow: 0 40px 100px rgba(0,0,0,0.40);
-  display: flex; flex-direction: column; overflow: hidden;
-}
-
-/* Progress */
-.mcu-progress-bar { height: 3px; background: var(--surface-2); flex-shrink: 0; }
-.mcu-progress-fill { height: 100%; background: linear-gradient(90deg, #f59e0b, #7c3aed); transition: width .45s cubic-bezier(.25,1,.35,1); }
-
-/* Top bar */
-.mcu-top-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px 10px; flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-}
-.mcu-brand { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
-.mcu-back, .mcu-close {
-  width: 30px; height: 30px; border-radius: 9px; border: none;
-  background: var(--surface-2); color: var(--text-muted); cursor: pointer;
-  display: flex; align-items: center; justify-content: center; transition: all .15s;
-}
-.mcu-back:hover, .mcu-close:hover { background: var(--surface); color: var(--text); }
-
-/* Body */
-.mcu-body { flex: 1; overflow-y: auto; padding: 24px 32px 8px; }
-.mcu-step { display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center; min-height: 320px; justify-content: center; }
-.mcu-step-header { display: flex; flex-direction: column; gap: 8px; align-items: center; }
-.mcu-dual-icon { display: flex; gap: 10px; }
-.mcu-title { font-size: 24px; font-weight: 900; color: var(--text); line-height: 1.2; margin: 0; }
-.mcu-subtitle { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
-
-/* Sleep quality grid */
-.mcu-sleep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
-.mcu-sleep-card {
-  padding: 16px 12px; border-radius: 16px;
-  border: 2px solid var(--border); background: var(--surface); cursor: pointer;
-  display: flex; flex-direction: column; gap: 8px; align-items: center;
-  transition: all .20s cubic-bezier(.25,1,.35,1);
-  position: relative; overflow: hidden;
-}
-.mcu-sleep-card:hover { border-color: #f59e0b; transform: translateY(-1px); }
-.mcu-sleep-card.active { transform: translateY(-2px); }
-.mcu-sleep-indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.mcu-sleep-label { font-size: 15px; font-weight: 800; color: var(--text); }
-.mcu-sleep-sub { font-size: 11px; color: var(--text-muted); }
-
-/* Time inputs */
-.mcu-time-row { display: flex; gap: 16px; width: 100%; }
-.mcu-time-field { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.mcu-time-label { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; text-align: left; }
-.mcu-time-input { padding: 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 18px; font-family: inherit; outline: none; text-align: center; transition: border-color .15s; }
-.mcu-time-input:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
-.mcu-duration-badge {
-  display: flex; align-items: center; gap: 10px; justify-content: center;
-  padding: 10px 18px; border-radius: 20px;
-  background: var(--surface-2); border: 1px solid var(--border);
-  font-size: 14px; font-weight: 700; color: var(--text);
-}
-.mcu-duration-eval { font-size: 12px; font-weight: 700; }
-
-.mcu-health-prefill-badge {
-  font-size: 11.5px; font-weight: 600; color: var(--accent);
-  background: var(--accent-light); border-radius: 8px;
-  padding: 6px 10px; text-align: center;
-}
-.mcu-health-insights {
-  list-style: none; margin: 0; padding: 0;
-  display: flex; flex-direction: column; gap: 5px;
-  text-align: center;
-}
-.mcu-health-insights li { font-size: 12.5px; color: var(--text-muted); line-height: 1.4; }
-
-/* Scale selector */
-.mcu-scale { width: 100%; }
-.mcu-scale-btns { display: flex; gap: 4px; justify-content: center; }
-.mcu-scale-btn {
-  width: 38px; height: 38px; border-radius: 10px;
-  border: 1px solid var(--border); background: var(--surface-2);
-  color: var(--text-muted); font-size: 13px; font-weight: 700; cursor: pointer;
-  transition: all .12s;
-}
-.mcu-scale-btn:hover { border-color: #818cf8; color: #818cf8; }
-.mcu-scale-btn.active { color: #fff; }
-.mcu-scale-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 7px; padding: 0 2px; }
-
-.mcu-dual-scales { display: flex; flex-direction: column; gap: 22px; width: 100%; text-align: left; }
-.mcu-scale-section { display: flex; flex-direction: column; gap: 8px; }
-.mcu-scale-lbl { font-size: 12px; font-weight: 700; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
-
-/* Focus bubbles — dynamic, colorful, multi-select */
-.mcu-focus-bubbles { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.mcu-focus-bubble {
-  padding: 9px 18px; border-radius: 22px;
-  border: 1.5px solid rgba(0,0,0,0.12); background: var(--surface-2);
-  color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: all .18s cubic-bezier(.25,1,.35,1);
-}
-.mcu-focus-bubble:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-.mcu-focus-bubble.active { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.18); font-weight: 700; }
-.mcu-focus-selected { font-size: 11px; color: var(--text-muted); margin: -8px 0 0; }
-.mcu-pressure-input { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 14px; font-family: inherit; resize: none; outline: none; box-sizing: border-box; transition: border-color .15s; }
-.mcu-pressure-input:focus { border-color: #818cf8; }
-
-/* Collapsed "log exact times" disclosure (merged into step 0) */
-.mcu-sleep-times-toggle { background: none; border: none; color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 0; text-decoration: underline; text-underline-offset: 2px; }
-.mcu-sleep-times-toggle:hover { color: var(--text); }
-
-/* Adaptive question — one reflective question per morning */
-.mcu-adaptive-question-text { font-size: 15px; color: var(--text); line-height: 1.5; text-align: center; margin: 0 0 4px; }
-.mcu-choice-grid { display: flex; flex-direction: column; gap: 8px; width: 100%; }
-.mcu-choice-btn { padding: 12px 16px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer; transition: all .15s ease; }
-.mcu-choice-btn:hover { border-color: #818cf8; }
-.mcu-choice-btn.active { border-color: #818cf8; background: rgba(129,140,248,0.12); color: #818cf8; }
-
-/* Adaptive Q&A recap on the summary screen */
-.mcu-adaptive-recap { width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
-.mcu-adaptive-recap-q { font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
-.mcu-adaptive-recap-a { font-size: 13.5px; color: var(--text); line-height: 1.5; font-style: italic; }
-
-/* 6-part Morning Readiness sub-score row */
-.mcu-subscores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
-.mcu-subscore-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
-.mcu-subscore-top { display: flex; align-items: center; gap: 5px; }
-.mcu-subscore-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
-.mcu-subscore-value { font-size: 20px; font-weight: 900; line-height: 1.2; }
-.mcu-subscore-why { font-size: 10.5px; color: var(--text-muted); line-height: 1.35; }
-
-/* Summary — SVG ring + readiness display */
-.mcu-summary { gap: 18px; }
-.mcu-readiness-display { display: flex; align-items: center; gap: 18px; }
-.mcu-readiness-ring { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
-.mcu-ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.mcu-readiness-center {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-}
-.mcu-readiness-pct { font-size: 20px; font-weight: 900; line-height: 1; }
-.mcu-readiness-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); }
-.mcu-readiness-text { display: flex; flex-direction: column; gap: 4px; }
-.mcu-readiness-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
-.mcu-readiness-sub { font-size: 16px; font-weight: 800; }
-.mcu-nora-summary { font-size: 14px; color: var(--text-muted); line-height: 1.6; font-style: italic; text-align: center; border-left: 3px solid #f59e0b; padding-left: 14px; text-align: left; }
-.mcu-summary-focus { width: 100%; text-align: left; }
-.mcu-summary-focus-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 8px; }
-.mcu-summary-focus-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.mcu-summary-chip { padding: 5px 12px; border-radius: 18px; border: 1px solid; font-size: 12px; font-weight: 600; }
-.mcu-tips { display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; }
-.mcu-tip { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
-.mcu-tip-ai { color: var(--text); }
-.mcu-tip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-.mcu-tip-shimmer {
-  display: block; height: 14px; border-radius: 6px;
-  flex: 1;
-  background: linear-gradient(90deg, var(--border) 25%, var(--surface-2) 50%, var(--border) 75%);
-  background-size: 200% 100%;
-  animation: mcuShimmer 1.4s ease-in-out infinite;
-}
-@keyframes mcuShimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* Ask Atlas about today's condition */
-.mcu-ask-atlas {
-  width: 100%; margin-top: 18px; padding-top: 16px;
-  border-top: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 10px;
-}
-.mcu-ask-atlas-header {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 700; color: var(--text);
-}
-.mcu-ask-atlas-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.mcu-ask-atlas-chip {
-  padding: 6px 11px; border-radius: 20px; border: 1px solid var(--border);
-  background: var(--surface-2); color: var(--text-muted);
-  font-size: 11.5px; cursor: pointer; transition: all .15s;
-}
-.mcu-ask-atlas-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-.mcu-ask-atlas-input-row { display: flex; gap: 8px; }
-.mcu-ask-atlas-input {
-  flex: 1; padding: 11px 14px; border-radius: 12px;
-  border: 1px solid var(--border); background: var(--surface-2);
-  color: var(--text); font-size: 13.5px; font-family: inherit; outline: none;
-  transition: border-color .15s;
-}
-.mcu-ask-atlas-input:focus { border-color: var(--accent); }
-.mcu-ask-atlas-send {
-  width: 42px; height: 42px; flex-shrink: 0; border-radius: 12px; border: none;
-  background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: opacity .15s;
-}
-.mcu-ask-atlas-send:disabled { opacity: .4; cursor: not-allowed; }
-.mcu-ask-atlas-send:not(:disabled):hover { opacity: .85; }
-
-/* Footer */
-.mcu-footer { padding: 14px 24px 22px; flex-shrink: 0; border-top: 1px solid var(--border); }
-.mcu-footer-btns { display: flex; gap: 10px; }
-.mcu-secondary-btn {
-  flex: 1; padding: 13px; border-radius: 14px;
-  background: var(--surface-2); color: var(--text-muted);
-  border: 1px solid var(--border); font-size: 14px; font-weight: 600; cursor: pointer;
-  transition: all .15s;
-}
-.mcu-secondary-btn:hover { background: var(--surface); color: var(--text); }
-.mcu-next-btn {
-  flex: 2; padding: 13px; border-radius: 14px;
-  background: linear-gradient(135deg, #f59e0b, #7c3aed); color: #fff; border: none;
-  font-size: 15px; font-weight: 700; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  box-shadow: 0 4px 20px rgba(124,58,237,0.38);
-  transition: opacity .15s, transform .15s;
-}
-.mcu-next-btn:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); }
-.mcu-next-btn:disabled { opacity: .30; cursor: not-allowed; box-shadow: none; }
 
 /* ── Sticky Notes (desktop) ─────────────────────────────── */
 /* ─── Notes View ──────────────────────────────────────────────────── */
@@ -3409,7 +3190,7 @@
 .modal                  { animation: noraEnter 0.28s var(--ease-spring) both; }
 .reschedule-modal       { animation: noraEnter 0.26s var(--ease-spring) both; }
 .lti-overlay            { animation: noraFadeIn var(--dur-fast) ease both; }
-.mcu-overlay            { animation: noraFadeIn var(--dur-fast) ease both; }
+.mcu-screen             { animation: noraFadeIn var(--dur-fast) ease both; }
 
 /* ── Chat panel ── */
 .chat-panel {
@@ -3470,10 +3251,6 @@ button:not(:disabled):active {
 
 /* ── Notification toast entrance (handled inline above) ── */
 
-/* ── Check-up readiness ring ── */
-.mcu-ring-svg circle:last-child {
-  transition: stroke-dasharray 0.7s var(--ease-spring);
-}
 /* iOS Safari zooms the whole page when a focused form control is below 16px.
    Keep mobile controls at the native threshold instead of disabling user zoom. */
 @media (max-width: 768px) {
@@ -3690,7 +3467,7 @@ button:not(:disabled):active {
     top: 5px;
     bottom: 5px;
     border-radius: 14px;
-    background: linear-gradient(145deg, #7c3aed, #2563eb 68%, #0891b2);
+    background: linear-gradient(145deg, #7c3aed, #2b3f8c 68%, #0891b2);
     box-shadow: 0 12px 26px rgba(37,99,235,0.22), 0 1px 0 rgba(255,255,255,0.34) inset;
   }
 
@@ -3747,7 +3524,7 @@ button:not(:disabled):active {
     width: 58px;
     height: 58px;
     border-radius: 20px;
-    background: linear-gradient(145deg, #8b5cf6 0%, #2563eb 62%, #06b6d4 100%);
+    background: linear-gradient(145deg, #8b5cf6 0%, #2b3f8c 62%, #06b6d4 100%);
     border: 1px solid rgba(255,255,255,0.30);
     box-shadow: 0 18px 42px rgba(37,99,235,0.30), 0 8px 20px rgba(124,58,237,0.22), 0 1px 0 rgba(255,255,255,0.40) inset;
   }
@@ -3766,7 +3543,7 @@ button:not(:disabled):active {
   }
 
   .app:not(.mob-app) .chat-msg.user .chat-bubble {
-    background: linear-gradient(145deg, #7c3aed, #2563eb);
+    background: linear-gradient(145deg, #7c3aed, #2b3f8c);
   }
 
   .app:not(.mob-app) .modal {
@@ -3777,7 +3554,7 @@ button:not(:disabled):active {
   .app:not(.mob-app) .add-btn,
   .app:not(.mob-app) .send-btn,
   .app:not(.mob-app) .auth-submit {
-    background: linear-gradient(145deg, #7c3aed, #2563eb 68%, #0891b2);
+    background: linear-gradient(145deg, #7c3aed, #2b3f8c 68%, #0891b2);
     box-shadow: 0 12px 26px rgba(37,99,235,0.22), 0 1px 0 rgba(255,255,255,0.38) inset;
   }
 }

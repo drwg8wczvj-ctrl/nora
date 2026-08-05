@@ -1,7 +1,10 @@
 import { supabase } from "./supabase";
+import { browserEnv } from "../config/env";
+import { taskListSchema } from "../domain/tasks/taskSchema";
+import { userAppDataSchema } from "../domain/appData/appDataSchema";
 
 // ── Push notification helpers ─────────────────────────────────
-const EDGE = process.env.REACT_APP_SUPABASE_URL;
+const EDGE = browserEnv.supabaseUrl;
 
 async function edgeCall(action, payload = {}) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -117,7 +120,13 @@ export async function loadUserData() {
     .eq("user_id", user.id)
     .single();
   if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows yet
-  return data ?? null;
+  if (!data) return null;
+  const parsed = userAppDataSchema.safeParse(data);
+  if (!parsed.success) {
+    console.error("Invalid user_app_data payload", parsed.error.issues);
+    throw new Error("Stored planner data is invalid.");
+  }
+  return parsed.data;
 }
 
 export async function saveUserData({ tasks, groups, notes, preferences, boards, journeys }) {
@@ -126,9 +135,10 @@ export async function saveUserData({ tasks, groups, notes, preferences, boards, 
   let mergedPrefs = preferences;
   if (boards !== undefined) mergedPrefs = { ...mergedPrefs, boards };
   if (journeys !== undefined) mergedPrefs = { ...mergedPrefs, journeys };
+  const validatedTasks = taskListSchema.parse(tasks ?? []);
   const { error } = await supabase
     .from("user_app_data")
-    .upsert({ user_id: user.id, tasks, groups, notes, preferences: mergedPrefs });
+    .upsert({ user_id: user.id, tasks: validatedTasks, groups, notes, preferences: mergedPrefs });
   if (error) throw error;
 }
 

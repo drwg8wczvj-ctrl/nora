@@ -5,6 +5,7 @@ import {
   FileText, CheckSquare, ShoppingCart, Lightbulb, Zap,
 } from "lucide-react";
 import "./NoteEditor.css";
+import CloseButton from "./CloseButton";
 
 // ─── Shared constants ─────────────────────────────────────────────────────────
 
@@ -258,9 +259,7 @@ export default function NoteEditor({ note, onPatch, onDelete, onClose, isMobile 
             >
               <Trash2 size={15} />
             </button>
-            <button className="ne-icon-btn ne-close-btn" onClick={onClose} title="Close">
-              <X size={15} />
-            </button>
+            <CloseButton onClick={onClose} size={26} />
           </div>
         </div>
 

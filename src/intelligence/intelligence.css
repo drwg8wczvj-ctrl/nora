@@ -464,15 +464,10 @@
   }
 }
 
-.ob-close {
-  position: absolute; top: 16px; right: 16px;
-  width: 30px; height: 30px; border-radius: 50%;
-  border: 1px solid var(--border); background: var(--surface);
-  color: var(--text-muted);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: background var(--tr), color var(--tr);
-}
-.ob-close:hover { color: var(--text); background: var(--surface-2); }
+/* Visual styling now owned by CloseButton.css; this only positions it.
+   Class name kept as `ob-close` (not renamed) — existing QA scripts target
+   this exact selector to dismiss the onboarding overlay. */
+.ob-close { position: absolute; top: 16px; right: 16px; }
 
 .ob-progress { display: flex; gap: 6px; margin-bottom: 26px; }
 .ob-progress-dot {

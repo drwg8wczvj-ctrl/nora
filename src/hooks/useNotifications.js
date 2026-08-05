@@ -3,6 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { savePushSubscription, scheduleServerAlarm, cancelServerAlarm, saveApnsToken } from "../lib/noraApi";
+import { browserEnv } from "../config/env";
 
 const SETTINGS_KEY = "nora_notif_settings_v1";
 const IS_NATIVE = Capacitor.isNativePlatform();
@@ -130,8 +131,8 @@ export function useNotifications() {
 
     // Helper to send CONFIGURE to whichever SW is currently controlling the page
     const sendConfigure = (worker) => {
-      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-      const anonKey     = process.env.REACT_APP_SUPABASE_ANON_KEY;
+      const supabaseUrl = browserEnv.supabaseUrl;
+      const anonKey     = browserEnv.supabaseAnonKey;
       if (supabaseUrl && anonKey && worker) {
         worker.postMessage({ type: "CONFIGURE", supabaseUrl, anonKey });
       }
@@ -154,8 +155,8 @@ export function useNotifications() {
         // when the SW restarts cold (no in-memory state, no open app tab).
         const worker = navigator.serviceWorker.controller ?? reg.active;
         if (worker) {
-          const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-          const anonKey     = process.env.REACT_APP_SUPABASE_ANON_KEY;
+          const supabaseUrl = browserEnv.supabaseUrl;
+          const anonKey     = browserEnv.supabaseAnonKey;
           if (supabaseUrl && anonKey) {
             worker.postMessage({ type: "CONFIGURE", supabaseUrl, anonKey });
           }
@@ -180,8 +181,8 @@ export function useNotifications() {
         try {
           let vapidKey;
           try {
-            const EDGE = process.env.REACT_APP_SUPABASE_URL;
-            const ANON = process.env.REACT_APP_SUPABASE_ANON_KEY;
+            const EDGE = browserEnv.supabaseUrl;
+            const ANON = browserEnv.supabaseAnonKey;
             if (EDGE) {
               const res = await fetch(`${EDGE}/functions/v1/nora-push`, {
                 method: "POST",
@@ -195,7 +196,7 @@ export function useNotifications() {
               vapidKey = data.publicKey || null;
             }
           } catch {}
-          if (!vapidKey) vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+          if (!vapidKey) vapidKey = browserEnv.vapidPublicKey;
 
           const lastKey = localStorage.getItem("nora_vapid_key_v1");
           let sub = await reg.pushManager.getSubscription();
@@ -279,8 +280,8 @@ export function useNotifications() {
     // work even when the React bundle is cached by the service worker.
     let vapidKey;
     try {
-      const EDGE = process.env.REACT_APP_SUPABASE_URL;
-      const ANON = process.env.REACT_APP_SUPABASE_ANON_KEY;
+      const EDGE = browserEnv.supabaseUrl;
+      const ANON = browserEnv.supabaseAnonKey;
       if (EDGE) {
         const res = await fetch(`${EDGE}/functions/v1/nora-push`, {
           method: "POST",
@@ -295,7 +296,7 @@ export function useNotifications() {
       }
     } catch {}
     // Fall back to build-time env var if server unreachable
-    if (!vapidKey) vapidKey = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+    if (!vapidKey) vapidKey = browserEnv.vapidPublicKey;
     if (!vapidKey) return false;
 
     try {

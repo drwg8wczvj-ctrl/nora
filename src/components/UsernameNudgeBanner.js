@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { AtSign, X } from "lucide-react";
+import { AtSign } from "lucide-react";
+import CloseButton from "./CloseButton";
 import "./UsernameNudgeBanner.css";
 
 export default function UsernameNudgeBanner({ onSetUp, onLater }) {
@@ -27,9 +28,7 @@ export default function UsernameNudgeBanner({ onSetUp, onLater }) {
           <button className="unb-later" onClick={onLater}>Later</button>
         </div>
       </div>
-      <button className="unb-close" onClick={onLater} aria-label="Dismiss">
-        <X size={15} />
-      </button>
+      <CloseButton onClick={onLater} size={26} />
     </div>
   );
 }

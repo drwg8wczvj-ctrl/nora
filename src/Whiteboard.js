@@ -6,6 +6,8 @@ import {
   Share2, Users,
 } from "lucide-react";
 import "./Whiteboard.css";
+import { isNativeActionMenuAvailable, showNativeActionMenu } from "./lib/nativeActionMenu";
+import { hapticLight } from "./lib/haptics";
 import ShareModal from "./components/ShareModal";
 import CollaboratorAvatars from "./components/CollaboratorAvatars";
 import {
@@ -750,8 +752,19 @@ export function MobileWhiteboardView({ onAskNora, onClose, boards: boardsProp })
   const [openId, setOpenId] = useState(null);
   const openBoard = boards.find(b=>b.id===openId);
 
-  const deleteBoard = (e, id) => {
+  const deleteBoard = async (e, id) => {
     e.stopPropagation();
+    if (isNativeActionMenuAvailable()) {
+      hapticLight();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const selectedId = await showNativeActionMenu({
+        title: "Delete this whiteboard?",
+        actions: [{ id: "confirm-delete", label: "Delete", style: "destructive" }],
+        sourceRect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+      }).catch(() => null);
+      if (selectedId === "confirm-delete") setBoards(p => p.filter(b => b.id !== id));
+      return;
+    }
     if (window.confirm("Delete?")) setBoards(p=>p.filter(b=>b.id!==id));
   };
 

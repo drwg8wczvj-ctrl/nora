@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { X, Check, AlertCircle, Camera } from "lucide-react";
+import { Check, AlertCircle, Camera } from "lucide-react";
+import CloseButton from "./CloseButton";
 import AvatarDisplay from "./AvatarDisplay";
 import AvatarPicker from "./AvatarPicker";
 import { saveFullProfile, getMyProfile } from "../lib/sharingApi";
@@ -112,7 +113,7 @@ export default function ProfileModal({ session, onClose, onSaved }) {
       <div className="pm-modal" onClick={e => e.stopPropagation()}>
         <div className="pm-header">
           <span className="pm-title">Profile</span>
-          <button className="pm-close" onClick={onClose}><X size={16} /></button>
+          <CloseButton onClick={onClose} size={26} />
         </div>
 
         {loadErr ? (

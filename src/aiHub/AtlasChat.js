@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState } from "react";
-import { HeartHandshake, X, Send, Wind, PanelLeft } from "lucide-react";
+import { HeartHandshake, Send, Wind, PanelLeft } from "lucide-react";
 import { MessagePartsList } from "../conversation/MessagePart";
 import { textPart } from "../conversation/messageParts";
 import ConversationSidebar, { ConversationSheet } from "../conversation/ConversationList";
+import CloseButton from "../components/CloseButton";
 
 // Atlas's own chat surface — deliberately a separate component from Planner's
 // chat-panel/mob-chat, not a parametrized shared one, so Phase 4's visual
@@ -118,7 +119,7 @@ export function DesktopAtlasChat({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className={`atlas-chat-panel${open ? " open" : ""}`}>
+    <div className={`atlas-chat-panel atlas-mode${open ? " open" : ""}`}>
       <ConversationSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -149,7 +150,7 @@ export function DesktopAtlasChat({
               <Wind size={15} />
             </button>
           )}
-          <button className="atlas-chat-close" onClick={onClose}><X size={16} /></button>
+          <CloseButton onClick={onClose} size={26} />
         </div>
       </div>
 
@@ -191,7 +192,7 @@ export function MobileAtlasChat({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className={`mob-atlas-chat${open ? " mob-atlas-chat-open" : ""}`}>
+    <div className={`mob-atlas-chat atlas-mode${open ? " mob-atlas-chat-open" : ""}`}>
       <div className="atlas-chat-header">
         <div className="atlas-chat-header-info">
           {!showIntro && (
@@ -209,7 +210,7 @@ export function MobileAtlasChat({
               <Wind size={15} />
             </button>
           )}
-          <button className="atlas-chat-close" onClick={onClose}><X size={20} /></button>
+          <CloseButton onClick={onClose} />
         </div>
       </div>
 

@@ -1,13 +1,22 @@
 const { applyCors } = require("./_cors");
+const { requireUser } = require("./_auth");
+const { enforceRateLimit } = require("./_rateLimit");
+const { internalError } = require("./_errors");
+const { parseBody, schemas } = require("./_validation");
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).end();
+  const auth = await requireUser(req, res);
+  if (!auth) return;
+  if (!await enforceRateLimit(req, res, auth.user.id, "tips")) return;
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "API key not configured" });
 
-  const { type, context = {} } = req.body ?? {};
+  const parsedBody = parseBody(res, schemas.tips, req.body ?? {});
+  if (!parsedBody.ok) return;
+  const { type, context = {} } = parsedBody.data;
 
   let systemPrompt = "";
   let userPrompt   = "";
@@ -131,13 +140,46 @@ For each item, return { "key": <same key>, "sentence": <why, grounded only in th
 Return a JSON array of these objects, one per item, same order as given. Nothing else.
 Example: [{"key":"mental_battery","sentence":"You walked well beyond your usual step count yesterday on a shorter night than normal, with three intense Deep Work sessions on top — today's lower battery tracks with that.","action":"Take a 12-minute walk before your next focus block.","improvement":"+15% focus"}]`;
 
+  } else if (type === "morning_briefing") {
+    // Fires when the Morning Briefing's first screen mounts — BEFORE the user
+    // has answered anything, so (unlike "morning" above) this only ever sees
+    // real ambient data (HealthKit/recovery/planner), never self-report
+    // answers. Enhances (never replaces) morningBriefing.js's heuristic
+    // greeting/facts, which already render instantly with zero network wait.
+    const {
+      healthSummary = null, recoveryState = null, recoveryTrendDeclining3d = false,
+      facts = [], dayOfWeek, deferredCount = 0, workloadToday,
+    } = context;
+
+    const healthLines = healthSummary ? [
+      healthSummary.sleepLastNightMinutes != null ? `  - Slept ${healthSummary.sleepLastNightMinutes} min last night${healthSummary.sleepBaselineMinutes != null ? ` (their own normal is ${healthSummary.sleepBaselineMinutes} min)` : ""}, trend: ${healthSummary.sleepTrend ?? "unknown"}` : null,
+      healthSummary.recoveryScore != null ? `  - Recovery: ${healthSummary.recoveryLabel ?? ""} (${healthSummary.recoveryScore}/100)` : null,
+      healthSummary.activityStepsToday != null ? `  - Steps yesterday: ${healthSummary.activityStepsToday}${healthSummary.activityBaselineSteps != null ? ` (their own normal is ${healthSummary.activityBaselineSteps})` : ""}` : null,
+      healthSummary.energyScore != null ? `  - Combined Energy Score: ${healthSummary.energyScore}/100` : null,
+    ].filter(Boolean).join("\n") : null;
+
+    systemPrompt = `You are Atlas, speaking at the very start of someone's day, before they've answered anything. Using ONLY the real data given, write two things — never invent a number or fact not present. Warm, calm, direct, never generic, never guilt-based language (no "failed", "missed", "should have"). Never diagnose, never give medical advice.`;
+
+    userPrompt = `Real data for this morning:
+${healthLines ?? "  (Apple Health not connected)"}
+Recovery state: ${recoveryState?.level ?? "unknown"}${recoveryState?.desc ? ` — ${recoveryState.desc}` : ""}
+Recovery declining 3+ days in a row: ${recoveryTrendDeclining3d ? "yes" : "no"}
+Day: ${dayOfWeek ?? "today"}
+Deferred tasks: ${deferredCount}
+Today's workload: ${workloadToday ?? "unknown"}
+Already-computed real facts about this morning:
+${facts.length ? facts.map((f) => `  - ${f}`).join("\n") : "  (none)"}
+
+Return JSON: { "greeting": <one warm, specific second line to follow "Good morning." — grounded in the single most notable real signal above, max 16 words>, "analysis": <2-3 sentences explaining WHY the user's body/mind likely feels the way the data suggests today, connecting at least two real factors together when possible, max 45 words> }
+Return nothing but that JSON object — no markdown fences, no extra text.`;
+
   } else {
     return res.status(400).json({ error: "Unknown tip type" });
   }
 
   // No per-branch override existed before "morning" needed one — number-citing
   // sentences run longer than the other branches' short single-string tips.
-  const MAX_TOKENS = { morning: 260 }[type] ?? 200;
+  const MAX_TOKENS = { morning: 260, morning_briefing: 180 }[type] ?? 200;
 
   try {
     const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -204,10 +246,26 @@ Example: [{"key":"mental_battery","sentence":"You walked well beyond your usual 
         if (Array.isArray(parsed)) items = parsed.filter((it) => it && typeof it.id === "string" && typeof it.text === "string");
       } catch {}
       return res.status(200).json({ items });
+    } else if (type === "morning_briefing") {
+      // { greeting, analysis } — a parse failure returns both null and the
+      // client keeps its own heuristic greeting/analysis (morningBriefing.js),
+      // which already rendered before this call resolves.
+      let result = { greeting: null, analysis: null };
+      try {
+        const cleaned = text.replace(/^```json?\s*/i, "").replace(/```$/, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed && typeof parsed === "object") {
+          result = {
+            greeting: typeof parsed.greeting === "string" ? parsed.greeting : null,
+            analysis: typeof parsed.analysis === "string" ? parsed.analysis : null,
+          };
+        }
+      } catch {}
+      return res.status(200).json(result);
     } else {
       return res.status(200).json({ tip: text.replace(/^["']|["']$/g, "") });
     }
   } catch (err) {
-    return res.status(500).json({ error: err.message ?? "Failed to generate tips" });
+    return internalError(res, err, "tips");
   }
 }

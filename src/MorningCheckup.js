@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { X, ChevronLeft, ChevronRight, Sunrise, Zap, Brain, Moon, Target, Wind, Heart, BatteryCharging, HeartHandshake, Send } from "lucide-react";
-import { apiUrl } from "./lib/apiBase";
+import { ChevronLeft, ChevronRight, Sunrise, Zap, Brain, Moon, Target, Wind, Heart, BatteryCharging, HeartHandshake, Send, Sparkle, TrendingUp } from "lucide-react";
+import CloseButton from "./components/CloseButton";
+import AnimatedNumber from "./components/AnimatedNumber";
+import AnimatedRing from "./components/AnimatedRing";
+import { apiFetch } from "./lib/apiBase";
 import { computeReadiness, computeReadinessSubScores } from "./statusEngine/readiness";
 import { computeSleepAnalysis, estimateSleepDuration, buildRecentNights } from "./statusEngine/sleepScience";
 import { selectAdaptiveQuestion, buildAdaptiveCheckupInputs } from "./statusEngine/adaptiveCheckup";
@@ -8,6 +11,9 @@ import { selectCandidateRecommendations } from "./statusEngine/morningRecommenda
 import { mineAllPatterns } from "./statusEngine/patterns";
 import { containsBannedLanguage } from "./statusEngine/interpretations";
 import { buildSleepCheckupInsights, computeUsualSleepTimes } from "./lib/healthKit";
+import { computeRecoveryScore } from "./statusEngine/healthInsights";
+import { buildMorningGreeting, buildMorningFacts, buildSleepGoalVsActual } from "./statusEngine/morningBriefing";
+import "./MorningCheckup.css";
 
 // Re-exported so App.js/MobileApp.js's `import { computeReadiness } from "./MorningCheckup"`
 // keeps working unchanged — the real implementation now lives in statusEngine/readiness.js
@@ -77,6 +83,30 @@ const ASK_ATLAS_EXAMPLES = [
   "I think I overtrained yesterday.",
 ];
 
+// Weekly bars (last 7 days of the given 0-100 series, most-recent last).
+function WeeklyBars({ values = [] }) {
+  const days = ["S", "M", "T", "W", "T", "F", "S"];
+  const todayIdx = new Date().getDay();
+  return (
+    <div className="mcu-weekly-bars">
+      {values.map((v, i) => {
+        const dayIdx = (todayIdx - (values.length - 1 - i) + 7) % 7;
+        return (
+          <div key={i} className="mcu-weekly-bar-col">
+            <div className="mcu-weekly-bar-track">
+              <div
+                className={`mcu-weekly-bar-fill${i === values.length - 1 ? " today" : ""}`}
+                style={{ height: `${Math.max(4, Math.min(100, v))}%` }}
+              />
+            </div>
+            <span className="mcu-weekly-bar-label">{days[dayIdx]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Generate focus bubbles from today's tasks ────────────────────
 function buildFocusBubbles(todayTasks = []) {
   const fromTasks = todayTasks
@@ -100,12 +130,14 @@ export default function MorningCheckup({
   onComplete, onClose,
   viewOnly = false, existingData = null,
   engineContext = {},
-  healthSleep = null, // { sessions, stats } from useHealthKit()'s context.sleep, or null if unavailable
-  onAskAtlas = null,  // (message: string) => void — closes this modal, opens Atlas, and sends the message
+  healthSleep = null,    // { sessions, stats } from useHealthKit()'s context.sleep, or null if unavailable
+  health = null,         // full useHealthKit() return — used by the new Briefing screen
+  healthSummary = null,  // pre-digested HealthKit + personal-baseline summary (see useStatusEngine.js)
+  onAskAtlas = null,     // (message: string) => void — closes this screen, opens Atlas, and sends the message
 }) {
-  const TOTAL_STEPS = 3;
+  // 0: Briefing (Atlas already knows) · 1: Sleep · 2: How you feel · 3: Reflect · 4+: Summary
+  const TOTAL_STEPS = 4;
 
-  // If viewOnly, jump straight to summary
   const [step, setStep] = useState(viewOnly ? TOTAL_STEPS : 0);
   const [data, setData] = useState(viewOnly && existingData ? existingData : { ...EMPTY_CHECKUP_DATA });
   const [showSleepTimes, setShowSleepTimes] = useState(false);
@@ -158,6 +190,64 @@ export default function MorningCheckup({
     return selectAdaptiveQuestion(inputs);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Morning Briefing (step 0) — Atlas already knows before asking anything ──
+  const ctx = health?.context;
+  const sleepStats = ctx?.sleep?.stats ?? null;
+  const heart = ctx?.heart ?? null;
+  const activity = ctx?.activity ?? null;
+
+  const briefingRecovery = useMemo(() => computeRecoveryScore(heart), [heart]);
+  const sleepGoalVsActual = useMemo(() => buildSleepGoalVsActual({ health }), [health]);
+
+  const heuristicGreeting = useMemo(() => buildMorningGreeting({
+    healthSummary, recoveryTrendDeclining3d: engineContext.recoveryTrendDeclining3d, recoveryState: engineContext.recoveryState,
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const facts = useMemo(() => buildMorningFacts({
+    health, healthSummary, tasks: engineContext.tasks ?? [], today, dailyMetrics: engineContext.dailyMetrics ?? {},
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const weeklyTrend = useMemo(() => {
+    const dm = engineContext.dailyMetrics ?? {};
+    const dates = Object.keys(dm).filter((d) => d <= today).sort().slice(-7);
+    return dates.map((d) => Math.round(dm[d]?.recoveryScore ?? 0));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // AI-enhanced greeting/analysis — fetched once, on mount, using only ambient
+  // data (nothing the user hasn't answered yet exists at this point). Falls
+  // back silently to the heuristic greeting + real facts list above, which
+  // already rendered instantly with zero wait.
+  const [aiBriefing, setAiBriefing] = useState(null);
+  const briefingRequestedRef = useRef(false);
+  useEffect(() => {
+    if (viewOnly || briefingRequestedRef.current) return;
+    briefingRequestedRef.current = true;
+    apiFetch("/api/tips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "morning_briefing",
+        context: {
+          healthSummary,
+          recoveryState: engineContext.recoveryState ?? null,
+          recoveryTrendDeclining3d: !!engineContext.recoveryTrendDeclining3d,
+          facts,
+          dayOfWeek: WEEKDAY_NAMES[new Date(today + "T00:00:00").getDay()],
+          deferredCount: engineContext.deferredTasks?.length ?? 0,
+          workloadToday: engineContext.workloadForecast?.[0]?.level ?? null,
+        },
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.greeting || d?.analysis) setAiBriefing(d);
+      })
+      .catch(() => {/* heuristic greeting/facts already stand */});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const displayGreetingLine2 = aiBriefing?.greeting ?? heuristicGreeting[1];
+
   const set = (key, val) => setData(d => ({ ...d, [key]: val }));
   const toggleFocus = (chip) => setData(d => ({
     ...d,
@@ -173,6 +263,7 @@ export default function MorningCheckup({
   };
 
   const canNext = [
+    true,
     !!data.sleepQuality,
     data.restedScore != null && data.energyScore != null && data.clarityScore != null,
     true,
@@ -282,7 +373,7 @@ export default function MorningCheckup({
     if (!candidates?.length) return;
     recsRequestedRef.current = true;
     setRecsLoading(true);
-    fetch(apiUrl("/api/tips"), {
+    apiFetch("/api/tips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -323,12 +414,18 @@ export default function MorningCheckup({
     { key: "good", label: "Good", sub: "Rested and refreshed",    color: "#22c55e" },
   ];
 
+  const showSleepRing = sleepStats?.hasData;
+  const showRecoveryRing = briefingRecovery.hasData;
+  const showActivityRing = activity?.stats?.hasData;
+  const hasAnyHealthRing = showSleepRing || showRecoveryRing || showActivityRing;
+  const stepsBaseline = healthSummary?.activityBaselineSteps ?? 10000;
+
   return (
-    <div className={`mcu-overlay${dark ? " dark" : ""}${glass ? " glass" : ""}`}>
+    <div className={`mcu-screen${dark ? " dark" : ""}${glass ? " glass" : ""}`}>
       {/* Sunrise gradient decoration */}
       <div className="mcu-sunrise-glow" />
 
-      <div className="mcu-modal">
+      <div className="mcu-page">
         {/* Progress bar */}
         <div className="mcu-progress-bar">
           <div className="mcu-progress-fill" style={{ width: `${progressPct}%` }} />
@@ -338,19 +435,115 @@ export default function MorningCheckup({
         <div className="mcu-top-bar">
           {step > 0 && step < TOTAL_STEPS && !viewOnly
             ? <button className="mcu-back" onClick={() => setStep(s => s - 1)}><ChevronLeft size={18} /></button>
-            : <div className="mcu-brand"><Sunrise size={16} className="mcu-sunrise-icon" /><span>Morning Check-Up</span></div>}
-          <button className="mcu-close" onClick={onClose}><X size={18} /></button>
+            : <div className="mcu-brand"><Sunrise size={16} className="mcu-sunrise-icon" /><span>Morning Briefing</span></div>}
+          <CloseButton onClick={onClose} />
         </div>
 
         {/* Body */}
         <div className="mcu-body">
 
-          {/* ── 0: Sleep quality (+ optional exact times) ── */}
+          {/* ── 0: Briefing — Atlas already knows before asking anything ── */}
           {step === 0 && (
+            <div className="mcu-step mcu-briefing">
+              <div className="mcu-briefing-greeting">
+                <Sunrise size={30} className="mcu-sunrise-icon mcu-anim-in" style={{ animationDelay: "0ms" }} />
+                <h1 className="mcu-greeting-line1 mcu-anim-in" style={{ animationDelay: "70ms" }}>{heuristicGreeting[0]}</h1>
+                <p className="mcu-greeting-line2 mcu-anim-in" style={{ animationDelay: "150ms" }}>{displayGreetingLine2}</p>
+              </div>
+
+              {!hasAnyHealthRing && !sleepGoalVsActual && (
+                <p className="mcu-briefing-note mcu-anim-in" style={{ animationDelay: "220ms" }}>
+                  Connect Apple Health in Settings so Atlas can brief you on real sleep, recovery, and activity data every morning.
+                </p>
+              )}
+
+              {hasAnyHealthRing && (
+                <div className="mcu-briefing-grid mcu-anim-in" style={{ animationDelay: "220ms" }}>
+                  {showSleepRing && (
+                    <div className="mcu-briefing-stat">
+                      <AnimatedRing pct={Math.min(100, (sleepStats.last.asleepMinutes / 480) * 100)} size={68} strokeWidth={6} color="#818cf8">
+                        <AnimatedNumber value={sleepStats.last.asleepMinutes / 60} format={(n) => `${n.toFixed(1)}h`} className="mcu-briefing-stat-value" />
+                      </AnimatedRing>
+                      <span className="mcu-briefing-stat-label">Sleep</span>
+                    </div>
+                  )}
+                  {showRecoveryRing && (
+                    <div className="mcu-briefing-stat">
+                      <AnimatedRing pct={briefingRecovery.score} size={68} strokeWidth={6} color="#22c55e">
+                        <AnimatedNumber value={briefingRecovery.score} className="mcu-briefing-stat-value" />
+                      </AnimatedRing>
+                      <span className="mcu-briefing-stat-label">Recovery</span>
+                    </div>
+                  )}
+                  {showActivityRing && (
+                    <div className="mcu-briefing-stat">
+                      <AnimatedRing pct={Math.min(100, (activity.stats.today.steps / Math.max(1, stepsBaseline)) * 100)} size={68} strokeWidth={6} color="#f59e0b">
+                        <AnimatedNumber value={activity.stats.today.steps} format={(n) => Math.round(n).toLocaleString()} className="mcu-briefing-stat-value mcu-briefing-stat-value-sm" />
+                      </AnimatedRing>
+                      <span className="mcu-briefing-stat-label">Steps</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {sleepGoalVsActual && (
+                <div className="mcu-briefing-card mcu-anim-in" style={{ animationDelay: "300ms" }}>
+                  <div className="mcu-briefing-card-title"><Moon size={13} /> Sleep Schedule</div>
+                  <div className="mcu-sleep-schedule-row">
+                    <div className="mcu-sleep-schedule-col">
+                      <span className="mcu-sleep-schedule-label">Goal</span>
+                      <span className="mcu-sleep-schedule-times">
+                        {sleepGoalVsActual.goal ? `${sleepGoalVsActual.goal.bedtime} → ${sleepGoalVsActual.goal.wake}` : "—"}
+                      </span>
+                    </div>
+                    <div className="mcu-sleep-schedule-divider" />
+                    <div className="mcu-sleep-schedule-col">
+                      <span className="mcu-sleep-schedule-label">Actual</span>
+                      <span className="mcu-sleep-schedule-times">
+                        {sleepGoalVsActual.actual ? `${sleepGoalVsActual.actual.bedtime} → ${sleepGoalVsActual.actual.wake}` : "—"}
+                      </span>
+                    </div>
+                  </div>
+                  {sleepGoalVsActual.goal && (
+                    <p className="mcu-briefing-note">
+                      "Goal" is your own real average from the last {sleepGoalVsActual.goal.nightsUsed} nights — Apple doesn't share your Health app's sleep schedule with other apps.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {weeklyTrend.length >= 3 && (
+                <div className="mcu-briefing-card mcu-anim-in" style={{ animationDelay: "380ms" }}>
+                  <div className="mcu-briefing-card-title"><TrendingUp size={13} /> Recovery This Week</div>
+                  <WeeklyBars values={weeklyTrend} />
+                </div>
+              )}
+
+              {facts.length > 0 && (
+                <div className="mcu-facts-list">
+                  {facts.map((f, i) => (
+                    <div key={i} className="mcu-fact-card mcu-anim-in" style={{ animationDelay: `${460 + i * 90}ms` }}>
+                      <Sparkle size={13} className="mcu-fact-icon" />
+                      <span>{f}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(aiBriefing?.analysis) && (
+                <p className="mcu-briefing-analysis mcu-anim-in" style={{ animationDelay: `${460 + facts.length * 90 + 90}ms` }}>
+                  {aiBriefing.analysis}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── 1: Sleep quality (+ optional exact times) ── */}
+          {step === 1 && (
             <div className="mcu-step">
               <div className="mcu-step-header">
                 <Sunrise size={32} className="mcu-sunrise-icon" />
-                <h2 className="mcu-title">How did you sleep?</h2>
+                <h2 className="mcu-title">You slept well. Do you actually feel rested?</h2>
                 <p className="mcu-subtitle">Your sleep shapes everything that follows today.</p>
               </div>
               <div className="mcu-sleep-grid">
@@ -411,12 +604,12 @@ export default function MorningCheckup({
             </div>
           )}
 
-          {/* ── 1: How your body feels (rested + energy + clarity) ── */}
-          {step === 1 && (
+          {/* ── 2: How your body feels (rested + energy + clarity) ── */}
+          {step === 2 && (
             <div className="mcu-step">
               <div className="mcu-step-header">
                 <div className="mcu-dual-icon"><Zap size={24} className="mcu-sunrise-icon" /><Brain size={24} className="mcu-sunrise-icon" /></div>
-                <h2 className="mcu-title">How your body feels</h2>
+                <h2 className="mcu-title">Your body recovered. How does your motivation feel?</h2>
                 <p className="mcu-subtitle">Regardless of hours slept — how does today actually feel?</p>
               </div>
               <div className="mcu-dual-scales">
@@ -436,12 +629,12 @@ export default function MorningCheckup({
             </div>
           )}
 
-          {/* ── 2: The (adaptively-chosen) question + focus intentions ── */}
-          {step === 2 && (
+          {/* ── 3: The (adaptively-chosen) question + focus intentions ── */}
+          {step === 3 && (
             <div className="mcu-step">
               <div className="mcu-step-header">
                 <Sunrise size={32} className="mcu-sunrise-icon" />
-                <h2 className="mcu-title">One thing to reflect on</h2>
+                <h2 className="mcu-title">If your body could tell me one thing this morning...</h2>
               </div>
 
               <p className="mcu-adaptive-question-text">{adaptiveQuestion?.prompt}</p>
@@ -494,19 +687,11 @@ export default function MorningCheckup({
           {/* ── Summary (Nora's read) ── */}
           {step >= TOTAL_STEPS && summaryData?.readiness && (
             <div className="mcu-step mcu-summary">
-              <div className="mcu-readiness-display">
-                <div className="mcu-readiness-ring" style={{ "--rc": summaryData.readiness.color }}>
-                  <svg viewBox="0 0 36 36" className="mcu-ring-svg">
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.12" />
-                    <circle cx="18" cy="18" r="15.9" fill="none" stroke={summaryData.readiness.color} strokeWidth="2.5"
-                      strokeDasharray={`${summaryData.readiness.pct} ${100 - summaryData.readiness.pct}`}
-                      strokeDashoffset="25" strokeLinecap="round" />
-                  </svg>
-                  <div className="mcu-readiness-center">
-                    <span className="mcu-readiness-pct" style={{ color: summaryData.readiness.color }}>{summaryData.readiness.pct}%</span>
-                    <span className="mcu-readiness-lbl">{summaryData.readiness.label}</span>
-                  </div>
-                </div>
+              <div className="mcu-readiness-display mcu-anim-in">
+                <AnimatedRing pct={summaryData.readiness.pct} size={96} strokeWidth={7} color={summaryData.readiness.color} className="mcu-readiness-ring">
+                  <AnimatedNumber value={summaryData.readiness.pct} format={(n) => `${Math.round(n)}%`} className="mcu-readiness-pct" style={{ color: summaryData.readiness.color }} />
+                  <span className="mcu-readiness-lbl">{summaryData.readiness.label}</span>
+                </AnimatedRing>
                 <div className="mcu-readiness-text">
                   <div className="mcu-readiness-title">Today's Readiness</div>
                   <div className="mcu-readiness-sub" style={{ color: summaryData.readiness.color }}>
@@ -518,7 +703,7 @@ export default function MorningCheckup({
               </div>
 
               {summaryData.sleepAnalysis?.duration && (
-                <div className="mcu-duration-badge">
+                <div className="mcu-duration-badge mcu-anim-in" style={{ animationDelay: "80ms" }}>
                   {summaryData.sleepAnalysis.duration.value}h sleep
                   {summaryData.sleepAnalysis.debt?.value > 0.3 && (
                     <span className="mcu-duration-eval" style={{ color: "#f59e0b" }}>
@@ -529,7 +714,7 @@ export default function MorningCheckup({
               )}
 
               {summaryData.subScores && (
-                <div className="mcu-subscores">
+                <div className="mcu-subscores mcu-anim-in" style={{ animationDelay: "140ms" }}>
                   {SUBSCORE_META.map(({ key, label, icon: Icon }) => {
                     const s = summaryData.subScores[key];
                     if (!s) return null;
@@ -540,7 +725,7 @@ export default function MorningCheckup({
                           <Icon size={12} style={{ color }} />
                           <span className="mcu-subscore-label">{label}</span>
                         </div>
-                        <span className="mcu-subscore-value" style={{ color }}>{s.value}</span>
+                        <AnimatedNumber value={s.value} className="mcu-subscore-value" style={{ color }} />
                       </div>
                     );
                   })}
@@ -589,11 +774,21 @@ export default function MorningCheckup({
                 )}
               </div>
 
+              {!viewOnly && onAskAtlas && displayRecommendations.length > 0 && (
+                <button
+                  type="button"
+                  className="mcu-plan-nudge-btn"
+                  onClick={() => submitAskAtlas("Based on my check-in this morning, please adjust today's plan.")}
+                >
+                  <Sparkle size={14} /> Ask Atlas to adjust today's plan
+                </button>
+              )}
+
               {onAskAtlas && (
                 <div className="mcu-ask-atlas">
                   <div className="mcu-ask-atlas-header">
                     <HeartHandshake size={15} />
-                    <span>Ask Atlas about today's condition</span>
+                    <span>Talk with Atlas about today's condition</span>
                   </div>
                   <div className="mcu-ask-atlas-chips">
                     {ASK_ATLAS_EXAMPLES.map((ex) => (
@@ -632,7 +827,7 @@ export default function MorningCheckup({
           {step < TOTAL_STEPS ? (
             <button className="mcu-next-btn" disabled={!canNext}
               onClick={() => { if (step === TOTAL_STEPS - 1) handleFinish(); else setStep(s => s + 1); }}>
-              {step === TOTAL_STEPS - 1 ? "See Nora's read" : "Continue"}
+              {step === 0 ? "Begin check-in" : step === TOTAL_STEPS - 1 ? "See Nora's read" : "Continue"}
               <ChevronRight size={18} />
             </button>
           ) : (

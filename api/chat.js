@@ -1,4 +1,8 @@
 const { applyCors } = require("./_cors");
+const { requireUser } = require("./_auth");
+const { enforceRateLimit } = require("./_rateLimit");
+const { internalError } = require("./_errors");
+const { parseBody, schemas } = require("./_validation");
 
 const PRODUCTIVITY_KB = {
   pomodoro: {
@@ -56,13 +60,25 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+  const auth = await requireUser(req, res);
+  if (!auth) return;
+  if (!await enforceRateLimit(req, res, auth.user.id, "chat")) return;
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: "OPENAI_API_KEY is not set in environment variables" });
   }
 
-  const { messages, tools, includeResearchTool = true } = req.body;
+  const parsedBody = parseBody(res, schemas.chat, req.body ?? {});
+  if (!parsedBody.ok) return;
+  const { messages, tools, includeResearchTool = true } = parsedBody.data;
+  const totalCharacters = messages.reduce((sum, message) => {
+    const content = typeof message?.content === "string" ? message.content : JSON.stringify(message?.content ?? "");
+    return sum + content.length;
+  }, 0);
+  if (totalCharacters > 120_000) {
+    return res.status(413).json({ error: "Conversation is too large" });
+  }
 
   const researchTool = {
     type: "function",
@@ -140,6 +156,6 @@ export default async function handler(req, res) {
 
     return res.status(500).json({ error: "Max iterations reached without a final response" });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return internalError(res, err, "chat");
   }
 }

@@ -8,26 +8,33 @@ import SwiftUI
 // inside one would be unreliable; "main app computes, widget displays" is
 // the same pattern the rest of this payload already follows.
 
+// Atlas's own voice, front and center (the small view's heading literally
+// says "ATLAS") — themed with AtlasColor/atlasContainerBackground rather
+// than Nora's palette, same reasoning as JourneyWidget. Text is explicit
+// (not .secondary/.tertiary) since those are system-adaptive and would
+// break contrast in system Light Mode against Atlas's fixed black ground.
+
 private struct InsightSmallView: View {
     let insight: WidgetInsight?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
-                Image(systemName: "sparkle").font(.system(size: 10, weight: .semibold))
-                Text("ATLAS").font(.system(size: 10, weight: .semibold)).kerning(0.4)
+                Image(systemName: "sparkle").font(.system(size: 11, weight: .semibold))
+                Text("ATLAS").font(.system(size: 11, weight: .semibold)).kerning(0.4)
             }
-            .foregroundStyle(NoraColor.accent)
+            .foregroundStyle(AtlasColor.accent)
 
             Spacer(minLength: 0)
             Text(insight?.headline ?? "Ask Atlas how today is going.")
                 .font(.system(size: 13.5, weight: .semibold))
+                .foregroundStyle(AtlasColor.text)
                 .lineLimit(4)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
         .padding(14)
-        .noraContainerBackground()
+        .atlasContainerBackground()
     }
 }
 
@@ -38,31 +45,32 @@ private struct InsightMediumView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: "sparkle").font(.system(size: 11, weight: .semibold))
-                Text("TODAY'S INSIGHT").font(.system(size: 10.5, weight: .semibold)).kerning(0.4)
+                Text("TODAY'S INSIGHT").font(.system(size: 11.5, weight: .semibold)).kerning(0.4)
                 Spacer()
             }
-            .foregroundStyle(NoraColor.accent)
+            .foregroundStyle(AtlasColor.accent)
 
             Text(insight?.headline ?? "No insight yet")
                 .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(AtlasColor.text)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let detail = insight?.detail {
                 Text(detail)
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AtlasColor.textMuted)
                     .lineLimit(2)
             } else if insight == nil {
                 Text("Open Atlas and ask how you're doing today.")
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AtlasColor.textMuted)
                     .lineLimit(2)
             }
             Spacer(minLength: 0)
         }
         .padding(14)
-        .noraContainerBackground()
+        .atlasContainerBackground()
     }
 }
 
@@ -74,7 +82,7 @@ struct NoraInsightWidget: Widget {
             NoraInsightEntryView(insight: entry.data.insight)
                 .widgetURL(URL(string: "nora://atlas"))
         }
-        .configurationDisplayName("Nora · Atlas Insight")
+        .configurationDisplayName("Atlas · Insight")
         .description("Atlas's read on how your day is actually going.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AICoachCard from "./AICoachCard";
 import QuickCheckIn from "./QuickCheckIn";
 import MetricCard from "./MetricCard";
@@ -21,9 +21,19 @@ import GuidedJourneysCard from "./GuidedJourneysCard";
 // segmented control. Both `work` and `mind` are always fully computed by the
 // caller (see status/buildStatusProps.js); switching tabs is a pure
 // conditional render, never a lazy/async fetch.
-export default function StatusPage({ work, mind, loading = false, health = null, onOpenHealthSettings = null, tasks = [], dailyMetrics = {}, journeys = [], onAskAtlas = null }) {
+export default function StatusPage({ work, mind, loading = false, health = null, onOpenHealthSettings = null, tasks = [], dailyMetrics = {}, journeys = [], onAskAtlas = null, onMindModeChange = null }) {
   const [tab, setTab] = useState("work");
   const active = tab === "mind" ? mind : work;
+
+  // Mind is Atlas's world, not just this page's own cards — let the app SHELL
+  // (header/nav/FAB, above this component) know so it can go black+gold too.
+  // Cleanup covers both a tab switch back to Work and unmounting entirely
+  // (navigating away from Status while still on Mind).
+  useEffect(() => {
+    onMindModeChange?.(tab === "mind");
+    return () => onMindModeChange?.(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const safeMetrics = Array.isArray(active?.metrics) ? active.metrics : [];
   const safePatterns = Array.isArray(active?.patterns) ? active.patterns : [];
@@ -36,7 +46,7 @@ export default function StatusPage({ work, mind, loading = false, health = null,
   const showMetricsSkeleton = loading && safeMetrics.length === 0;
 
   return (
-    <div className={`status-page${tab === "mind" ? " status-mind-view" : ""}`}>
+    <div className={`status-page${tab === "mind" ? " status-mind-view atlas-mode" : ""}`}>
       <WorkMindToggle active={tab} onChange={setTab} />
 
       <AICoachCard

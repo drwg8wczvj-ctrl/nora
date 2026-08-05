@@ -1,0 +1,189 @@
+/* ─────────────────────────────────────────────────────────────
+   Dual visual-identity engine — Nora (planning/productivity) vs.
+   Atlas (psychology/reflection). Nora's palette *is* the base theme
+   (:root / .dark / .glass in App.css + glass.css) — every component
+   that already paints itself with var(--accent), var(--bg),
+   var(--surface), var(--text), var(--border), var(--shadow), etc. is
+   automatically Nora-themed today and needs zero changes.
+
+   This file adds the ONE thing that was missing: an Atlas override
+   layer. Any element carrying `.atlas-mode` — or the app root while
+   `.atlas-active` is set (Atlas chat open) — rebinds those same
+   tokens to Atlas's black + champagne-gold identity. Nothing that
+   consumes var(--accent)/var(--bg)/etc. needs to know which persona
+   it's in; the cascade does the work. New Atlas surfaces just add
+   the class; new Nora surfaces do nothing at all.
+
+   Kept deliberately out of scope here: the Planner-only calendar
+   tokens (--tl-*, --month-*, --break-*, --dl-*) — Atlas has no
+   timeline/calendar UI, so there's nothing in Atlas-scoped surfaces
+   that would ever read them. */
+
+.atlas-mode,
+.app.atlas-active,
+.mob-app.atlas-active {
+  color-scheme: dark;
+
+  /* Accent family — champagne / brushed gold, never bright yellow */
+  --accent:        #c9a860;
+  --accent-2:      #8f7238;
+  --accent-dark:   #a3853f;
+  --accent-light:  rgba(201,168,96,0.14);
+  --accent-rgb:    201,168,96;
+  --grad:          linear-gradient(135deg, #d8bd80, #a3853f);
+  --grad-subtle:   linear-gradient(135deg, rgba(216,189,128,0.20), rgba(163,133,63,0.12));
+
+  /* Atlas Chat's own decorative wash/glow tones — gold-tinted replacements
+     for what used to be a locally-defined orange in AtlasChat.css */
+  --atlas-wash-1:  rgba(201,168,96,0.14);
+  --atlas-wash-2:  rgba(232,208,150,0.10);
+
+  /* Ground — near-black, warm-neutral so the gold reads as brushed
+     metal rather than sitting on a cold/blue-black */
+  --bg:            #0b0a0d;
+  --surface:       rgba(255,255,255,0.05);
+  --surface-2:     rgba(255,255,255,0.085);
+  --surface-solid: #171519;
+  --border:        rgba(201,168,96,0.22);
+  --border-glow:   rgba(201,168,96,0.5);
+  --text:          #f3ede0;
+  --text-muted:    rgba(243,237,224,0.62);
+  --shadow:        0 4px 24px rgba(0,0,0,.5), 0 1px 4px rgba(0,0,0,.4);
+  --shadow-glow:   0 0 30px rgba(201,168,96,0.22), 0 4px 24px rgba(0,0,0,.55);
+
+  --orb-1:         rgba(201,168,96,0.16);
+  --orb-2:         rgba(163,133,63,0.12);
+  --orb-3:         rgba(232,208,150,0.10);
+
+  --header-bg:        rgba(11,10,13,0.82);
+  --sidebar-bg:       rgba(11,10,13,0.92);
+  --modal-bg:         rgba(15,14,17,0.97);
+  --chat-panel-bg:    rgba(11,10,13,0.92);
+  --footer-bg:        rgba(11,10,13,0.72);
+  --chip-base:        rgba(255,255,255,0.06);
+  --chat-asst-bg:     rgba(255,255,255,0.055);
+  --list-hdr-bg:      rgba(255,255,255,0.045);
+  --existing-grp-bg:  rgba(255,255,255,0.06);
+
+  /* Animation profile — calmer and more organic than Nora's brisker,
+     16px-radius productivity feel */
+  --radius:      24px;
+  --dur-base:    0.34s;
+  --dur-slow:    0.52s;
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Liquid Glass × Atlas — "black glass": the same frosted, specular
+   material, tinted gold instead of Nora's iris/violet. */
+.glass.atlas-mode,
+.app.glass.atlas-active,
+.mob-app.glass.atlas-active {
+  --bg:            linear-gradient(150deg, #0d0b0a 0%, #120f0c 35%, #0a0b0d 70%, #0c0a0e 100%);
+  --surface:       rgba(255,255,255,0.055);
+  --surface-2:     rgba(255,255,255,0.095);
+  --surface-solid: rgba(14,13,15,0.97);
+  --surface-nav:   rgba(255,255,255,0.045);
+  --surface-modal: rgba(255,255,255,0.12);
+  --border:        rgba(232,208,150,0.28);
+  --border-glow:   rgba(232,208,150,0.62);
+  --reflect-top:   rgba(255,241,214,0.34);
+  --reflect-mid:   rgba(255,241,214,0.08);
+  --sheen-color:   rgba(232,208,150,0.16);
+  --specular-iris: rgba(232,208,150,0.14);
+  --shadow-glow:
+    0 1.5px 0   rgba(255,244,222,0.20) inset,
+    0 0 0 1px   rgba(201,168,96,0.45),
+    0 0 60px    rgba(201,168,96,0.30),
+    0 14px 70px rgba(0,0,0,0.75);
+}
+
+/* ── Full mobile-shell takeover ──────────────────────────────────────────
+   MobileApp.css has its own later, more specific "Premium iOS Polish" layer
+   (.mob-app:not(.glass) / .mob-app.dark:not(.glass), plus their .mob-header/
+   .mob-bottom-nav/.mob-nav-indicator/.mob-nav-btn.mob-nav-active children)
+   that paints the shell with hardcoded gradients on a SEPARATE --ios-* token
+   family, bypassing --bg/--header-bg/--accent entirely. That's why the
+   first Atlas pass recolored every card correctly but left the header, tab
+   bar, active-tab highlight, and FAB in Nora's navy/purple.
+   !important is deliberate and narrowly scoped to this one override, purely
+   because that competing layer is itself several selectors deep across two
+   files; matching it rule-for-rule would mean touching ~10 more sites for
+   the same result. Never used on the base Nora rules, only here. */
+.mob-app.atlas-active,
+.mob-app.dark.atlas-active,
+.mob-app.atlas-active:not(.glass),
+.mob-app.dark.atlas-active:not(.glass) {
+  --ios-hairline:        rgba(201,168,96,0.22) !important;
+  --ios-material:        rgba(11,10,13,0.86) !important;
+  --ios-material-strong: rgba(17,15,19,0.92) !important;
+  --ios-card-bg:         rgba(11,10,13,0.9) !important;
+  --ios-card-border:     rgba(201,168,96,0.2) !important;
+  --ios-card-shadow:     0 18px 44px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.4) !important;
+  --ios-raised-shadow:   0 24px 70px rgba(0,0,0,.55), 0 0 32px rgba(201,168,96,0.18) !important;
+  --ios-press-shadow:    0 9px 24px rgba(0,0,0,.35) !important;
+  --ios-control-bg:      rgba(255,255,255,0.06) !important;
+  --ios-control-active:  var(--grad) !important;
+  --ios-soft-shadow:     0 20px 52px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3) !important;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(201,168,96,0.14), transparent 34%),
+    radial-gradient(circle at 85% 18%, rgba(163,133,63,0.10), transparent 34%),
+    linear-gradient(180deg, #0d0c10 0%, #0a090c 46%, #08070a 100%) !important;
+}
+
+.mob-app.atlas-active .mob-ai-fab {
+  background: var(--grad) !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.20) inset,
+    0 -8px 12px -8px rgba(0,0,0,0.4) inset,
+    0 6px 24px rgba(var(--accent-rgb),.45) !important;
+}
+.mob-app.atlas-active .mob-ai-fab.fab-open {
+  background: var(--ios-material-strong) !important;
+  box-shadow: var(--ios-card-shadow), 0 1px 0 rgba(255,255,255,0.12) inset !important;
+}
+.mob-app.atlas-active .mob-bottom-nav {
+  background: var(--ios-material) !important;
+}
+.mob-app.atlas-active .mob-nav-indicator {
+  background: rgba(var(--accent-rgb),0.16) !important;
+}
+.mob-app.atlas-active .mob-nav-btn.mob-nav-active {
+  color: var(--accent) !important;
+}
+
+/* Premium typography — Atlas gets a touch more air in its letterforms and
+   firmer title weight than Nora's brisker, denser productivity type scale.
+   Deliberately just letter-spacing/weight on titles (never a new font face
+   or a base size change) — small, cheap, reads as "considered" without
+   risking FOUT or fighting Inter's own metrics. */
+.atlas-mode .atlas-chat-title,
+.atlas-mode .status-card-title,
+.atlas-mode .status-coach-message,
+.atlas-mode .ai-hub-card-title,
+.atlas-mode .atlas-intro-title {
+  letter-spacing: 0.015em;
+  font-weight: 750;
+}
+.atlas-mode .atlas-chat-bubble,
+.atlas-mode .atlas-intro-sub {
+  line-height: 1.65;
+}
+
+/* Smooth cross-fade whenever a surface's persona changes (Atlas chat
+   opening/closing, Status page's Work↔Mind toggle) — including the app
+   SHELL itself (header/bottom nav/sidebar), not just cards, now that
+   .atlas-active covers the whole screen rather than a contained panel.
+   Scoped to the handful of elements that actually carry the class, sit at
+   the app root, or are the fixed shell chrome around it — never a blanket
+   `*` transition. */
+.app, .mob-app,
+.mob-header, .mob-bottom-nav, .sidebar,
+.atlas-mode, .status-page,
+.atlas-mode .status-card, .status-page .status-card,
+.atlas-mode .status-coach-card, .status-page .status-coach-card {
+  transition:
+    background-color var(--dur-base) var(--ease-in-out),
+    border-color     var(--dur-base) var(--ease-in-out),
+    color            var(--dur-base) var(--ease-in-out),
+    box-shadow       var(--dur-base) var(--ease-in-out);
+}

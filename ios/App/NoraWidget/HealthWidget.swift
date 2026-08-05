@@ -12,7 +12,7 @@ private struct HealthConnectPromptView: View {
             Text("Connect Apple Health")
                 .font(.system(size: 12, weight: .semibold))
             Text("in Nora Settings to see it here")
-                .font(.system(size: 10.5))
+                .font(.system(size: 11.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -40,7 +40,7 @@ private struct HealthSmallView: View {
             if let recovery = health.recoveryScore {
                 HStack(spacing: 5) {
                     Circle().fill(NoraColor.forBucket(recovery >= 60 ? "stable" : "mild")).frame(width: 6, height: 6)
-                    Text("Recovery \(recovery)").font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    Text("Recovery \(recovery)").font(.system(size: 11.5)).foregroundStyle(.secondary)
                 }
             }
         }
@@ -92,8 +92,8 @@ private struct HealthMediumView: View {
         VStack(spacing: 4) {
             Image(systemName: icon).font(.system(size: 13)).foregroundStyle(NoraColor.accent)
             Text(value).font(.system(size: 17, weight: .bold, design: .rounded))
-            Text(caption).font(.system(size: 10)).foregroundStyle(.secondary)
-            if let sub { Text(sub).font(.system(size: 8.5)).foregroundStyle(.tertiary) }
+            Text(caption).font(.system(size: 11)).foregroundStyle(.secondary)
+            if let sub { Text(sub).font(.system(size: 9.5)).foregroundStyle(.tertiary) }
         }
         .frame(maxWidth: .infinity)
     }

@@ -1,10 +1,11 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { vi } from "vitest";
 import JoinCodeModal from "./JoinCodeModal";
 
 test("joins a shared task using an invite code", async () => {
-  const onJoin = jest.fn().mockResolvedValue({ data: { title: "Trip to Italy" } });
-  render(<JoinCodeModal onClose={jest.fn()} onJoin={onJoin} />);
+  const onJoin = vi.fn().mockResolvedValue({ data: { title: "Trip to Italy" } });
+  render(<JoinCodeModal onClose={vi.fn()} onJoin={onJoin} />);
 
   fireEvent.change(screen.getByLabelText("Invite code"), { target: { value: "abc2345" } });
   fireEvent.click(screen.getByRole("button", { name: "Join task" }));
@@ -15,11 +16,11 @@ test("joins a shared task using an invite code", async () => {
 });
 
 test("shows an invalid-code error", async () => {
-  const onJoin = jest.fn().mockRejectedValue(new Error("Invalid invite code"));
-  render(<JoinCodeModal onClose={jest.fn()} onJoin={onJoin} />);
+  const onJoin = vi.fn().mockRejectedValue(new Error("Invalid invite code"));
+  render(<JoinCodeModal onClose={vi.fn()} onJoin={onJoin} />);
 
   fireEvent.change(screen.getByLabelText("Invite code"), { target: { value: "wrong" } });
-  fireEvent.submit(screen.getByRole("button", { name: "Join task" }).closest("form"));
+  fireEvent.click(screen.getByRole("button", { name: "Join task" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Invalid invite code");
 });

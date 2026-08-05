@@ -1,23 +1,24 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { vi } from "vitest";
 import ShareModal from "./ShareModal";
 import * as sharingApi from "../lib/sharingApi";
 
-jest.mock("../lib/sharingApi", () => ({
-  createSharedObject: jest.fn(),
-  getCollaborators: jest.fn(),
-  addCollaboratorByUserId: jest.fn(),
-  removeCollaborator: jest.fn(),
-  updateCollaboratorRole: jest.fn(),
-  createInviteCode: jest.fn(),
-  getInviteCodes: jest.fn(),
-  searchUserByUsername: jest.fn(),
-  getMyProfile: jest.fn(),
-  setUsername: jest.fn(),
-  getActivityLog: jest.fn(),
-  getComments: jest.fn(),
-  addComment: jest.fn(),
-  deleteComment: jest.fn(),
+vi.mock("../lib/sharingApi", () => ({
+  createSharedObject: vi.fn(),
+  getCollaborators: vi.fn(),
+  addCollaboratorByUserId: vi.fn(),
+  removeCollaborator: vi.fn(),
+  updateCollaboratorRole: vi.fn(),
+  createInviteCode: vi.fn(),
+  getInviteCodes: vi.fn(),
+  searchUserByUsername: vi.fn(),
+  getMyProfile: vi.fn(),
+  setUsername: vi.fn(),
+  getActivityLog: vi.fn(),
+  getComments: vi.fn(),
+  addComment: vi.fn(),
+  deleteComment: vi.fn(),
 }));
 
 const props = {
@@ -25,12 +26,12 @@ const props = {
   objectData: { id: "task-1", title: "Plan launch" },
   sharedObjectId: null,
   session: { user: { id: "owner-1" } },
-  onClose: jest.fn(),
-  onSharedObjectId: jest.fn(),
+  onClose: vi.fn(),
+  onSharedObjectId: vi.fn(),
 };
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   sharingApi.getMyProfile.mockResolvedValue({ user_id: "owner-1", username: "owner" });
   sharingApi.getCollaborators.mockResolvedValue([]);
   sharingApi.getInviteCodes.mockResolvedValue([]);
@@ -39,7 +40,7 @@ beforeEach(() => {
   sharingApi.createSharedObject.mockResolvedValue("shared-1");
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
-    value: { writeText: jest.fn().mockResolvedValue(undefined) },
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
   });
 });
 
@@ -58,14 +59,14 @@ test("clicking a search result shares the task with that user", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: /Dimon/i }));
 
-  await waitFor(() => {
-    expect(sharingApi.createSharedObject).toHaveBeenCalledWith("task", props.objectData);
-    expect(sharingApi.addCollaboratorByUserId).toHaveBeenCalledWith("shared-1", "user-2", "editor");
-    expect(sharingApi.getCollaborators).toHaveBeenCalledWith("shared-1");
-    expect(props.onSharedObjectId).toHaveBeenCalledWith("shared-1");
-  });
-  expect(screen.getByRole("status")).toHaveTextContent("Shared with @dimon4ik98.");
-  expect(screen.getByText("People with access (1)")).toBeInTheDocument();
+  await waitFor(() =>
+    expect(sharingApi.createSharedObject).toHaveBeenCalledWith("task", props.objectData)
+  );
+  expect(sharingApi.addCollaboratorByUserId).toHaveBeenCalledWith("shared-1", "user-2", "editor");
+  expect(sharingApi.getCollaborators).toHaveBeenCalledWith("shared-1");
+  expect(props.onSharedObjectId).toHaveBeenCalledWith("shared-1");
+  expect(await screen.findByRole("status")).toHaveTextContent("Shared with @dimon4ik98.");
+  expect(await screen.findByText("People with access (1)")).toBeInTheDocument();
 });
 
 test("Generate creates, displays, and copies the newly returned code", async () => {

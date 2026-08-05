@@ -3,14 +3,10 @@
 //
 // Required env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SUPABASE_SERVICE_ROLE_KEY
 
-const { createClient } = require("@supabase/supabase-js");
+const { getAdminClient, requireUser } = require("./_auth");
+const { enforceRateLimit } = require("./_rateLimit");
 
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-async function refreshTokenIfNeeded(account) {
+async function refreshTokenIfNeeded(supabase, account) {
   if (!account.token_expires_at) return account.access_token;
   const expiresAt = new Date(account.token_expires_at).getTime();
   if (Date.now() < expiresAt - 60_000) return account.access_token; // still valid
@@ -63,9 +59,12 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const auth = await requireUser(req, res);
+  if (!auth) return;
+  if (!await enforceRateLimit(req, res, auth.user.id, "integration_sync")) return;
 
-  const { userId } = req.body ?? {};
-  if (!userId) return res.status(400).json({ error: "userId required" });
+  const userId = auth.user.id;
+  const supabase = getAdminClient();
 
   // Load Gmail account
   const { data: accounts, error: accErr } = await supabase
@@ -83,7 +82,7 @@ module.exports = async function handler(req, res) {
 
   for (const account of accounts) {
     try {
-      const token = await refreshTokenIfNeeded(account);
+      const token = await refreshTokenIfNeeded(supabase, account);
 
       // Fetch up to 20 recent messages from the last 3 days
       const sinceDate = Math.floor((Date.now() - 3 * 24 * 60 * 60 * 1000) / 1000);
@@ -121,9 +120,13 @@ module.exports = async function handler(req, res) {
         const messageText = `From: ${from}\nSubject: ${subject}\n\n${body}`;
 
         // Call extraction endpoint
-        const extractRes = await fetch(`${process.env.REACT_APP_SUPABASE_URL?.replace("supabase.co", "supabase.co") ?? ""}/api/intelligence-extract`, {
+        const appUrl = process.env.APP_URL || `https://${process.env.VERCEL_URL}`;
+        const extractRes = await fetch(`${appUrl}/api/intelligence-extract`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${auth.token}`,
+          },
           body: JSON.stringify({
             message: messageText,
             userId,

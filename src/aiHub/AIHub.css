@@ -43,7 +43,7 @@
     width: min(380px, calc(100vw - 48px));
     max-height: min(520px, 70vh);
     border-radius: 20px; border-bottom: 1px solid var(--border);
-    box-shadow: 0 0 50px rgba(124,58,237,0.15), 0 20px 60px rgba(0,0,0,.15);
+    box-shadow: 0 0 50px rgba(var(--accent-rgb),0.15), 0 20px 60px rgba(0,0,0,.15);
     padding: 18px;
     overflow-y: auto;
     transform: translateY(14px) scale(0.97);
@@ -93,7 +93,8 @@
   width: 40px; height: 40px; border-radius: 12px;
   background: var(--grad); color: #fff;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 14px rgba(124,58,237,0.35);
+  box-shadow: 0 4px 14px rgba(var(--accent-rgb),0.35);
+  transition: box-shadow var(--dur-base) var(--ease-in-out);
 }
 .ai-hub-card-dot {
   position: absolute; top: -2px; right: -2px;
@@ -129,7 +130,7 @@
   width: 56px; height: 56px; border-radius: 18px;
   background: var(--grad); color: #fff;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 16px rgba(124,58,237,0.35);
+  box-shadow: 0 4px 16px rgba(var(--accent-rgb),0.35);
   margin-bottom: 4px;
 }
 .ai-tool-coming-soon-title { font-size: 17px; font-weight: 700; color: var(--text); }

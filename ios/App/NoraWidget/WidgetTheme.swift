@@ -38,6 +38,30 @@ extension View {
     }
 }
 
+// ─── Atlas (Guided Journeys) — black + champagne-gold identity, matching
+// the main app's .atlas-mode theme engine (src/theme.css) value-for-value.
+// Deliberately fixed (not system-adaptive like NoraColor's use of
+// .primary/.secondary): Atlas is meant to read as its own calm, considered
+// world regardless of the device's Light/Dark Mode setting, exactly as the
+// in-app Atlas Chat forces a black background either way. That's why text
+// here is explicit warm off-white rather than .primary — .primary would
+// silently render near-black-on-near-black in system Light Mode. ──────────
+enum AtlasColor {
+    static let accent     = Color(red: 0.788, green: 0.659, blue: 0.376)  // #c9a860 champagne gold
+    static let accentDim  = Color(red: 0.561, green: 0.447, blue: 0.220)  // #8f7238 deeper bronze
+    static let text       = Color(red: 0.953, green: 0.929, blue: 0.878)  // #f3ede0 warm off-white
+    static let textMuted  = Color(red: 0.953, green: 0.929, blue: 0.878).opacity(0.62)
+    static let textFaint  = Color(red: 0.953, green: 0.929, blue: 0.878).opacity(0.4)
+}
+
+extension View {
+    func atlasContainerBackground() -> some View {
+        containerBackground(for: .widget) {
+            Color("AtlasWidgetBackground")
+        }
+    }
+}
+
 // ─── Reusable sub-views ──────────────────────────────────────────────────
 
 struct SectionLabel: View {
@@ -46,9 +70,9 @@ struct SectionLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            if let icon { Image(systemName: icon).font(.system(size: 10, weight: .semibold)) }
+            if let icon { Image(systemName: icon).font(.system(size: 10.5, weight: .semibold)) }
             Text(text.uppercased())
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .kerning(0.4)
         }
         .foregroundStyle(.secondary)
@@ -59,21 +83,21 @@ struct TaskRow: View {
     let task: WidgetTask
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .strokeBorder(task.completed ? NoraColor.accent : Color.secondary.opacity(0.35), lineWidth: 1.5)
+                    .strokeBorder(task.completed ? NoraColor.accent : Color.secondary.opacity(0.35), lineWidth: 1.75)
                     .background(Circle().fill(task.completed ? NoraColor.accent : Color.clear))
                 if task.completed {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 7, weight: .bold))
+                        .font(.system(size: 7.5, weight: .bold))
                         .foregroundColor(.white)
                 }
             }
-            .frame(width: 15, height: 15)
+            .frame(width: 16, height: 16)
 
             Text(task.title)
-                .font(.system(size: 12, weight: task.completed ? .regular : .medium))
+                .font(.system(size: 13, weight: task.completed ? .regular : .medium))
                 .foregroundStyle(task.completed ? .tertiary : .primary)
                 .strikethrough(task.completed, color: .secondary)
                 .lineLimit(1)
@@ -82,7 +106,7 @@ struct TaskRow: View {
 
             if let t = task.timeLabel {
                 Text(t)
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
         }
@@ -98,26 +122,26 @@ struct InteractiveTaskRow: View {
     let task: WidgetTask
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 8) {
             Button(intent: CompleteTaskIntent(taskId: task.id)) {
                 ZStack {
                     Circle()
-                        .strokeBorder(task.completed ? NoraColor.accent : Color.secondary.opacity(0.35), lineWidth: 1.5)
+                        .strokeBorder(task.completed ? NoraColor.accent : Color.secondary.opacity(0.35), lineWidth: 1.75)
                         .background(Circle().fill(task.completed ? NoraColor.accent : Color.clear))
                     if task.completed {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 7, weight: .bold))
+                            .font(.system(size: 7.5, weight: .bold))
                             .foregroundColor(.white)
                     }
                 }
-                .frame(width: 15, height: 15)
+                .frame(width: 16, height: 16)
                 .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .disabled(task.completed)
 
             Text(task.title)
-                .font(.system(size: 12, weight: task.completed ? .regular : .medium))
+                .font(.system(size: 13, weight: task.completed ? .regular : .medium))
                 .foregroundStyle(task.completed ? .tertiary : .primary)
                 .strikethrough(task.completed, color: .secondary)
                 .lineLimit(1)
@@ -126,7 +150,7 @@ struct InteractiveTaskRow: View {
 
             if let t = task.timeLabel {
                 Text(t)
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
         }
@@ -152,13 +176,13 @@ struct DialView: View {
                     .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(value)")
-                    .font(.system(size: ringSize * 0.28, weight: .bold, design: .rounded))
+                    .font(.system(size: ringSize * 0.3, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
             }
             .frame(width: ringSize, height: ringSize)
 
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
     }
@@ -183,18 +207,18 @@ struct MetricDialView: View {
                         .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     Text("\(value)")
-                        .font(.system(size: ringSize * 0.28, weight: .bold, design: .rounded))
+                        .font(.system(size: ringSize * 0.3, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
                 } else {
                     Text("–")
-                        .font(.system(size: ringSize * 0.28, weight: .bold, design: .rounded))
+                        .font(.system(size: ringSize * 0.3, weight: .bold, design: .rounded))
                         .foregroundStyle(.tertiary)
                 }
             }
             .frame(width: ringSize, height: ringSize)
 
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
     }
@@ -215,10 +239,10 @@ struct ProgressRing: View {
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 1) {
                 Text("\(completed)")
-                    .font(.system(size: size * 0.28, weight: .bold, design: .rounded))
+                    .font(.system(size: size * 0.3, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
                 Text("/ \(total)")
-                    .font(.system(size: size * 0.14, weight: .medium))
+                    .font(.system(size: size * 0.15, weight: .medium))
                     .foregroundStyle(.secondary)
             }
         }

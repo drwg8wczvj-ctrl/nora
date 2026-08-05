@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Check } from "lucide-react";
-import { apiUrl } from "../lib/apiBase";
+import { Check } from "lucide-react";
+import CloseButton from "./CloseButton";
+import { apiFetch } from "../lib/apiBase";
 import "./PricingModal.css";
 
 const PLANS = [
@@ -121,7 +122,7 @@ function PlanCard({ plan, yearly, onChoose, loading, currentPlan }) {
   );
 }
 
-export default function PricingModal({ onClose, currentPlan, userId, userEmail }) {
+export default function PricingModal({ onClose, currentPlan }) {
   const [yearly,  setYearly]  = useState(false);
   const [loading, setLoading] = useState(null);
   const [error,   setError]   = useState(null);
@@ -130,10 +131,10 @@ export default function PricingModal({ onClose, currentPlan, userId, userEmail }
     setLoading(planKey);
     setError(null);
     try {
-      const res = await fetch(apiUrl("/api/stripe-checkout"), {
+      const res = await apiFetch("/api/stripe-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planKey, yearly, userId, email: userEmail }),
+        body: JSON.stringify({ planKey, yearly }),
       });
       const data = await res.json();
       if (data.url) {
@@ -159,9 +160,7 @@ export default function PricingModal({ onClose, currentPlan, userId, userEmail }
       </div>
       <div className="pm-watermark">Pricing</div>
 
-      <button className="pm-close" onClick={onClose} aria-label="Close">
-        <X size={16} />
-      </button>
+      <CloseButton onClick={onClose} size={26} className="pm-close-btn" />
 
       <div className="pm-content">
         <div className="pm-header">

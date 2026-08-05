@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Bell, X } from "lucide-react";
+import { Bell } from "lucide-react";
+import CloseButton from "./CloseButton";
 import "./NotificationPermissionBanner.css";
 
 export default function NotificationPermissionBanner({ onAllow, onLater, onNever }) {
@@ -27,9 +28,7 @@ export default function NotificationPermissionBanner({ onAllow, onLater, onNever
           <button className="npb-later" onClick={onLater}>Maybe later</button>
         </div>
       </div>
-      <button className="npb-close" onClick={onNever} aria-label="Dismiss permanently">
-        <X size={15} />
-      </button>
+      <CloseButton onClick={onNever} label="Dismiss permanently" size={26} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { X, CheckCircle, Sparkles } from "lucide-react";
+import { CheckCircle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import CloseButton from "../components/CloseButton";
 
 const STEPS = ["welcome", "gmail", "telegram", "done"];
 const TOTAL  = STEPS.length - 1; // exclude done from progress dots
@@ -88,7 +89,7 @@ export default function IntelligenceOnboarding({
       <div className="intel-overlay-mask" onClick={onClose} />
       <div className="intel-onboarding-wrap" onClick={(e) => e.stopPropagation()}>
         <div className="intel-onboarding-modal">
-          <button className="ob-close" onClick={onClose} aria-label="Close"><X size={14} /></button>
+          <CloseButton onClick={onClose} size={24} className="ob-close" />
 
           {/* Progress dots (skip "done" step) */}
           {stepKey !== "done" && (

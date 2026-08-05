@@ -26,7 +26,6 @@ function formatAnimated(n, decimals) {
 }
 
 export default function MetricCard({
-  id,
   label,
   value,
   unit,

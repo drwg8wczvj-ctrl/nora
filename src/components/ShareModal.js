@@ -4,6 +4,7 @@ import {
   Edit3, Eye, Clock, MessageSquare,
 } from "lucide-react";
 import AvatarDisplay from "./AvatarDisplay";
+import CloseButton from "./CloseButton";
 import {
   createSharedObject, getCollaborators, addCollaboratorByUserId,
   removeCollaborator, updateCollaboratorRole, createInviteCode,
@@ -242,7 +243,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
         <div className="sm-modal" onClick={e => e.stopPropagation()}>
           <div className="sm-header">
             <span className="sm-title">Choose a username</span>
-            <button className="sm-close" onClick={onClose}><X size={16} /></button>
+            <CloseButton onClick={onClose} size={26} />
           </div>
           <div className="sm-body">
             <p className="sm-username-intro">
@@ -288,7 +289,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
             <UserPlus size={15} />
             <span className="sm-title">Share &ldquo;{objectData?.title ?? objectData?.name ?? "this item"}&rdquo;</span>
           </div>
-          <button className="sm-close" onClick={onClose}><X size={16} /></button>
+          <CloseButton onClick={onClose} size={26} />
         </div>
 
         {/* Tab bar */}

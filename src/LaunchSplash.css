@@ -1,0 +1,235 @@
+/* ─────────────────────────────────────────────────────────────
+   Nora's cold-launch signature moment. Sits above everything (the real
+   app is already mounting underneath) so there is never a white/blank
+   frame between the native LaunchScreen and this taking over — .launch-
+   splash-bg is opaque from frame one, never itself fading in.
+   ───────────────────────────────────────────────────────────── */
+
+.launch-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.launch-splash-done {
+  pointer-events: none;
+}
+
+.launch-splash-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #f3f2fa 0%, #ece8fb 45%, #eef1fc 100%);
+  transition: opacity 0.36s ease;
+  will-change: opacity;
+  transform: translateZ(0);
+}
+.launch-splash-bg::before,
+.launch-splash-bg::after {
+  content: "";
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  opacity: .32;
+  pointer-events: none;
+  animation: launchLightDrift 6s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.launch-splash-bg::before {
+  left: -26vmax;
+  top: -32vmax;
+  background: radial-gradient(circle, rgba(124,58,237,.42) 0%, rgba(124,58,237,.12) 42%, transparent 70%);
+}
+.launch-splash-bg::after {
+  right: -30vmax;
+  bottom: -36vmax;
+  background: radial-gradient(circle, rgba(43,63,140,.34) 0%, rgba(43,63,140,.1) 44%, transparent 70%);
+  animation-direction: alternate-reverse;
+}
+.launch-splash.dark .launch-splash-bg {
+  background: linear-gradient(135deg, #0c0b19 0%, #171432 45%, #0e0d1e 100%);
+}
+.launch-splash.glass .launch-splash-bg {
+  background: linear-gradient(150deg, #dbd7ff 0%, #e8ecff 30%, #e2eaff 60%, #d8e6ff 100%);
+}
+.launch-splash.glass.dark .launch-splash-bg {
+  background: linear-gradient(150deg, #04030d 0%, #070516 35%, #040b14 70%, #050312 100%);
+}
+.launch-splash-reveal .launch-splash-bg,
+.launch-splash-docking .launch-splash-bg,
+.launch-splash-done .launch-splash-bg {
+  opacity: 0;
+}
+@keyframes launchLightDrift {
+  from { transform: translate3d(-2%, -1%, 0) scale(.94); }
+  to   { transform: translate3d(4%, 3%, 0) scale(1.06); }
+}
+
+/* ── The mark — fades/scales in centered, then docks onto the real FAB's
+   measured position. The attached greeting is a child of this same moving
+   object so it unmistakably feels like Nora is speaking. ── */
+.launch-splash-mark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 58px;
+  height: 58px;
+  transform: translate3d(-50%, -50%, 0) scale(.96);
+  opacity: 0;
+  border-radius: 20px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform .32s cubic-bezier(.16,.84,.28,1),
+    background-color .24s ease,
+    box-shadow .28s ease,
+    opacity .24s ease;
+  will-change: transform, opacity;
+  contain: layout style;
+  backface-visibility: hidden;
+}
+.launch-splash-mark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #7c3aed, #2b3f8c);
+  opacity: 0;
+  transition: opacity .22s ease;
+}
+.launch-splash-mark.visible {
+  opacity: 1;
+  transform: translate3d(-50%, -50%, 0) scale(1);
+}
+.launch-splash-mark.docking {
+  transform:
+    translate3d(
+      calc(-50% + var(--launch-dock-x, 0px)),
+      calc(-50% + var(--launch-dock-y, 0px)),
+      0
+    );
+  box-shadow: 0 6px 24px rgba(124, 58, 237, .4);
+}
+.launch-splash-mark.docking::before {
+  opacity: 1;
+}
+.launch-splash-mark.fading-out {
+  opacity: 0;
+  transform: translate3d(-50%, -50%, 0) scale(.9);
+}
+
+.launch-splash-star {
+  width: 24px;
+  height: 24px;
+  color: #6d36da;
+  filter: drop-shadow(0 0 12px rgba(124, 58, 237, .34));
+  transition: filter .26s ease, color .24s ease;
+}
+.launch-splash-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translateZ(0) scale(2.18);
+  transition: transform .32s cubic-bezier(.16,.84,.28,1);
+  backface-visibility: hidden;
+}
+.launch-splash-wordmark {
+  color: #241b47;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .34em;
+  padding-left: .34em;
+  transition: opacity .18s ease, transform .26s ease;
+}
+.launch-splash.dark .launch-splash-star { color: #f3efff; }
+.launch-splash.dark .launch-splash-wordmark { color: #f3efff; }
+.launch-splash-mark.docking .launch-splash-logo {
+  gap: 0;
+  transform: translateZ(0) scale(1);
+}
+.launch-splash-mark.docking .launch-splash-star {
+  color: #fff;
+  filter: none;
+}
+.launch-splash-mark.docking .launch-splash-wordmark {
+  opacity: 0;
+  transform: translateY(-6px) scale(.8);
+}
+
+/* ── Greeting — a quiet concierge bubble attached above Nora. It remains
+   while the prepared interface appears, then recedes before Nora moves. ── */
+.launch-splash-greeting {
+  position: absolute;
+  bottom: calc(100% + 16px);
+  left: 50%;
+  width: max-content;
+  max-width: min(270px, calc(100vw - 32px));
+  padding: 12px 16px 13px;
+  border: 1px solid rgba(112, 86, 168, .14);
+  border-radius: 16px 16px 16px 6px;
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 16px 50px rgba(58, 42, 105, .12), 0 1px 0 rgba(255,255,255,.9) inset;
+  text-align: left;
+  opacity: 0;
+  transform: translate(-50%, 8px) scale(.97);
+  transform-origin: 50% 100%;
+  transition: opacity .22s ease, transform .38s cubic-bezier(.22,1,.36,1);
+  pointer-events: none;
+}
+.launch-splash-greeting::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 13px;
+  height: 13px;
+  background: rgba(255, 255, 255, .94);
+  border-right: 1px solid rgba(112, 86, 168, .14);
+  border-bottom: 1px solid rgba(112, 86, 168, .14);
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 0 0 3px 0;
+}
+.launch-splash-greet .launch-splash-greeting,
+.launch-splash-reveal .launch-splash-greeting {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+.launch-splash-greeting-line1 {
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 650;
+  color: #211a3d;
+  margin-bottom: 2px;
+}
+.launch-splash-greeting-line2 {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(33,26,61,.62);
+}
+.launch-splash.dark .launch-splash-greeting {
+  background: rgba(27, 23, 52, .95);
+  border-color: rgba(221, 210, 255, .13);
+  box-shadow: 0 18px 52px rgba(0,0,0,.28), 0 1px 0 rgba(255,255,255,.08) inset;
+}
+.launch-splash.dark .launch-splash-greeting::after {
+  background: rgba(27, 23, 52, .95);
+  border-color: rgba(221, 210, 255, .13);
+}
+.launch-splash.dark .launch-splash-greeting-line1 { color: #f3efff; }
+.launch-splash.dark .launch-splash-greeting-line2 { color: rgba(232,232,255,.66); }
+
+@media (prefers-reduced-motion: reduce) {
+  .launch-splash-bg,
+  .launch-splash-bg::before,
+  .launch-splash-bg::after { animation: none; }
+  .launch-splash-mark, .launch-splash-star, .launch-splash-greeting {
+    transition: none !important;
+  }
+}

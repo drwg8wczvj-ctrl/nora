@@ -1184,7 +1184,7 @@
   }
 
   .glass.app:not(.mob-app) .tab-slider {
-    background: linear-gradient(145deg, #7c3aed, #2563eb 68%, #0891b2);
+    background: linear-gradient(145deg, #7c3aed, #2b3f8c 68%, #0891b2);
     box-shadow:
       0 1px 0 rgba(255,255,255,0.42) inset,
       0 10px 30px rgba(124,58,237,0.32);

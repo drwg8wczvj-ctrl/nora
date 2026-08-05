@@ -18,6 +18,7 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		C2E645F8354BB7732434E0D3 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110640CE7B52E1830C866E1 /* HealthKitManager.swift */; };
 		C36A6A37E3A6A707EA059BBD /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BF2B1EF473795AD5A805A7D6 /* HealthKit.framework */; };
+		D5DBB35ECF5E449E794F3ABD /* NativeActionMenuPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A48A704D1439203ABFD4EC68 /* NativeActionMenuPlugin.swift */; };
 		F441A8252FFABE5600BE77C3 /* NativeTabBarPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F441A8222FFABE5600BE77C3 /* NativeTabBarPlugin.swift */; };
 		F441A8262FFABE5600BE77C3 /* NoraWidgetBridgePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = F441A8242FFABE5600BE77C3 /* NoraWidgetBridgePlugin.m */; };
 		F441A8272FFABE5600BE77C3 /* NativeTabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F441A8232FFABE5600BE77C3 /* NativeTabBarView.swift */; };
@@ -66,6 +67,7 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		A48A704D1439203ABFD4EC68 /* NativeActionMenuPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NativeActionMenuPlugin.swift; sourceTree = "<group>"; };
 		BF2B1EF473795AD5A805A7D6 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		F110640CE7B52E1830C866E1 /* HealthKitManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
 		F441A8222FFABE5600BE77C3 /* NativeTabBarPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeTabBarPlugin.swift; sourceTree = "<group>"; };
@@ -82,7 +84,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		F47EBAB82FF31D8800D9A9A5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		F47EBAB82FF31D8800D9A9A5 /* Exceptions for "NoraWidget" folder in "NoraWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -92,7 +94,18 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		F47EBAA92FF31D8700D9A9A5 /* NoraWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (F47EBAB82FF31D8800D9A9A5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = NoraWidget; sourceTree = "<group>"; };
+		F47EBAA92FF31D8700D9A9A5 /* NoraWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F47EBAB82FF31D8800D9A9A5 /* Exceptions for "NoraWidget" folder in "NoraWidgetExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = NoraWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -159,6 +172,7 @@
 				F47EBA9E2FF31CCB00D9A9A5 /* App-Bridging-Header.h */,
 				F110640CE7B52E1830C866E1 /* HealthKitManager.swift */,
 				014133A4A51076603CB9B718 /* HealthKitPlugin.swift */,
+				A48A704D1439203ABFD4EC68 /* NativeActionMenuPlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -297,6 +311,7 @@
 				F441A8272FFABE5600BE77C3 /* NativeTabBarView.swift in Sources */,
 				C2E645F8354BB7732434E0D3 /* HealthKitManager.swift in Sources */,
 				F9F04CADAFAA35303CEC9709 /* HealthKitPlugin.swift in Sources */,
+				D5DBB35ECF5E449E794F3ABD /* NativeActionMenuPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

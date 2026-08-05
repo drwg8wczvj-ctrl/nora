@@ -1,5 +1,6 @@
 import React from "react";
 import { Pin, Star, Trash2, CheckSquare, ShoppingCart, Lightbulb, Zap, FileText } from "lucide-react";
+import { hapticSelection, hapticWarning } from "../lib/haptics";
 import "./NoteCard.css";
 
 const fmtRelTime = (ts) => {
@@ -143,21 +144,21 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
       <div className="nc-mobile-actions" onClick={e => e.stopPropagation()}>
         <button
           className={`nc-mob-btn nc-mob-btn-pin${pinned ? " nc-mob-on" : ""}`}
-          onClick={onPin}
+          onClick={(e) => { hapticSelection(); onPin(e); }}
           aria-label={pinned ? "Unpin" : "Pin"}
         >
           <Pin size={14} />
         </button>
         <button
           className={`nc-mob-btn nc-mob-btn-star${starred ? " nc-mob-on" : ""}`}
-          onClick={onStar}
+          onClick={(e) => { hapticSelection(); onStar(e); }}
           aria-label={starred ? "Unstar" : "Star"}
         >
           <Star size={14} />
         </button>
         <button
           className="nc-mob-btn nc-mob-btn-del"
-          onClick={onDelete}
+          onClick={(e) => { hapticWarning(); onDelete(e); }}
           aria-label="Delete"
         >
           <Trash2 size={14} />

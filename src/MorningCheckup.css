@@ -1,0 +1,323 @@
+/* ══════════════════════════════════════════════════════════════════
+   MORNING BRIEFING — a dedicated full-screen experience (not a modal/
+   sheet). Reuses the app's shared tokens (--text, --text-muted, --accent,
+   --surface, --surface-2, --border) throughout so Light/Dark/Liquid Glass
+   theming is inherited for free from the existing global cascade, and the
+   shared motion tokens (--ease-spring, --dur-fast, noraFadeIn/noraEnter/
+   noraPop keyframes, all defined once in App.css) so this feels like the
+   same app, not a bolted-on screen.
+   ══════════════════════════════════════════════════════════════════ */
+
+.mcu-sunrise-icon { color: #f59e0b; }
+
+.mcu-screen {
+  position: fixed; inset: 0; z-index: 600;
+  background: var(--bg);
+  display: flex; align-items: stretch; justify-content: center;
+}
+/* Sunrise gradient decoration */
+.mcu-sunrise-glow {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 70% 40% at 50% -10%, rgba(251,146,60,0.16) 0%, transparent 60%),
+              radial-gradient(ellipse 50% 30% at 50% 0%, rgba(245,158,11,0.10) 0%, transparent 50%);
+}
+.mcu-screen.glass .mcu-page { background: transparent; }
+.mcu-screen.glass .mcu-body { background: transparent; }
+
+.mcu-page {
+  position: relative; z-index: 1;
+  width: 100%; max-width: 640px;
+  height: 100%;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg);
+}
+
+/* Progress */
+.mcu-progress-bar { height: 3px; background: var(--surface-2); flex-shrink: 0; }
+.mcu-progress-fill { height: 100%; background: linear-gradient(90deg, #f59e0b, #7c3aed); transition: width .45s cubic-bezier(.25,1,.35,1); }
+
+/* Top bar */
+.mcu-top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 10px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.mcu-brand { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.mcu-back {
+  width: 30px; height: 30px; border-radius: 9px; border: none;
+  background: var(--surface-2); color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all .15s;
+}
+.mcu-back:hover { background: var(--surface); color: var(--text); }
+
+/* Body */
+.mcu-body { flex: 1; overflow-y: auto; padding: 24px 32px calc(env(safe-area-inset-bottom, 0px) + 8px); }
+.mcu-step { display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center; min-height: 320px; justify-content: center; }
+.mcu-step-header { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.mcu-dual-icon { display: flex; gap: 10px; }
+.mcu-title { font-size: 22px; font-weight: 900; color: var(--text); line-height: 1.25; margin: 0; }
+.mcu-subtitle { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+/* ── Briefing (step 0) — Atlas already knows before asking anything ── */
+.mcu-briefing { justify-content: flex-start; min-height: 0; gap: 22px; }
+.mcu-briefing-greeting { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 4px; }
+.mcu-greeting-line1 { font-size: 28px; font-weight: 900; color: var(--text); margin: 6px 0 0; line-height: 1.2; }
+.mcu-greeting-line2 { font-size: 15px; color: var(--text-muted); margin: 0; line-height: 1.5; max-width: 420px; }
+
+.mcu-briefing-grid { display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; width: 100%; }
+.mcu-briefing-stat { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.mcu-briefing-stat-value { font-size: 15px; font-weight: 800; color: var(--text); }
+.mcu-briefing-stat-value-sm { font-size: 12px; }
+.mcu-briefing-stat-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+
+.mcu-briefing-card {
+  width: 100%; text-align: left;
+  padding: 16px 18px; border-radius: 18px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.mcu-briefing-card-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted); margin: 0;
+}
+.mcu-briefing-note { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin: 0; text-align: center; }
+.mcu-briefing-card .mcu-briefing-note { text-align: left; }
+
+/* Sleep Goal vs Actual */
+.mcu-sleep-schedule-row { display: flex; align-items: center; gap: 14px; }
+.mcu-sleep-schedule-col { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.mcu-sleep-schedule-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.mcu-sleep-schedule-times { font-size: 17px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.mcu-sleep-schedule-divider { width: 1px; align-self: stretch; background: var(--border); }
+
+/* Weekly trend bars */
+.mcu-weekly-bars { display: flex; align-items: flex-end; gap: 8px; height: 56px; }
+.mcu-weekly-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+.mcu-weekly-bar-track { width: 100%; height: 40px; display: flex; align-items: flex-end; }
+.mcu-weekly-bar-fill {
+  width: 100%; border-radius: 3px 3px 1px 1px;
+  background: var(--accent); opacity: 0.35;
+  transition: height 0.8s var(--ease-spring, cubic-bezier(.34,1.56,.64,1));
+}
+.mcu-weekly-bar-fill.today { opacity: 1; }
+.mcu-weekly-bar-label { font-size: 9.5px; color: var(--text-muted); font-weight: 600; }
+
+/* Personalized facts */
+.mcu-facts-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.mcu-fact-card {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 12px 14px; border-radius: 14px;
+  background: var(--accent-light); border: 1px solid transparent;
+  font-size: 13px; color: var(--text); line-height: 1.5; text-align: left;
+}
+.mcu-fact-icon { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+.mcu-briefing-analysis {
+  font-size: 13.5px; color: var(--text-muted); line-height: 1.6; text-align: left;
+  border-left: 3px solid #f59e0b; padding-left: 14px; margin: 0; width: 100%;
+}
+
+/* Sleep quality grid */
+.mcu-sleep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.mcu-sleep-card {
+  padding: 16px 12px; border-radius: 16px;
+  border: 2px solid var(--border); background: var(--surface); cursor: pointer;
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  transition: all .20s cubic-bezier(.25,1,.35,1);
+  position: relative; overflow: hidden;
+}
+.mcu-sleep-card:hover { border-color: #f59e0b; transform: translateY(-1px); }
+.mcu-sleep-card.active { transform: translateY(-2px); }
+.mcu-sleep-indicator { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.mcu-sleep-label { font-size: 15px; font-weight: 800; color: var(--text); }
+.mcu-sleep-sub { font-size: 11px; color: var(--text-muted); }
+
+/* Time inputs */
+.mcu-time-row { display: flex; gap: 16px; width: 100%; }
+.mcu-time-field { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.mcu-time-label { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; text-align: left; }
+.mcu-time-input { padding: 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 18px; font-family: inherit; outline: none; text-align: center; transition: border-color .15s; }
+.mcu-time-input:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+.mcu-duration-badge {
+  display: flex; align-items: center; gap: 10px; justify-content: center;
+  padding: 10px 18px; border-radius: 20px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 14px; font-weight: 700; color: var(--text);
+}
+.mcu-duration-eval { font-size: 12px; font-weight: 700; }
+
+.mcu-health-prefill-badge {
+  font-size: 11.5px; font-weight: 600; color: var(--accent);
+  background: var(--accent-light); border-radius: 8px;
+  padding: 6px 10px; text-align: center;
+}
+.mcu-health-insights {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 5px;
+  text-align: center;
+}
+.mcu-health-insights li { font-size: 12.5px; color: var(--text-muted); line-height: 1.4; }
+
+/* Scale selector */
+.mcu-scale { width: 100%; }
+.mcu-scale-btns { display: flex; gap: 4px; justify-content: center; }
+.mcu-scale-btn {
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-muted); font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all .12s;
+}
+.mcu-scale-btn:hover { border-color: #818cf8; color: #818cf8; }
+.mcu-scale-btn.active { color: #fff; }
+.mcu-scale-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 7px; padding: 0 2px; }
+
+.mcu-dual-scales { display: flex; flex-direction: column; gap: 22px; width: 100%; text-align: left; }
+.mcu-scale-section { display: flex; flex-direction: column; gap: 8px; }
+.mcu-scale-lbl { font-size: 12px; font-weight: 700; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+
+/* Focus bubbles — dynamic, colorful, multi-select */
+.mcu-focus-bubbles { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.mcu-focus-bubble {
+  padding: 9px 18px; border-radius: 22px;
+  border: 1.5px solid rgba(0,0,0,0.12); background: var(--surface-2);
+  color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all .18s cubic-bezier(.25,1,.35,1);
+}
+.mcu-focus-bubble:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.mcu-focus-bubble.active { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.18); font-weight: 700; }
+.mcu-focus-selected { font-size: 11px; color: var(--text-muted); margin: -8px 0 0; }
+.mcu-pressure-input { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 14px; font-family: inherit; resize: none; outline: none; box-sizing: border-box; transition: border-color .15s; }
+.mcu-pressure-input:focus { border-color: #818cf8; }
+
+/* Collapsed "log exact times" disclosure (merged into step 1) */
+.mcu-sleep-times-toggle { background: none; border: none; color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 0; text-decoration: underline; text-underline-offset: 2px; }
+.mcu-sleep-times-toggle:hover { color: var(--text); }
+
+/* Adaptive question — one reflective question per morning */
+.mcu-adaptive-question-text { font-size: 15px; color: var(--text); line-height: 1.5; text-align: center; margin: 0 0 4px; }
+.mcu-choice-grid { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.mcu-choice-btn { padding: 12px 16px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer; transition: all .15s ease; }
+.mcu-choice-btn:hover { border-color: #818cf8; }
+.mcu-choice-btn.active { border-color: #818cf8; background: rgba(129,140,248,0.12); color: #818cf8; }
+
+/* Adaptive Q&A recap on the summary screen */
+.mcu-adaptive-recap { width: 100%; text-align: left; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.mcu-adaptive-recap-q { font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+.mcu-adaptive-recap-a { font-size: 13.5px; color: var(--text); line-height: 1.5; font-style: italic; }
+
+/* 6-part Morning Readiness sub-score row */
+.mcu-subscores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.mcu-subscore-card { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.mcu-subscore-top { display: flex; align-items: center; gap: 5px; }
+.mcu-subscore-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.mcu-subscore-value { font-size: 20px; font-weight: 900; line-height: 1.2; }
+
+/* Summary — animated ring + readiness display */
+.mcu-summary { gap: 18px; }
+.mcu-readiness-display { display: flex; align-items: center; gap: 18px; }
+.mcu-readiness-pct { font-size: 20px; font-weight: 900; line-height: 1; }
+.mcu-readiness-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); }
+.mcu-readiness-text { display: flex; flex-direction: column; gap: 4px; }
+.mcu-readiness-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.mcu-readiness-sub { font-size: 16px; font-weight: 800; }
+.mcu-nora-summary { font-size: 14px; color: var(--text-muted); line-height: 1.6; font-style: italic; text-align: left; border-left: 3px solid #f59e0b; padding-left: 14px; }
+.mcu-summary-focus { width: 100%; text-align: left; }
+.mcu-summary-focus-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 8px; }
+.mcu-summary-focus-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mcu-summary-chip { padding: 5px 12px; border-radius: 18px; border: 1px solid; font-size: 12px; font-weight: 600; }
+.mcu-tips { display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; }
+.mcu-tip { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.mcu-tip-ai { color: var(--text); }
+.mcu-tip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.mcu-tip-shimmer {
+  display: block; height: 14px; border-radius: 6px;
+  flex: 1;
+  background: linear-gradient(90deg, var(--border) 25%, var(--surface-2) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: mcuShimmer 1.4s ease-in-out infinite;
+}
+@keyframes mcuShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* AI planning nudge */
+.mcu-plan-nudge-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; padding: 12px; border-radius: 14px;
+  background: var(--accent-light); border: 1px solid var(--accent);
+  color: var(--accent); font-size: 13.5px; font-weight: 700; cursor: pointer;
+  transition: filter .15s;
+}
+.mcu-plan-nudge-btn:hover { filter: brightness(1.05); }
+
+/* Ask Atlas about today's condition */
+.mcu-ask-atlas {
+  width: 100%; margin-top: 4px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.mcu-ask-atlas-header {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 700; color: var(--text);
+}
+.mcu-ask-atlas-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mcu-ask-atlas-chip {
+  padding: 6px 11px; border-radius: 20px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-muted);
+  font-size: 11.5px; cursor: pointer; transition: all .15s;
+}
+.mcu-ask-atlas-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.mcu-ask-atlas-input-row { display: flex; gap: 8px; }
+.mcu-ask-atlas-input {
+  flex: 1; padding: 11px 14px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 13.5px; font-family: inherit; outline: none;
+  transition: border-color .15s;
+}
+.mcu-ask-atlas-input:focus { border-color: var(--accent); }
+.mcu-ask-atlas-send {
+  width: 42px; height: 42px; flex-shrink: 0; border-radius: 12px; border: none;
+  background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: opacity .15s;
+}
+.mcu-ask-atlas-send:disabled { opacity: .4; cursor: not-allowed; }
+.mcu-ask-atlas-send:not(:disabled):hover { opacity: .85; }
+
+/* Footer */
+.mcu-footer { padding: 14px 24px calc(env(safe-area-inset-bottom, 0px) + 18px); flex-shrink: 0; border-top: 1px solid var(--border); }
+.mcu-footer-btns { display: flex; gap: 10px; }
+.mcu-secondary-btn {
+  flex: 1; padding: 13px; border-radius: 14px;
+  background: var(--surface-2); color: var(--text-muted);
+  border: 1px solid var(--border); font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+.mcu-secondary-btn:hover { background: var(--surface); color: var(--text); }
+.mcu-next-btn {
+  flex: 2; padding: 13px; border-radius: 14px;
+  background: linear-gradient(135deg, #f59e0b, #7c3aed); color: #fff; border: none;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  box-shadow: 0 4px 20px rgba(124,58,237,0.38);
+  transition: opacity .15s, transform .15s;
+}
+.mcu-next-btn:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); }
+.mcu-next-btn:disabled { opacity: .30; cursor: not-allowed; box-shadow: none; }
+
+/* ── Entrance animations — the Briefing should feel alive, not static ── */
+.mcu-anim-in {
+  animation: mcuFadeSlideUp 0.55s var(--ease-spring, cubic-bezier(.34,1.56,.64,1)) both;
+}
+@keyframes mcuFadeSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mcu-anim-in { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .mcu-body { padding: 20px 20px calc(env(safe-area-inset-bottom, 0px) + 8px); }
+  .mcu-greeting-line1 { font-size: 24px; }
+}

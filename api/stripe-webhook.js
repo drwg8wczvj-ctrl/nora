@@ -87,6 +87,8 @@ export default async function handler(req, res) {
         }
         break;
       }
+      default:
+        break;
     }
     return res.json({ received: true });
   } catch (e) {

@@ -38,15 +38,8 @@
   background: var(--grad, var(--accent));
 }
 
-.fs-close {
-  position: absolute; top: 14px; right: 14px;
-  width: 32px; height: 32px; border-radius: 8px;
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-muted); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background .15s, color .15s;
-}
-.fs-close:hover { background: var(--surface-2); color: var(--text); }
+/* Visual styling now owned by CloseButton.css; this only positions it. */
+.fs-close-btn { position: absolute; top: 14px; right: 14px; }
 
 /* ── Phase wrapper ─────────────────────────────────────────── */
 .fs-phase {

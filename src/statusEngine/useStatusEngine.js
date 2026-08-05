@@ -16,7 +16,7 @@ import { buildImplementationIntention } from "./intentions";
 import { computeSleepAnalysis, buildRecentNights } from "./sleepScience";
 import { computeEnergyScore, computeRecoveryScore } from "./healthInsights";
 import { buildPersonalBaseline } from "./personalBaseline";
-import { apiUrl } from "../lib/apiBase";
+import { apiFetch } from "../lib/apiBase";
 
 // Mirrors the shape of src/intelligence/useIntelligence.js: a plain hook that
 // wires pure calculator functions to React state and returns one flat object.
@@ -31,8 +31,8 @@ import { apiUrl } from "../lib/apiBase";
 // (a separate nightly check-in, distinct from the morning checkup) — pass it
 // through when wiring this hook up so sleepState matches production exactly.
 export function useStatusEngine({
-  tasks, today, session,
-  energy, relaxation, focus, motivation,
+  tasks, today,
+  energy, relaxation,
   morningCheckup, dailyMetrics, userPrefs,
   todaySleepQuality = null,
   health = null, // useHealthKit()'s return value, or null if not connected/unavailable
@@ -552,7 +552,7 @@ export function useStatusEngine({
     }
 
     setAiInterpretations(null); // clear stale AI text from a prior signature while this fetches
-    fetch(apiUrl("/api/tips"), {
+    apiFetch("/api/tips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

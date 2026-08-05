@@ -88,7 +88,7 @@ private struct WeeklyTrendBars: View {
                         .fill(index == values.count - 1 ? NoraColor.accent : NoraColor.accent.opacity(0.35))
                         .frame(height: max(4, CGFloat(pct) * 0.36))
                     Text(index < days.count ? days[index] : "")
-                        .font(.system(size: 8.5))
+                        .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
                 }
             }

@@ -1,4 +1,12 @@
 {
+  "headers": [
+    {
+      "source": "/api/health",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ],
   "functions": {
     "api/telegram-auth-phone.js": { "maxDuration": 30 },
     "api/telegram-auth-code.js":  { "maxDuration": 30 },

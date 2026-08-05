@@ -1,5 +1,5 @@
 // Gmail OAuth callback — exchanges auth code for tokens and stores them.
-// Google redirects here with ?code=xxx&state=<user_id>
+// Google redirects here with ?code=xxx&state=<signed short-lived payload>
 //
 // Required environment variables:
 //   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
@@ -7,14 +7,33 @@
 //   APP_URL  (e.g. https://yourdomain.com)
 
 const { createClient } = require("@supabase/supabase-js");
+const crypto = require("crypto");
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+function verifyState(state) {
+  const [payload, signature] = String(state || "").split(".");
+  const secret = process.env.OAUTH_STATE_SECRET || process.env.GOOGLE_CLIENT_SECRET;
+  if (!payload || !signature || !secret) return null;
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest();
+  let received;
+  try { received = Buffer.from(signature, "base64url"); } catch { return null; }
+  if (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (!parsed.userId || !parsed.issuedAt || Date.now() / 1000 - parsed.issuedAt > 600) return null;
+    return parsed.userId;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = async function handler(req, res) {
-  const { code, state: userId, error } = req.query;
+  const { code, state, error } = req.query;
+  const userId = verifyState(state);
 
   const appUrl = process.env.APP_URL || "https://nora.dongar.tech";
 

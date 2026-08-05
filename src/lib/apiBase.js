@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import { supabase } from "./supabase";
 
 // Native builds (iOS/Android) bundle the web app locally with no `server.url`
 // configured — there's no backend at `capacitor://localhost`, so a relative
@@ -11,4 +12,19 @@ const NATIVE_API_ORIGIN = "https://nora-ten-brown.vercel.app";
 
 export function apiUrl(path) {
   return Capacitor.isNativePlatform() ? `${NATIVE_API_ORIGIN}${path}` : path;
+}
+
+// All application API routes are authenticated with the current Supabase
+// access token. Keeping this in one place prevents individual features from
+// accidentally trusting a user id supplied in JSON.
+export async function apiFetch(path, options = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error("You must be signed in to use this feature.");
+  }
+
+  const headers = new Headers(options.headers || {});
+  headers.set("Authorization", `Bearer ${session.access_token}`);
+
+  return fetch(apiUrl(path), { ...options, headers });
 }
