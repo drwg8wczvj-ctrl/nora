@@ -5,7 +5,7 @@ import {
   FileText, CheckSquare, ShoppingCart, Lightbulb, Zap,
 } from "lucide-react";
 import "./NoteEditor.css";
-import CloseButton from "./CloseButton";
+import { NativeIconButton, NativeNavButton } from "./ui/NativeUI";
 
 // ─── Shared constants ─────────────────────────────────────────────────────────
 
@@ -212,7 +212,7 @@ export default function NoteEditor({ note, onPatch, onDelete, onClose, isMobile 
 
   return createPortal((
     <div
-      className="ne-overlay"
+      className="ne-overlay native-ui"
       onClick={onClose}
     >
       <div
@@ -238,28 +238,36 @@ export default function NoteEditor({ note, onPatch, onDelete, onClose, isMobile 
             }
           />
           <div className="ne-header-actions">
-            <button
+            <NativeIconButton
+              label={note.pinned ? "Unpin note" : "Pin note"}
+              size="compact"
               className={`ne-icon-btn ne-pin-btn${note.pinned ? " ne-icon-on" : ""}`}
               onClick={() => onPatch({ pinned: !note.pinned })}
-              title={note.pinned ? "Unpin" : "Pin"}
             >
               <Pin size={15} />
-            </button>
-            <button
+            </NativeIconButton>
+            <NativeIconButton
+              label={note.starred ? "Remove star" : "Star note"}
+              size="compact"
               className={`ne-icon-btn ne-star-btn${note.starred ? " ne-icon-on" : ""}`}
               onClick={() => onPatch({ starred: !note.starred })}
-              title={note.starred ? "Unstar" : "Star"}
             >
               <Star size={15} />
-            </button>
-            <button
+            </NativeIconButton>
+            <NativeIconButton
+              label="Delete note"
+              size="compact"
               className="ne-icon-btn ne-del-btn"
               onClick={onDelete}
-              title="Delete note"
             >
               <Trash2 size={15} />
-            </button>
-            <CloseButton onClick={onClose} size={26} />
+            </NativeIconButton>
+            <NativeNavButton
+              direction="close"
+              label="Close note"
+              className="ne-icon-btn ne-close-btn"
+              onClick={onClose}
+            />
           </div>
         </div>
 

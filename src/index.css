@@ -11,11 +11,21 @@ body {
 /* Prevent white flash on overscroll in PWA standalone mode */
 @media (display-mode: standalone), (display-mode: fullscreen) {
   html, body {
-    background-color: #0e0d1e;
+    background-color: #09090b;
   }
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--brand-nora-purple, #7c5cff);
+  outline-offset: 2px;
 }

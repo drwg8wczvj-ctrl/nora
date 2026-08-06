@@ -1,18 +1,23 @@
 import React, { useRef, useEffect, useState } from "react";
-import { HeartHandshake, Send, Wind, PanelLeft } from "lucide-react";
+import { HeartHandshake, Wind } from "lucide-react";
 import { MessagePartsList } from "../conversation/MessagePart";
+import ConversationMessage from "../conversation/ConversationMessage";
 import { textPart } from "../conversation/messageParts";
 import ConversationSidebar, { ConversationSheet } from "../conversation/ConversationList";
-import CloseButton from "../components/CloseButton";
+import {
+  AssistantChatComposer,
+  AssistantChatHeader,
+} from "../components/mobile/AssistantChatUI";
+import { NativeIconButton } from "../components/ui/NativeUI";
 
 // Atlas's own chat surface — deliberately a separate component from Planner's
 // chat-panel/mob-chat, not a parametrized shared one, so Phase 4's visual
 // redesign can restyle Atlas without touching Planner's working CSS.
 
 const STARTER_PROMPTS = [
-  "I'm feeling stressed",
-  "I don't know why, but I feel off today",
-  "Help me process something that happened",
+  "Prepare me for an important opportunity",
+  "Help me improve a specific skill",
+  "Practice a difficult conversation with me",
   "I want to reflect on this week",
 ];
 
@@ -25,8 +30,8 @@ function AtlasIntro({ onDone }) {
       <div className="atlas-intro-icon"><HeartHandshake size={30} /></div>
       <div className="atlas-intro-title">Welcome to Atlas</div>
       <p className="atlas-intro-sub">
-        A private space to think out loud — about stress, motivation, or anything
-        on your mind. Nothing here is judged, and nothing leaves this conversation.
+        A focused space to train, prepare, reflect, and improve. Bring a skill,
+        opportunity, challenge, or anything you want to work through.
       </p>
       <div className="atlas-intro-hint">Tap anywhere to begin</div>
     </div>
@@ -60,7 +65,7 @@ function AtlasBreathing({ onClose }) {
   );
 }
 
-function AtlasBody({ messages, chatLoading, greeting, onStarterPick, onBreathe }) {
+function AtlasBody({ messages, chatLoading, greeting, onStarterPick, onBreathe, onOpenNora, onEditMessage, onRetryMessage, plannerTasks }) {
   const endRef = useRef(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatLoading]);
   const isEmpty = messages.length === 0;
@@ -68,10 +73,26 @@ function AtlasBody({ messages, chatLoading, greeting, onStarterPick, onBreathe }
   return (
     <div className="atlas-chat-messages">
       {isEmpty && !chatLoading && (
-        <div className="atlas-chat-msg assistant"><div className="atlas-chat-bubble"><MessagePartsList parts={[textPart(greeting)]} /></div></div>
+        <section className="atlas-chat-welcome" aria-label="Atlas introduction">
+          <span className="atlas-chat-welcome-mark"><HeartHandshake size={25} /></span>
+          <h1>What would you like to improve?</h1>
+          <div className="atlas-chat-welcome-copy">
+            <MessagePartsList parts={[textPart(greeting)]} />
+          </div>
+        </section>
       )}
       {messages.map((m, i) => (
-        <div key={m.id ?? i} className={`atlas-chat-msg ${m.role}`}><div className="atlas-chat-bubble"><MessagePartsList parts={m.parts} /></div></div>
+        <ConversationMessage
+          key={m.id ?? i}
+          message={m}
+          className={`atlas-chat-msg ${m.role}`}
+          bubbleClassName="atlas-chat-bubble"
+          assistantName="Atlas"
+          onEdit={onEditMessage}
+          onRetry={onRetryMessage}
+          onOpenNora={onOpenNora}
+          plannerTasks={plannerTasks}
+        />
       ))}
       {chatLoading && (
         <div className="atlas-chat-msg assistant">
@@ -111,9 +132,12 @@ function useAtlasSurface({ open, introSeen, onIntroSeen }) {
 
 export function DesktopAtlasChat({
   open, onClose, messages, chatInput, setChatInput, chatLoading, onSend, introSeen, onIntroSeen,
-  greeting = "Hi, I'm Atlas.",
+  greeting = "Hi, I'm Atlas. What would you like to prepare for or improve?",
   conversations = [], activeConversationId = null, conversationsLoading = false,
   onSelectConversation, onNewConversation, onRenameConversation, onPinConversation, onArchiveConversation, onDeleteConversation,
+  onOpenNora,
+  onEditMessage, onRetryMessage,
+  plannerTasks = [],
 }) {
   const { showIntro, finishIntro, breathingOpen, setBreathingOpen } = useAtlasSurface({ open, introSeen, onIntroSeen });
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -133,26 +157,22 @@ export function DesktopAtlasChat({
         onArchive={onArchiveConversation}
         onDelete={onDeleteConversation}
       />
-      <div className="atlas-chat-header">
-        <div className="atlas-chat-header-info">
-          {!showIntro && (
-            <button className="atlas-chat-close" onClick={() => setSidebarOpen((v) => !v)} title="Conversations"><PanelLeft size={16} /></button>
-          )}
-          <div className="atlas-chat-avatar"><HeartHandshake size={20} /></div>
-          <div>
-            <div className="atlas-chat-title">Atlas</div>
-            <div className="atlas-chat-subtitle">A space to think it through</div>
-          </div>
-        </div>
-        <div className="atlas-chat-header-actions">
-          {!showIntro && (
-            <button className="atlas-chat-breathe-btn" title="Breathing exercise" onClick={() => setBreathingOpen(true)}>
-              <Wind size={15} />
-            </button>
-          )}
-          <CloseButton onClick={onClose} size={26} />
-        </div>
-      </div>
+      <AssistantChatHeader
+        title="Atlas"
+        subtitle="Training, strategy and reflection"
+        brandIcon={<HeartHandshake size={18} />}
+        onHistory={!showIntro ? () => setSidebarOpen((visible) => !visible) : undefined}
+        onClose={onClose}
+        accessory={!showIntro ? (
+          <NativeIconButton
+            label="Open breathing exercise"
+            variant="plain"
+            onClick={() => setBreathingOpen(true)}
+          >
+            <Wind size={18} />
+          </NativeIconButton>
+        ) : null}
+      />
 
       {showIntro ? (
         <AtlasIntro onDone={finishIntro} />
@@ -160,20 +180,25 @@ export function DesktopAtlasChat({
         <>
           <AtlasBody messages={messages} chatLoading={chatLoading} greeting={greeting}
             onStarterPick={(p) => setChatInput(p)}
-            onBreathe={() => setBreathingOpen(true)} />
-          <div className="atlas-chat-input-row">
-            <textarea
-              className="atlas-chat-input"
-              value={chatInput}
-              rows={2}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); } }}
-              placeholder="Talk to Atlas…"
-            />
-            <button className="atlas-chat-send" onClick={onSend} disabled={chatLoading || !chatInput.trim()}>
-              {chatLoading ? <span className="dot-spin" /> : <Send size={16} />}
-            </button>
-          </div>
+            onBreathe={() => setBreathingOpen(true)}
+            onOpenNora={onOpenNora}
+            onEditMessage={onEditMessage}
+            onRetryMessage={onRetryMessage}
+            plannerTasks={plannerTasks} />
+          <AssistantChatComposer
+            value={chatInput}
+            rows={2}
+            loading={chatLoading}
+            placeholder="Talk to Atlas…"
+            onChange={(event) => setChatInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                onSend();
+              }
+            }}
+            onSend={onSend}
+          />
         </>
       )}
 
@@ -184,35 +209,34 @@ export function DesktopAtlasChat({
 
 export function MobileAtlasChat({
   open, onClose, messages, chatInput, setChatInput, chatLoading, onSend, introSeen, onIntroSeen,
-  greeting = "Hi, I'm Atlas.",
+  greeting = "Hi, I'm Atlas. What would you like to prepare for or improve?",
   conversations = [], activeConversationId = null, conversationsLoading = false,
   onSelectConversation, onNewConversation, onRenameConversation, onPinConversation, onArchiveConversation, onDeleteConversation,
+  onOpenNora,
+  onEditMessage, onRetryMessage,
+  plannerTasks = [],
 }) {
   const { showIntro, finishIntro, breathingOpen, setBreathingOpen } = useAtlasSurface({ open, introSeen, onIntroSeen });
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className={`mob-atlas-chat atlas-mode${open ? " mob-atlas-chat-open" : ""}`}>
-      <div className="atlas-chat-header">
-        <div className="atlas-chat-header-info">
-          {!showIntro && (
-            <button className="atlas-chat-close" onClick={() => setSidebarOpen(true)} title="Conversations"><PanelLeft size={18} /></button>
-          )}
-          <div className="atlas-chat-avatar"><HeartHandshake size={20} /></div>
-          <div>
-            <div className="atlas-chat-title">Atlas</div>
-            <div className="atlas-chat-subtitle">A space to think it through</div>
-          </div>
-        </div>
-        <div className="atlas-chat-header-actions">
-          {!showIntro && (
-            <button className="atlas-chat-breathe-btn" title="Breathing exercise" onClick={() => setBreathingOpen(true)}>
-              <Wind size={15} />
-            </button>
-          )}
-          <CloseButton onClick={onClose} />
-        </div>
-      </div>
+      <AssistantChatHeader
+        title="Atlas"
+        subtitle="Training, strategy and reflection"
+        brandIcon={<HeartHandshake size={18} />}
+        onHistory={!showIntro ? () => setSidebarOpen(true) : undefined}
+        onClose={onClose}
+        accessory={!showIntro ? (
+          <NativeIconButton
+            label="Open breathing exercise"
+            variant="plain"
+            onClick={() => setBreathingOpen(true)}
+          >
+            <Wind size={18} />
+          </NativeIconButton>
+        ) : null}
+      />
 
       {showIntro ? (
         <AtlasIntro onDone={finishIntro} />
@@ -220,20 +244,25 @@ export function MobileAtlasChat({
         <>
           <AtlasBody messages={messages} chatLoading={chatLoading} greeting={greeting}
             onStarterPick={(p) => setChatInput(p)}
-            onBreathe={() => setBreathingOpen(true)} />
-          <div className="atlas-chat-input-row">
-            <textarea
-              className="atlas-chat-input"
-              value={chatInput}
-              rows={2}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); } }}
-              placeholder="Talk to Atlas…"
-            />
-            <button className="atlas-chat-send" onClick={onSend} disabled={chatLoading || !chatInput.trim()}>
-              {chatLoading ? <span className="dot-spin" /> : <Send size={16} />}
-            </button>
-          </div>
+            onBreathe={() => setBreathingOpen(true)}
+            onOpenNora={onOpenNora}
+            onEditMessage={onEditMessage}
+            onRetryMessage={onRetryMessage}
+            plannerTasks={plannerTasks} />
+          <AssistantChatComposer
+            value={chatInput}
+            rows={2}
+            loading={chatLoading}
+            placeholder="Talk to Atlas…"
+            onChange={(event) => setChatInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                onSend();
+              }
+            }}
+            onSend={onSend}
+          />
         </>
       )}
 

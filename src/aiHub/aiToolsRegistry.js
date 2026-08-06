@@ -1,9 +1,12 @@
-import { Sparkles, MessageSquare, Lightbulb, HeartHandshake } from "lucide-react";
+import { MessageSquare, Lightbulb, HeartHandshake } from "lucide-react";
+import BrandStar from "../components/BrandStar";
+
+const NoraToolIcon = ({ size = 20 }) => <BrandStar size={size} tone="current" />;
 
 export const AI_HUB_TOOLS = [
   {
     id: "assistant",
-    icon: Sparkles,
+    icon: NoraToolIcon,
     titleKey: "aiHub.assistantTitle",
     descKey: "aiHub.assistantDesc",
     status: "available",

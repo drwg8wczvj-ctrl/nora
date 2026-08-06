@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Check, AlertCircle, Camera } from "lucide-react";
-import CloseButton from "./CloseButton";
 import AvatarDisplay from "./AvatarDisplay";
 import AvatarPicker from "./AvatarPicker";
+import {
+  NativeAlert,
+  NativeButton,
+  NativeDialog,
+} from "./ui/NativeUI";
 import { saveFullProfile, getMyProfile } from "../lib/sharingApi";
 import "./ProfileModal.css";
 
@@ -109,24 +113,45 @@ export default function ProfileModal({ session, onClose, onSaved }) {
     : null;
 
   return (
-    <div className="pm-overlay" onClick={onClose}>
-      <div className="pm-modal" onClick={e => e.stopPropagation()}>
-        <div className="pm-header">
-          <span className="pm-title">Profile</span>
-          <CloseButton onClick={onClose} size={26} />
-        </div>
-
+    <NativeDialog
+      onClose={onClose}
+      title="Profile"
+      subtitle="How you appear across Nora and shared work."
+      className="pm-modal"
+      contentClassName="pm-dialog-content"
+      footer={(
+        <>
+          <NativeButton variant="tertiary" onClick={onClose}>Cancel</NativeButton>
+          <NativeButton
+            onClick={handleSave}
+            loading={saving}
+            disabled={!!usernameErr || (usernameChanged && !canChangeUsername)}
+            leading={saved ? <Check size={15} /> : undefined}
+          >
+            {saved ? "Saved" : "Save changes"}
+          </NativeButton>
+        </>
+      )}
+    >
         {loadErr ? (
-          <div className="pm-body pm-err-msg"><AlertCircle size={16} /> {loadErr}</div>
+          <NativeAlert tone="danger" title="Couldn’t load your profile">
+            <AlertCircle size={15} /> {loadErr}
+          </NativeAlert>
         ) : (
           <div className="pm-body">
             {/* Avatar section */}
             <div className="pm-avatar-section">
               <div className="pm-avatar-wrap">
                 <AvatarDisplay avatar={{ ...avatar, name }} size={72} />
-                <button className="pm-change-avatar" onClick={() => setShowPicker(v => !v)}>
-                  <Camera size={13} /> Change
-                </button>
+                <NativeButton
+                  className="pm-change-avatar"
+                  variant="secondary"
+                  size="compact"
+                  leading={<Camera size={14} />}
+                  onClick={() => setShowPicker(v => !v)}
+                >
+                  Change
+                </NativeButton>
               </div>
               {memberSince && (
                 <div className="pm-member-since">Member since {memberSince}</div>
@@ -212,15 +237,6 @@ export default function ProfileModal({ session, onClose, onSaved }) {
             </div>
           </div>
         )}
-
-        <div className="pm-footer">
-          <button className="pm-btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="pm-btn-primary" onClick={handleSave}
-            disabled={saving || !!usernameErr || (usernameChanged && !canChangeUsername)}>
-            {saving ? "Saving…" : saved ? <><Check size={13} /> Saved</> : "Save Changes"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </NativeDialog>
   );
 }

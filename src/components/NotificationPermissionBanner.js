@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Bell } from "lucide-react";
-import CloseButton from "./CloseButton";
+import { Bell, X } from "lucide-react";
+import { NativeButton, NativeIconButton } from "./ui/NativeUI";
 import "./NotificationPermissionBanner.css";
 
 export default function NotificationPermissionBanner({ onAllow, onLater, onNever }) {
@@ -14,7 +14,7 @@ export default function NotificationPermissionBanner({ onAllow, onLater, onNever
   if (!visible) return null;
 
   return (
-    <div className="npb-wrap" role="dialog" aria-label="Enable notifications">
+    <div className="npb-wrap native-ui" role="dialog" aria-label="Enable notifications">
       <div className="npb-icon-wrap">
         <Bell size={20} className="npb-icon" />
       </div>
@@ -24,11 +24,13 @@ export default function NotificationPermissionBanner({ onAllow, onLater, onNever
           Get nudged about tasks and morning check-ins.
         </div>
         <div className="npb-actions">
-          <button className="npb-allow" onClick={onAllow}>Allow notifications</button>
-          <button className="npb-later" onClick={onLater}>Maybe later</button>
+          <NativeButton size="compact" onClick={onAllow}>Allow notifications</NativeButton>
+          <NativeButton size="compact" variant="tertiary" onClick={onLater}>Maybe later</NativeButton>
         </div>
       </div>
-      <CloseButton onClick={onNever} label="Dismiss permanently" size={26} />
+      <NativeIconButton label="Dismiss permanently" size="compact" variant="plain" onClick={onNever}>
+        <X size={16} />
+      </NativeIconButton>
     </div>
   );
 }

@@ -122,7 +122,7 @@ export function mineAllPatterns({ tasks, taskWeights = {}, dailyMetrics = {}, to
     }
   }
 
-  // Rule 4 — sleep/load/focus correlation (ported from LongTermInsights.js's
+  // Rule 4 — sleep/load/focus correlation (shared with Nora's observation
   // generateInsights — same thresholds, operating over the dailyMetrics store
   // instead of a pre-filtered date-range slice) --------------------------------
   const entries = Object.entries(dailyMetrics).sort((a, b) => a[0].localeCompare(b[0]));
@@ -163,7 +163,7 @@ export function mineAllPatterns({ tasks, taskWeights = {}, dailyMetrics = {}, to
     }
 
     // NOTE: the "stress" field in dailyMetrics actually stores a calm/relaxation
-    // score (see App.js's daily-metrics snapshot + LongTermInsights' `invert: true`
+    // score (see App.js's daily-metrics snapshot and the historical observation
     // metric def) — a *decline* in this value means real-world stress is rising.
     if (stressSeries.length >= 5 && avg(stressSeries.slice(-3)) < avg(stressSeries.slice(0, 3)) - 0.5) {
       patterns.push({ id: "stress_trend_up", text: "Stress levels have been rising. Consider protecting more of your evenings.", confidence: historyTier, category: "trend" });

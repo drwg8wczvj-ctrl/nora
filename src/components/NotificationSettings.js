@@ -1,17 +1,17 @@
 import React, { useState } from "react";
 import { Bell, CheckSquare, Flag, Clock, Brain, Sunrise, Send, Check, Server, RefreshCw } from "lucide-react";
+import { NativeSwitch } from "./ui/NativeUI";
 import "./NotificationSettings.css";
 
-function NSToggle({ value, onChange, disabled }) {
+function NSToggle({ value, onChange, disabled, label }) {
   return (
-    <button
-      type="button"
-      className={`ns-toggle${value ? " on" : ""}${disabled ? " disabled" : ""}`}
-      onClick={() => !disabled && onChange(!value)}
-      aria-pressed={value}
-    >
-      <span className="ns-knob" />
-    </button>
+    <NativeSwitch
+      className="ns-toggle"
+      checked={value}
+      onChange={onChange}
+      disabled={disabled}
+      label={label}
+    />
   );
 }
 
@@ -167,6 +167,7 @@ export default function NotificationSettings({
           value={active}
           onChange={(v) => updateSettings({ enabled: v })}
           disabled={!granted}
+          label="All notifications"
         />
       </div>
 
@@ -183,6 +184,7 @@ export default function NotificationSettings({
               value={settings[key]}
               onChange={(v) => updateSettings({ [key]: v })}
               disabled={!active}
+              label={label}
             />
           </div>
         ))}

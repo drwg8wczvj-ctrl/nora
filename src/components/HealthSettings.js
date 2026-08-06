@@ -1,18 +1,18 @@
 import React, { useState } from "react";
-import { Moon, Activity, HeartPulse, Sparkles, Gauge, Wind, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
+import { Moon, Activity, HeartPulse, Gauge, Wind, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
 import { HEALTH_CATEGORY_META } from "../lib/healthKit";
+import { NativeSwitch } from "./ui/NativeUI";
 import "./HealthSettings.css";
 
-function HSToggle({ value, onChange, disabled }) {
+function HSToggle({ value, onChange, disabled, label }) {
   return (
-    <button
-      type="button"
-      className={`hs-toggle${value ? " on" : ""}${disabled ? " disabled" : ""}`}
-      onClick={() => !disabled && onChange(!value)}
-      aria-pressed={value}
-    >
-      <span className="hs-knob" />
-    </button>
+    <NativeSwitch
+      className="hs-toggle"
+      checked={value}
+      onChange={onChange}
+      disabled={disabled}
+      label={label}
+    />
   );
 }
 
@@ -20,7 +20,7 @@ const CATEGORY_ICONS = {
   sleep: <Moon size={14} />,
   activity: <Activity size={14} />,
   heart: <HeartPulse size={14} />,
-  mindfulness: <Sparkles size={14} />,
+  mindfulness: <Wind size={14} />,
   vo2max: <Gauge size={14} />,
   respiratory: <Wind size={14} />,
 };
@@ -95,7 +95,11 @@ export default function HealthSettings({ health }) {
                 <span className="hs-cat-label">{meta.label}</span>
                 <span className="hs-cat-desc">{meta.description}</span>
               </div>
-              <HSToggle value={enabled} onChange={(v) => handleToggle(key, v)} />
+              <HSToggle
+                value={enabled}
+                onChange={(v) => handleToggle(key, v)}
+                label={meta.label}
+              />
             </div>
           );
         })}

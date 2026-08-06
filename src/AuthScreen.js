@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { supabase } from "./lib/supabase";
 import { Eye, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { BrandLockup } from "./components/BrandStar";
 import "./App.css";
 
 function pwStrength(pw) {
@@ -86,14 +87,11 @@ export default function AuthScreen({ dark, glass }) {
   };
 
   return (
-    <div className={`app${dark ? " dark" : ""}${glass ? " glass" : ""} auth-wrap`}>
+    <div className={`app native-ui${dark ? " dark" : ""}${glass ? " glass" : ""} auth-wrap`}>
       <div className="auth-card">
 
         <div className="auth-brand">
-          <img
-            src={dark ? "/logo-dark.png" : "/logo-light.png"}
-            className="auth-brand-logo"
-            alt="Nora" />
+          <BrandLockup size={38} tone="white" className="auth-brand-logo" />
         </div>
         <p className="auth-tagline">{t("auth.tagline")}</p>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AICoachCard from "./AICoachCard";
+import InsightEntryCard from "./InsightEntryCard";
 import QuickCheckIn from "./QuickCheckIn";
 import MetricCard from "./MetricCard";
 import PatternsSection from "./PatternsSection";
@@ -21,7 +22,7 @@ import GuidedJourneysCard from "./GuidedJourneysCard";
 // segmented control. Both `work` and `mind` are always fully computed by the
 // caller (see status/buildStatusProps.js); switching tabs is a pure
 // conditional render, never a lazy/async fetch.
-export default function StatusPage({ work, mind, loading = false, health = null, onOpenHealthSettings = null, tasks = [], dailyMetrics = {}, journeys = [], onAskAtlas = null, onMindModeChange = null }) {
+export default function StatusPage({ work, mind, loading = false, health = null, healthSummary = null, onOpenHealthSettings = null, tasks = [], dailyMetrics = {}, journeys = [], onOpenInsights = null, onAskAtlas = null, onMindModeChange = null }) {
   const [tab, setTab] = useState("work");
   const active = tab === "mind" ? mind : work;
 
@@ -46,7 +47,10 @@ export default function StatusPage({ work, mind, loading = false, health = null,
   const showMetricsSkeleton = loading && safeMetrics.length === 0;
 
   return (
-    <div className={`status-page${tab === "mind" ? " status-mind-view atlas-mode" : ""}`}>
+    <div
+      className={`status-page native-ui${tab === "mind" ? " status-mind-view atlas-mode" : ""}`}
+      data-persona={tab === "mind" ? "atlas" : "nora"}
+    >
       <WorkMindToggle active={tab} onChange={setTab} />
 
       <AICoachCard
@@ -61,6 +65,15 @@ export default function StatusPage({ work, mind, loading = false, health = null,
         persona={active?.aiCoach?.persona}
         loading={loading || Boolean(active?.aiCoach?.loading)}
       />
+
+      {tab === "work" && (
+        <InsightEntryCard
+          metrics={dailyMetrics}
+          tasks={tasks}
+          healthSummary={healthSummary}
+          onOpen={onOpenInsights}
+        />
+      )}
 
       {tab === "mind" && <GuidedJourneysCard journeys={journeys} onAskAtlas={onAskAtlas} />}
 

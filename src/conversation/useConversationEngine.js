@@ -24,6 +24,7 @@ import {
   touchConversation, loadConversationMessages, appendConversationMessage,
 } from "../lib/noraApi";
 import { textPart, errorPart, partsToPreviewText } from "./messageParts";
+import { progressiveTextFrames } from "./conversationPresentation";
 
 const localId = () => `local-${Math.random().toString(36).slice(2)}`;
 
@@ -41,6 +42,7 @@ export function useConversationEngine({
   includeResearchTool = true,
   dispatchToolCall,
   onTurnStart,
+  finalizeTurn,
   maxIterations = 10,
 }) {
   const [conversations, setConversations] = useState([]);
@@ -104,12 +106,16 @@ export function useConversationEngine({
     };
     skipNextLoadRef.current = true;
     setConversations((prev) => sortConversations([conv, ...prev]));
+    activeIdRef.current = conv.id;
     setActiveId(conv.id);
     setMessages([]);
     return conv;
   }, [toolKey]);
 
-  const selectConversation = useCallback((id) => setActiveId(id), []);
+  const selectConversation = useCallback((id) => {
+    activeIdRef.current = id;
+    setActiveId(id);
+  }, []);
 
   const rename = useCallback(async (id, title) => {
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)));
@@ -202,7 +208,7 @@ export function useConversationEngine({
         .map((m) => ({ role: m.role, content: partsToPreviewText(m.parts) }));
 
       let apiMsgs = [
-        { role: "system", content: buildSystemPrompt() },
+        { role: "system", content: buildSystemPrompt(trimmed) },
         ...history,
         { role: "user", content: trimmed },
       ];
@@ -233,8 +239,41 @@ export function useConversationEngine({
         apiMsgs = [...apiMsgs, ...toolResults];
       }
 
-      const assistantParts = [...collectedParts, textPart(finalText || "Done!")];
-      setMessages((m) => [...m, { role: "assistant", parts: assistantParts }]);
+      let assistantParts = [...collectedParts, textPart(finalText || "Done!")];
+      if (finalizeTurn) {
+        assistantParts = await finalizeTurn({
+          userText: trimmed,
+          parts: assistantParts,
+          finalText,
+        }) ?? assistantParts;
+      }
+      const assistantMessageId = localId();
+      let textIndex = -1;
+      assistantParts.forEach((part, index) => { if (part.type === "text") textIndex = index; });
+      const streamText = textIndex >= 0 ? assistantParts[textIndex].text : "";
+      const frames = streamText.length >= 48 ? progressiveTextFrames(streamText) : [streamText];
+      if (frames.length > 1) {
+        const initialParts = assistantParts.map((part, index) =>
+          index === textIndex ? { ...part, text: frames[0], streaming: true } : part
+        );
+        setMessages((m) => [...m, { id: assistantMessageId, role: "assistant", parts: initialParts }]);
+        for (let frameIndex = 1; frameIndex < frames.length; frameIndex++) {
+          await new Promise((resolve) => setTimeout(resolve, 16));
+          const isLast = frameIndex === frames.length - 1;
+          setMessages((current) => current.map((message) =>
+            message.id !== assistantMessageId
+              ? message
+              : {
+                  ...message,
+                  parts: assistantParts.map((part, index) =>
+                    index === textIndex ? { ...part, text: frames[frameIndex], streaming: !isLast } : part
+                  ),
+                }
+          ));
+        }
+      } else {
+        setMessages((m) => [...m, { id: assistantMessageId, role: "assistant", parts: assistantParts }]);
+      }
       appendConversationMessage(conversationId, "assistant", assistantParts).catch(() => {});
       touchConversation(conversationId).catch(() => {});
       if (isFirstMessage) autoTitle(conversationId, trimmed);
@@ -245,11 +284,24 @@ export function useConversationEngine({
     } finally {
       setLoading(false);
     }
-  }, [loading, buildSystemPrompt, tools, includeResearchTool, dispatchToolCall, onTurnStart, maxIterations, newConversation, autoTitle]);
+  }, [loading, buildSystemPrompt, tools, includeResearchTool, dispatchToolCall, onTurnStart, finalizeTurn, maxIterations, newConversation, autoTitle]);
+
+  const sendToConversation = useCallback(async (conversationId, text) => {
+    if (!conversationId || conversationId === activeIdRef.current) return send(text);
+    skipNextLoadRef.current = true;
+    activeIdRef.current = conversationId;
+    setActiveId(conversationId);
+    setMessagesLoading(true);
+    const priorMessages = await loadConversationMessages(conversationId);
+    messagesRef.current = priorMessages;
+    setMessages(priorMessages);
+    setMessagesLoading(false);
+    return send(text);
+  }, [send]);
 
   return {
     conversations, conversationsLoading,
     activeId, messages, messagesLoading, loading,
-    newConversation, selectConversation, rename, pin, archive, remove, appendExchange, send,
+    newConversation, selectConversation, rename, pin, archive, remove, appendExchange, send, sendToConversation,
   };
 }

@@ -1,0 +1,39 @@
+.native-ui-reference {
+  min-height: 100dvh;
+  padding:
+    max(var(--native-space-6), var(--native-safe-top))
+    max(var(--native-space-4), var(--native-safe-right))
+    max(var(--native-space-8), var(--native-safe-bottom))
+    max(var(--native-space-4), var(--native-safe-left));
+  display: flex;
+  flex-direction: column;
+  gap: var(--native-space-6);
+  background: var(--native-canvas);
+  color: var(--native-label);
+}
+
+.native-ui-reference > * {
+  width: min(100%, var(--native-readable-max));
+  margin-inline: auto;
+}
+
+.native-ui-reference__hero {
+  display: flex;
+  align-items: center;
+  gap: var(--native-space-4);
+}
+
+.native-ui-reference__hero p {
+  margin: 0 0 3px;
+  color: var(--native-accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.native-ui-reference__hero h1 {
+  margin: 0;
+  font-size: clamp(var(--native-type-title-1), 5vw, var(--native-type-large-title));
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}

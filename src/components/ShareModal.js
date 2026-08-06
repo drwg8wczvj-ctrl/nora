@@ -4,7 +4,12 @@ import {
   Edit3, Eye, Clock, MessageSquare,
 } from "lucide-react";
 import AvatarDisplay from "./AvatarDisplay";
-import CloseButton from "./CloseButton";
+import {
+  NativeButton,
+  NativeDialog,
+  NativeIconButton,
+  NativeSegmentedControl,
+} from "./ui/NativeUI";
 import {
   createSharedObject, getCollaborators, addCollaboratorByUserId,
   removeCollaborator, updateCollaboratorRole, createInviteCode,
@@ -239,13 +244,24 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
   // Username setup screen
   if (settingUsername && !myProfile?.username) {
     return (
-      <div className="sm-overlay" onClick={onClose}>
-        <div className="sm-modal" onClick={e => e.stopPropagation()}>
-          <div className="sm-header">
-            <span className="sm-title">Choose a username</span>
-            <CloseButton onClick={onClose} size={26} />
-          </div>
-          <div className="sm-body">
+      <NativeDialog
+        onClose={onClose}
+        title="Choose a username"
+        subtitle="Your username lets teammates find and invite you."
+        className="sm-modal sm-username-dialog"
+        footer={(
+          <>
+            <NativeButton variant="tertiary" onClick={onClose}>Later</NativeButton>
+            <NativeButton
+              onClick={handleSaveUsername}
+              disabled={usernameInput.trim().length < 3}
+            >
+              Set username
+            </NativeButton>
+          </>
+        )}
+      >
+          <div className="sm-username-body">
             <p className="sm-username-intro">
               To share with teammates, set a username so others can find you.
             </p>
@@ -265,15 +281,7 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
               Lowercase letters, numbers, underscores. Min 3 chars.
             </div>
           </div>
-          <div className="sm-footer">
-            <button className="sm-btn-secondary" onClick={onClose}>Later</button>
-            <button className="sm-btn-primary" onClick={handleSaveUsername}
-              disabled={usernameInput.trim().length < 3}>
-              Set username
-            </button>
-          </div>
-        </div>
-      </div>
+      </NativeDialog>
     );
   }
 
@@ -281,29 +289,26 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
   const isOwner = myRole === "owner" || !currentSharedId;
 
   return (
-    <div className="sm-overlay" onClick={onClose}>
-      <div className="sm-modal" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="sm-header">
-          <div className="sm-header-info">
-            <UserPlus size={15} />
-            <span className="sm-title">Share &ldquo;{objectData?.title ?? objectData?.name ?? "this item"}&rdquo;</span>
-          </div>
-          <CloseButton onClick={onClose} size={26} />
-        </div>
-
+    <NativeDialog
+      onClose={onClose}
+      title={`Share “${objectData?.title ?? objectData?.name ?? "this item"}”`}
+      subtitle={myProfile?.username ? `Signed in as @${myProfile.username}` : "Invite people or create a join code."}
+      className="sm-modal"
+      contentClassName="sm-dialog-content"
+      footer={<NativeButton onClick={onClose}>Done</NativeButton>}
+    >
         {/* Tab bar */}
-        <div className="sm-tabs">
-          {[
-            ["invite", <UserPlus size={13} />, "People"],
-            ["activity", <Clock size={13} />, "Activity"],
-            ["comments", <MessageSquare size={13} />, `Comments${comments.length ? ` (${comments.length})` : ""}`],
-          ].map(([id, icon, label]) => (
-            <button key={id} className={`sm-tab${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>
-              {icon} {label}
-            </button>
-          ))}
-        </div>
+        <NativeSegmentedControl
+          className="sm-tabs"
+          label="Sharing view"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "invite", icon: <UserPlus size={14} />, label: "People" },
+            { value: "activity", icon: <Clock size={14} />, label: "Activity" },
+            { value: "comments", icon: <MessageSquare size={14} />, label: `Comments${comments.length ? ` (${comments.length})` : ""}` },
+          ]}
+        />
 
         <div className="sm-body">
 
@@ -415,10 +420,10 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
                             </span>
                           )}
                           {isOwner && !isThisOwner && (
-                            <button className="sm-remove-btn" title="Remove"
-                              onClick={() => handleRemove(c.user_id)}>
+                            <NativeIconButton className="sm-remove-btn" label={`Remove ${c.name}`}
+                              variant="plain" size="compact" onClick={() => handleRemove(c.user_id)}>
                               <X size={12} />
-                            </button>
+                            </NativeIconButton>
                           )}
                         </div>
                       </div>
@@ -474,9 +479,10 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
                           <span className="sm-comment-author">{c.authorName}</span>
                           <span className="sm-comment-time">{relativeTime(c.created_at)}</span>
                           {c.author_id === userId && (
-                            <button className="sm-del-comment" onClick={() => handleDeleteComment(c.id)}>
+                            <NativeIconButton className="sm-del-comment" label="Delete comment"
+                              variant="plain" size="compact" onClick={() => handleDeleteComment(c.id)}>
                               <Trash2 size={10} />
-                            </button>
+                            </NativeIconButton>
                           )}
                         </div>
                         <div className="sm-comment-content">{c.content}</div>
@@ -506,14 +512,6 @@ export default function ShareModal({ objectType, objectData, sharedObjectId, ses
           )}
         </div>
 
-        {/* Footer */}
-        <div className="sm-footer">
-          <span className="sm-my-username">
-            {myProfile?.username ? `Signed in as @${myProfile.username}` : ""}
-          </span>
-          <button className="sm-btn-primary" onClick={onClose}>Done</button>
-        </div>
-      </div>
-    </div>
+    </NativeDialog>
   );
 }

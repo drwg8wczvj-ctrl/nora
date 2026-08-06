@@ -1,0 +1,98 @@
+.conversation-message {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.conversation-message.user { align-items: flex-end; }
+.conversation-message.assistant { align-items: stretch; }
+.conversation-author {
+  margin: 0 0 6px 2px;
+  color: var(--native-label-secondary, var(--text-muted));
+  font-size: 11px;
+  font-weight: 620;
+}
+.conversation-message-content {
+  min-width: 0;
+  color: var(--native-label, var(--text));
+  font-size: 14px;
+  line-height: 1.62;
+}
+.conversation-message.user .conversation-message-content {
+  max-width: min(82%, 560px);
+  padding: 10px 14px;
+  border-radius: 18px 18px 5px 18px;
+  background: var(--native-accent, var(--accent));
+  color: var(--native-on-accent, #fff);
+}
+.conversation-message.assistant .conversation-message-content {
+  width: 100%;
+  padding: 0 2px;
+  background: transparent;
+}
+.conversation-message-actions {
+  min-height: 32px;
+  margin-top: 4px;
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity var(--native-duration-fast, .15s) var(--native-ease-out, ease);
+}
+.conversation-message.user .conversation-message-actions { justify-content: flex-end; }
+.conversation-message:hover .conversation-message-actions,
+.conversation-message:focus-within .conversation-message-actions { opacity: 1; }
+.conversation-message-actions button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--native-label-tertiary, var(--text-muted));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.conversation-message-actions button:hover {
+  background: var(--native-surface-raised, var(--surface-2));
+  color: var(--native-label, var(--text));
+}
+@media (hover: none) {
+  .conversation-message-actions { opacity: .68; }
+}
+.conversation-task-references {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
+.conversation-task-reference {
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid rgba(20, 184, 166, .35);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  background: rgba(20, 184, 166, .12);
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-task-reference > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: #14b8a6;
+}
+
+.dark .conversation-task-reference,
+.atlas-mode .conversation-task-reference {
+  color: #5eead4;
+}

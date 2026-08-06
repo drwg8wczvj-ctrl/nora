@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { Check, KeyRound } from "lucide-react";
-import CloseButton from "./CloseButton";
+import {
+  NativeAlert,
+  NativeButton,
+  NativeDialog,
+  NativeField,
+} from "./ui/NativeUI";
 import "./JoinCodeModal.css";
 
 export default function JoinCodeModal({ onClose, onJoin }) {
@@ -26,33 +31,56 @@ export default function JoinCodeModal({ onClose, onJoin }) {
   }
 
   return (
-    <div className="jcm-overlay" onClick={onClose}>
-      <div className="jcm-modal" onClick={event => event.stopPropagation()}>
-        <div className="jcm-header">
-          <div className="jcm-title"><KeyRound size={16} /> Join shared task</div>
-          <CloseButton onClick={onClose} size={26} />
+    <NativeDialog
+      onClose={onClose}
+      title="Join shared task"
+      subtitle="Use an invite code to add a shared item to your planner."
+      className="jcm-dialog"
+      footer={joinedTitle ? (
+        <NativeButton onClick={onClose}>Done</NativeButton>
+      ) : (
+        <>
+          <NativeButton variant="tertiary" onClick={onClose}>Cancel</NativeButton>
+          <NativeButton
+            type="submit"
+            form="join-code-form"
+            loading={loading}
+            disabled={!code.trim()}
+            leading={<KeyRound size={16} />}
+          >
+            Join task
+          </NativeButton>
+        </>
+      )}
+    >
+      {joinedTitle ? (
+        <div className="jcm-success" role="status">
+          <span className="jcm-success__icon"><Check size={24} /></span>
+          <strong>{joinedTitle}</strong>
+          <span>was added to your planner.</span>
         </div>
-        {joinedTitle ? (
-          <div className="jcm-body jcm-success" role="status">
-            <Check size={24} />
-            <strong>{joinedTitle}</strong>
-            <span>was added to your planner.</span>
-          </div>
-        ) : (
-          <form className="jcm-body" onSubmit={submit}>
-            <label className="jcm-label" htmlFor="join-code">Invite code</label>
-            <input id="join-code" className="jcm-input" value={code} autoFocus
-              onChange={event => setCode(event.target.value.toUpperCase())}
-              placeholder="Enter code" autoCapitalize="characters" autoComplete="off" />
-            <p className="jcm-hint">Enter the code sent by the task owner.</p>
-            {error && <p className="jcm-error" role="alert">{error}</p>}
-            <button className="jcm-submit" type="submit" disabled={!code.trim() || loading}>
-              {loading ? "Joining…" : "Join task"}
-            </button>
-          </form>
-        )}
-        {joinedTitle && <div className="jcm-footer"><button className="jcm-submit" onClick={onClose}>Done</button></div>}
-      </div>
-    </div>
+      ) : (
+        <form id="join-code-form" className="jcm-form" onSubmit={submit}>
+          <NativeField
+            id="join-code"
+            label="Invite code"
+            hint="Codes are not case-sensitive."
+            value={code}
+            autoFocus
+            onChange={event => setCode(event.target.value.toUpperCase())}
+            placeholder="ENTER CODE"
+            autoCapitalize="characters"
+            autoComplete="off"
+            leading={<KeyRound size={16} />}
+            className="jcm-code-field"
+          />
+          {error && (
+            <NativeAlert tone="danger" title="Couldn’t join this task">
+              {error}
+            </NativeAlert>
+          )}
+        </form>
+      )}
+    </NativeDialog>
   );
 }

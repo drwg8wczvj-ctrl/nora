@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { AtSign } from "lucide-react";
-import CloseButton from "./CloseButton";
+import { AtSign, X } from "lucide-react";
+import { NativeButton, NativeIconButton } from "./ui/NativeUI";
 import "./UsernameNudgeBanner.css";
 
 export default function UsernameNudgeBanner({ onSetUp, onLater }) {
@@ -14,7 +14,7 @@ export default function UsernameNudgeBanner({ onSetUp, onLater }) {
   if (!visible) return null;
 
   return (
-    <div className="unb-wrap" role="dialog" aria-label="Set up your username">
+    <div className="unb-wrap native-ui" role="dialog" aria-label="Set up your username">
       <div className="unb-icon-wrap">
         <AtSign size={20} className="unb-icon" />
       </div>
@@ -24,11 +24,13 @@ export default function UsernameNudgeBanner({ onSetUp, onLater }) {
           Choose a unique username so teammates can find you and share tasks with you.
         </div>
         <div className="unb-actions">
-          <button className="unb-setup" onClick={onSetUp}>Set up now</button>
-          <button className="unb-later" onClick={onLater}>Later</button>
+          <NativeButton size="compact" onClick={onSetUp}>Set up now</NativeButton>
+          <NativeButton size="compact" variant="tertiary" onClick={onLater}>Later</NativeButton>
         </div>
       </div>
-      <CloseButton onClick={onLater} size={26} />
+      <NativeIconButton label="Dismiss" size="compact" variant="plain" onClick={onLater}>
+        <X size={16} />
+      </NativeIconButton>
     </div>
   );
 }

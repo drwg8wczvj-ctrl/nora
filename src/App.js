@@ -9,14 +9,34 @@ import {
 } from "./lib/noraApi";
 import { useConversationEngine } from "./conversation/useConversationEngine";
 import { MessagePartsList } from "./conversation/MessagePart";
-import { textPart, fileAttachmentPart } from "./conversation/messageParts";
+import ConversationMessage from "./conversation/ConversationMessage";
+import {
+  textPart,
+  fileAttachmentPart,
+  assistantHandoffPart,
+  scheduleProposalPart,
+  atlasReturnPlanPart,
+  partsToPreviewText,
+} from "./conversation/messageParts";
 import { buildToolConfirmationPart } from "./conversation/toolConfirmation";
 import { generateFileBlob, sizeLabel } from "./conversation/fileGeneration";
 import ConversationSidebar from "./conversation/ConversationList";
+import {
+  AssistantChatComposer,
+  AssistantComposerMenu,
+  AssistantChatHeader,
+} from "./components/mobile/AssistantChatUI";
+import {
+  NativeButton,
+  NativeDialog,
+  NativeIconButton,
+  NativeSegmentedControl,
+  NativeSwitch,
+} from "./components/ui/NativeUI";
 import AuthScreen from "./AuthScreen";
 const MobileApp = lazy(() => import("./MobileApp"));
 import MorningCheckup, { computeReadiness } from "./MorningCheckup";
-const LongTermInsights = lazy(() => import("./LongTermInsights"));
+const NoraObservations = lazy(() => import("./NoraObservations"));
 const FocusSession = lazy(() => import("./FocusSession"));
 const Whiteboard = lazy(() => import("./Whiteboard"));
 import PWABanners from "./PWABanners";
@@ -33,6 +53,13 @@ import { apiFetch } from "./lib/apiBase";
 import { buildWellbeingStateBlock } from "./lib/wellbeingPromptBlock";
 import { createJourney, applyJourneyUpdate, applyMilestoneUpdate } from "./lib/journeys";
 import { CONVERSATION_STYLE_GUIDE } from "./lib/aiConversationStyle";
+import {
+  atlasHandoffToPrompt,
+  atlasPlanToNoraPrompt,
+  buildAtlasHandoffContext,
+  buildRoutingPromptHint,
+} from "./lib/assistantRouting";
+import { shouldPreviewPlannerOperations } from "./lib/plannerTransactions";
 import { DesktopAtlasChat } from "./aiHub/AtlasChat";
 import "./AtlasChat.css";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
@@ -52,20 +79,20 @@ import {
 } from "./lib/sharingApi";
 import {
   Plus, Check, ChevronLeft, ChevronRight, CalendarDays,
-  Clock, MessageSquare, X, Send, FileText, Trash2,
+  Clock, MessageSquare, X, FileText, Trash2,
   Menu, Settings, User, ChevronDown, RotateCcw, List, Layers,
   Flag, Coffee, Bell,
   Activity, Zap,
   ZoomIn, ZoomOut,
   Brain, Target,
-  Pencil, SkipForward, Sparkles, Sparkle,
+  Pencil, SkipForward,
   Share2, Users, Search, Filter, ArrowUpDown, KeyRound,
   MapPin, Navigation, Car, Bus, Bike, PersonStanding,
-  PanelLeft,
 } from "lucide-react";
 import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, fetchTravelMinutes, getModeLabel, findNearbyPlace } from "./location";
 import LocationField from "./components/LocationField";
 import SavedPlacesManager from "./components/SavedPlacesManager";
+import BrandStar, { BrandLockup } from "./components/BrandStar";
 import { extractJoinInviteCode } from "./utils/sharingIntent";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
@@ -88,7 +115,13 @@ import StatusPage from "./status/StatusPage";
 import { buildWorkMindProps } from "./status/buildStatusProps";
 import "./status/StatusPage.css";
 import LaunchSplash from "./LaunchSplash";
-import { buildLaunchGreeting, recordAppOpen } from "./statusEngine/launchGreeting";
+import {
+  buildLaunchGreeting,
+  getRecentLaunchGreetingTexts,
+  recordAppOpen,
+  storePreparedLaunchGreeting,
+  takePreparedLaunchGreeting,
+} from "./statusEngine/launchGreeting";
 import { useTaskDomain } from "./domain/tasks/useTaskDomain";
 import { isRepeatMatch } from "./domain/tasks/taskRecurrence";
 import { buildOccupiedBlocksContext } from "./domain/tasks/taskSelectors";
@@ -314,6 +347,27 @@ const GENERATE_FILE_TOOL = {
   },
 };
 
+const HANDOFF_TO_ATLAS_TOOL = {
+  type: "function",
+  function: {
+    name: "handoff_to_atlas",
+    description: "Offer a focused Atlas session when a request needs specialist coaching, training, learning, career development, reflection, or wellbeing support. Nora keeps ownership of scheduling. Call once per genuinely distinct specialist topic, never for ordinary calendar work.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short session title, e.g. 'ROK race preparation'." },
+        objective: { type: "string", description: "One sentence describing what the user should leave the Atlas session able to do." },
+        context: { type: "string", description: "Compact factual brief Atlas needs. Do not include the entire conversation." },
+        goals: { type: "array", items: { type: "string" }, description: "Up to six concrete outcomes or questions for Atlas." },
+        deadline: { type: "string", description: "Relevant YYYY-MM-DD date, when known." },
+        suggestedMinutes: { type: "number", description: "Suggested focused-session duration, normally 20-45 minutes." },
+        sessionType: { type: "string", enum: ["motorsport","career","communication","learning","wellbeing","general"], description: "The focused Atlas session template to use." },
+      },
+      required: ["title", "objective", "context"],
+    },
+  },
+};
+
 const AI_TOOLS = [
   {
     type: "function",
@@ -535,12 +589,12 @@ const AI_TOOLS = [
       },
     },
   },
+  HANDOFF_TO_ATLAS_TOOL,
   GENERATE_FILE_TOOL,
 ];
 
-// ── Atlas (Life Architect persona) tools — shares the task-mutation
-// schemas with Planner (no note/whiteboard/place tools; those stay
-// Planner-only) so Atlas can actually build/execute, not just signal. ──
+// ── Atlas (personal development persona) tools. Calendar mutation stays
+// exclusively with Nora; Atlas returns action plans through a typed handoff. ──
 const FLAG_WELLBEING_SIGNAL_TOOL = {
   type: "function",
   function: {
@@ -554,6 +608,38 @@ const FLAG_WELLBEING_SIGNAL_TOOL = {
         suggestedAction: { type: "string", enum: ["lighten_today", "add_recovery_block", "none"], description: "What Planner should consider doing." },
       },
       required: ["level", "note", "suggestedAction"],
+    },
+  },
+};
+const RETURN_PLAN_TO_NORA_TOOL = {
+  type: "function",
+  function: {
+    name: "return_plan_to_nora",
+    description: "Package the concrete actions produced in this Atlas session and offer to send them back to Nora for calendar placement. Use when the user has reached a useful action plan. Do not schedule the actions yourself.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short plan title." },
+        summary: { type: "string", description: "One sentence describing the outcome of the Atlas session." },
+        sourceConversationId: { type: "string", description: "The Return-to-Nora conversation id from the handoff, if one was provided." },
+        actionItems: {
+          type: "array",
+          minItems: 1,
+          maxItems: 8,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              duration: { type: "number", description: "Suggested minutes." },
+              notes: { type: "string", description: "What to do during the session and why it matters." },
+              preferredTiming: { type: "string", description: "Plain-language timing preference, e.g. 'before the race' or 'morning'." },
+              deadline: { type: "string", description: "YYYY-MM-DD when known." },
+            },
+            required: ["title", "duration", "notes"],
+          },
+        },
+      },
+      required: ["title", "summary", "actionItems"],
     },
   },
 };
@@ -630,15 +716,12 @@ const UPDATE_JOURNEY_MILESTONE_TOOL = {
   },
 };
 const ATLAS_TOOLS = [
-  AI_TOOLS.find((t) => t.function.name === "add_task"),
-  AI_TOOLS.find((t) => t.function.name === "move_task"),
-  AI_TOOLS.find((t) => t.function.name === "complete_task"),
-  AI_TOOLS.find((t) => t.function.name === "delete_task"),
   AI_TOOLS.find((t) => t.function.name === "save_insight"),
   FLAG_WELLBEING_SIGNAL_TOOL,
   CREATE_JOURNEY_TOOL,
   UPDATE_JOURNEY_TOOL,
   UPDATE_JOURNEY_MILESTONE_TOOL,
+  RETURN_PLAN_TO_NORA_TOOL,
   GENERATE_FILE_TOOL,
 ];
 
@@ -668,7 +751,7 @@ export default function App() {
   const [morningCheckup,      setMorningCheckup]      = useState(null);
   const [showMorningCheckup,  setShowMorningCheckup]  = useState(false);
   const [reviewCheckupMode,   setReviewCheckupMode]   = useState(false);
-  const [showLongTermInsights,setShowLongTermInsights] = useState(false);
+  const [showObservations, setShowObservations] = useState(false);
   const [dailyMetrics,        setDailyMetrics]         = useState(() => {
     try { return JSON.parse(localStorage.getItem("nora_daily_metrics") || "{}"); } catch { return {}; }
   });
@@ -878,7 +961,7 @@ export default function App() {
   // useConversationEngine (Supabase-backed, multi-conversation). These
   // greeting strings are purely cosmetic empty-state copy, never persisted.
   const NORA_GREETING = "Hi! I'm Nora, your productivity coach. I can manage your tasks, spot patterns in your schedule, and give you evidence-based advice to get more done. What are you working on today?";
-  const ATLAS_GREETING = "Hi, I'm Atlas. This is a space to think out loud — about stress, motivation, or whatever's on your mind. What's going on for you today?";
+  const ATLAS_GREETING = "Hi, I'm Atlas. We can train for an opportunity, improve a skill, practise a conversation, or work through something that's holding you back. What do you want to focus on?";
 
   const [userPrefs,   setUserPrefs]   = useState({});
   const chatEndRef   = useRef(null);
@@ -894,7 +977,7 @@ export default function App() {
   // purely so the app SHELL (header/nav/FAB, both desktop and mobile) can
   // react via the same .atlas-active class already used for Atlas Chat.
   const [statusMindActive, setStatusMindActive] = useState(false);
-  const atlasShellActive = atlasOpen || statusMindActive;
+  const atlasShellActive = atlasOpen || (statusMindActive && !chatOpen && !aiHubOpen);
   // Bridges a deep-link's destination view into MobileApp.js's own internal
   // `mobileView` state (App.js has no direct access to it) — set here, read
   // and cleared by MobileApp.js's own effect. No-op on desktop.
@@ -1209,12 +1292,76 @@ export default function App() {
     return true;
   });
   const [launchRevealing, setLaunchRevealing] = useState(false);
-  const [launchGreeting] = useState(() => buildLaunchGreeting({
+  const [previousLaunchAt] = useState(() => recordAppOpen());
+  const launchGreetingLockedRef = useRef(false);
+  const launchGreetingRequestRef = useRef(false);
+  const [launchGreeting, setLaunchGreeting] = useState(() => buildLaunchGreeting({
     hour: new Date().getHours(),
     name: accountName || session?.user?.user_metadata?.name || "",
     recoveryState, workloadForecast, dailyMetrics, today,
-    lastOpenedAt: recordAppOpen(),
+    lastOpenedAt: previousLaunchAt,
+    momentum, healthSummary, todaySleepQuality,
+    preparedGreeting: takePreparedLaunchGreeting(),
   }));
+
+  // Ask Nora for a freshly written welcome without ever holding up launch.
+  // If it arrives before the words appear it is used now; otherwise it is
+  // cached for the next cold launch. Only compact derived signals are sent.
+  useEffect(() => {
+    if (!showLaunchSplash || !session?.user?.id || launchGreetingRequestRef.current) return;
+    launchGreetingRequestRef.current = true;
+    const controller = new AbortController();
+    const now = Date.now();
+    const firstName = String(accountName || session.user.user_metadata?.name || "")
+      .trim().split(/\s+/)[0].slice(0, 28);
+    const hour = new Date(now).getHours();
+    const timeOfDay = hour < 5 ? "late night" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+    const sleepContext = todaySleepQuality === "good"
+      ? "the user reported good sleep"
+      : todaySleepQuality === "poor"
+        ? "the user reported poor sleep"
+        : healthSummary?.sleepLastNightMinutes != null
+          ? `${healthSummary.sleepLastNightMinutes} minutes last night`
+          : null;
+
+    apiFetch("/api/tips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        type: "launch_greeting",
+        context: {
+          firstName,
+          timeOfDay,
+          daysSinceLastOpen: previousLaunchAt != null
+            ? Math.max(0, Math.floor((now - previousLaunchAt) / 86400000))
+            : null,
+          workloadLevel: workloadForecast?.[0]?.level ?? null,
+          todayTaskCount: workloadForecast?.[0]?.load ?? 0,
+          momentumState: momentum?.state ?? null,
+          recoveryLevel: recoveryState?.level ?? null,
+          sleepContext,
+          recentGreetings: getRecentLaunchGreetingTexts(),
+        },
+      }),
+    })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Greeting unavailable")))
+      .then((generated) => {
+        if (!generated?.line1 || !generated?.line2) return;
+        if (!launchGreetingLockedRef.current) {
+          storePreparedLaunchGreeting(generated, now);
+          const prepared = takePreparedLaunchGreeting(now);
+          if (prepared) {
+            setLaunchGreeting(buildLaunchGreeting({ preparedGreeting: prepared, now }));
+          }
+        } else {
+          storePreparedLaunchGreeting(generated, now);
+        }
+      })
+      .catch(() => {/* The instant local greeting is already complete. */});
+
+    return () => controller.abort();
+  }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Push a widget-friendly snapshot to the iOS WidgetKit extension whenever
   // tasks, wellbeing dials, metrics, health, or journeys change. No-op on
@@ -1683,26 +1830,6 @@ export default function App() {
     });
   }, [doneToday, totalToday, todaySleepQuality, today, session, recoveryState]); // eslint-disable-line
 
-  // Liquid Glass pointer reactivity — tracks mouse to shift ambient light
-  useEffect(() => {
-    if (theme !== "liquid_glass") return;
-    const root = document.documentElement;
-    let raf;
-    const onMove = (e) => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        root.style.setProperty("--gl-x", `${e.clientX}px`);
-        root.style.setProperty("--gl-y", `${e.clientY}px`);
-        // Subtle orb parallax: shift orbs slightly toward cursor
-        const nx = (e.clientX / window.innerWidth  - 0.5) * 24;
-        const ny = (e.clientY / window.innerHeight - 0.5) * 16;
-        root.style.setProperty("--gl-px", `${nx}px`);
-        root.style.setProperty("--gl-py", `${ny}px`);
-      });
-    };
-    window.addEventListener("mousemove", onMove, { passive: true });
-    return () => { window.removeEventListener("mousemove", onMove); cancelAnimationFrame(raf); };
-  }, [theme]);
   useEffect(() => {
     const el = chatInputRef.current;
     if (!el) return;
@@ -2117,7 +2244,7 @@ export default function App() {
     if (filterGroup === id) setFilterGroup(null);
   };
 
-  const buildPlannerSystem = () => {
+  const buildPlannerSystem = (incomingText = "") => {
     const healthPromptBlock = buildHealthPromptContext(health, { tasks, dailyMetrics });
     const taskLines = tasks.length
       ? tasks.map((t) => {
@@ -2290,6 +2417,38 @@ Atlas (the user's wellbeing companion) flagged today: "${wellbeingSignal.note}" 
     return `You are NORA — a calm, intelligent planning butler. Today is ${today} (${todayDayName}).
 You know this person's schedule and genuinely care about how they're doing. Be direct, warm, brief.
 Never start with "Certainly!", "Absolutely!", "Of course!", or "Great question!". Use contractions. Refer to tasks by name.
+
+━━━ NORA / ATLAS RESPONSIBILITY BOUNDARY ━━━━━━━━━━━━━
+
+Nora owns the structure of the user's life: priorities, dependencies, calendar placement, workload, deadlines, task breakdown, rescheduling, and follow-through.
+Atlas owns specialist personal development: coaching, training, learning how to perform a role, career development, motorsport/driver coaching, communication practice, reflection, motivation, and deeper wellbeing conversations.
+
+Nora owns WHEN. Atlas owns HOW.
+
+When a request mixes both:
+1. Nora identifies the dependencies and calendar implications.
+2. Nora does not give the specialist lesson or coaching herself.
+3. Nora calls handoff_to_atlas with a compact, useful brief.
+4. Nora may schedule a generic preparation/session block only when the user has asked for scheduling; Atlas defines the training content.
+
+Never route ordinary scheduling to Atlas. Never answer detailed motorsport, karting, driver-coaching, specialist career-training, or personal-development questions as Nora.
+Do not say only "ask Atlas" in prose when a real handoff is useful — create the handoff card.
+
+${buildRoutingPromptHint(incomingText)}
+
+For large, information-heavy requests, use progressive disclosure:
+• Lead with the single most important dependency or judgment.
+• Show at most 3–5 priority lines in chat.
+• Do not paste a full day-by-day timetable as prose; Phase 2 will provide the approval Planboard. Until then, give a compact proposed structure and ask before creating a large multi-day plan.
+• Put specialist topics into Atlas handoff cards instead of adding another advice section.
+• Never repeat information already visible in a task card, confirmation, or handoff card.
+
+Task tools now run transactionally:
+• One ordinary task change is committed immediately and receives an Undo action.
+• Two or more task changes, or any full/multi-day planning request, become a proposal card. They are NOT committed until the user presses Apply plan.
+• For a proposal, say "I've prepared a proposed plan" — never "done", "scheduled", "added", or anything implying it is already live.
+• Do not ask for confirmation in prose after creating the proposal; the proposal card contains Apply, Adjust, and Not now.
+• A message beginning "[Atlas returned an action plan:" is an approved cross-assistant handoff. Convert its action items into realistically placed add_task calls now, preserving Atlas's notes and durations. The resulting changes must appear in the proposal Planboard.
 
 ━━━ BREVITY — READ THIS FIRST ━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2782,11 +2941,8 @@ Everything else → as short as possible. If nothing notable to add, don't add i
   };
 
   // ── Atlas — Nora's cognitive partner / strategist / execution coach ──
-  // Schedule-aware and tool-executing: real task tools plus Guided Journeys
-  // (src/lib/journeys.js) for goals that span many conversations. Still
-  // deliberately lighter than buildPlannerSystem on raw schedule mechanics
-  // (no full task dump, no cascade-reschedule engine) — what it adds instead
-  // is the reasoning arc, research/personalization, and long-term tracking.
+  // Schedule-aware but not calendar-mutating: Atlas uses Guided Journeys for
+  // long-term development and returns concrete action plans to Nora.
   const buildAtlasSystem = () => {
     const healthPromptBlock = buildHealthPromptContext(health, { tasks, dailyMetrics });
     const todayDayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date(today + "T00:00:00").getDay()];
@@ -2813,9 +2969,17 @@ Everything else → as short as possible. If nothing notable to add, don't add i
         }).join("\n")
       : null;
 
-    return `You are ATLAS — Nora's cognitive partner: part psychologist, part strategist, part execution coach. Today is ${today} (${todayDayName}), current time ${currentTimeStr}.
+    return `You are ATLAS — Nora's personal training and development partner: part strategist, coach, teacher, and reflective guide. Today is ${today} (${todayDayName}), current time ${currentTimeStr}.
 
-You are not a chatbot that answers a question and waits for the next one. Your purpose is helping the user accomplish things that actually matter to them. Every conversation should move them somewhere real: a clearer understanding at minimum, ideally a decision, ideally something concretely built into their actual schedule. Psychology, research, planning, and execution are not separate modes — blend whatever the moment needs. You are not a therapist and you never diagnose (see BOUNDARIES below).
+You are not a chatbot that answers a question and waits for the next one. Your purpose is to help the user become more capable in a specific area: learn, practise, prepare, reflect, and improve. This includes career development, motorsport and driver coaching, communication, interviews, study methods, confidence, motivation, and wellbeing. You are not a therapist and you never diagnose (see BOUNDARIES below).
+
+Nora owns the calendar, workload, deadlines, and final placement of tasks. You own the content and method of development — HOW, not WHEN. You may suggest the amount and sequence of practice required, but for multi-day scheduling return the actionable training plan to Nora rather than taking over her planning role.
+
+When a message begins with "[Nora handoff:", treat the included brief as trusted conversation context. Acknowledge it in one short sentence, do not repeat it, and ask the single most useful first question.
+
+Progressive disclosure is mandatory. Start with one useful observation or question. Give no more than 3–5 items at once, then continue through dialogue. A focused training session should feel interactive, not like a handbook pasted into chat. When a detailed reference is genuinely useful, generate a file instead of producing a wall of text.
+
+When the focused session reaches concrete next actions, call return_plan_to_nora. Package only actions that genuinely need time or follow-through. Do not add or move calendar tasks yourself. The return card is the user's explicit bridge back to Nora.
 
 ━━━ HOW A CONVERSATION MOVES ━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2828,7 +2992,7 @@ Not every message needs all nine — "move this to 3pm" only needs Understand an
 3. EXPLAIN — What does this actually look like day to day? What do people usually get wrong, and why? Set realistic expectations so an early setback doesn't feel like failure.
 4. DISCUSS — A conversation, not a lecture. Check what resonates, what worries them, what they'd change — adjust before you plan.
 5. PLAN — A small number of concrete milestones, in plain sentences, not a bullet-point wall. Honest effort/duration estimates. Ask if they want it built in — unless they already asked you to build it, in which case that request IS the confirmation.
-6. EXECUTE — Real tasks, routines, reminders via your tools. One tool call per calendar item, never bundled. Never claim something happened unless you actually called the tool. Never schedule at or before ${currentTimeStr} today, never over an existing commitment — check SCHEDULE & PATTERN CONTEXT below.
+6. EXECUTE — Turn the work into a small, concrete action plan. Use return_plan_to_nora when those actions need calendar time. Nora will find safe placements and show the approval Planboard. Never claim something was scheduled from Atlas.
 7. FOLLOW-UP — Save what's durable before the thread moves on: save_insight for a goal/preference/pattern worth remembering; create_journey when this deserves ongoing tracking across future conversations.
 8. REFLECT — When they check back in, look first at what actually happened — completed tasks, journey progress, health/recovery signals below — before asking how it went. You usually already know.
 9. IMPROVE — Adjust based on what's real: missed sessions, low motivation, a plan that turned out too ambitious. Adapting the plan is progress, not failure — frame it that way.
@@ -2901,8 +3065,7 @@ ${priorInsights.join("\n")}` : ""}
 
 ━━━ TOOLS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-add_task — create one calendar item per call (task/deadline/break). For a routine or plan, call it once per session/day — never bundle a routine into one call.
-move_task / complete_task / delete_task — real changes to existing tasks; use them, don't just describe the change.
+return_plan_to_nora — package 1–8 concrete actions from this session and offer them back to Nora for scheduling. Use the source conversation id from Nora's handoff when available.
 create_journey — start a persistent Guided Journey once Understand/Research/Plan have actually happened for a meaningful goal. See MEANINGFUL GOALS above.
 update_journey / update_journey_milestone — keep an existing Journey current as it evolves. Check ACTIVE GUIDED JOURNEYS above before ever creating a new one.
 generate_file — produce a real downloadable document (a program, a study plan, a reading list) when that's genuinely more useful than chat text. If it belongs to a Journey, remember it via update_journey's addResource.
@@ -2937,8 +3100,20 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
   // against the task it just created); onTurnStart resets it to the latest
   // committed `tasks` before each new send().
   const plannerWorkingTasksRef = useRef(tasks);
+  const plannerOperationsRef = useRef([]);
+  const plannerUndoRef = useRef(new Map());
   const dispatchPlannerToolCall = async (tc) => {
     const input = JSON.parse(tc.function.arguments);
+    if (tc.function.name === "handoff_to_atlas") {
+      const handoff = buildAtlasHandoffContext({
+        ...input,
+        sourceConversationId: plannerEngine.activeId,
+      });
+      return {
+        resultText: `Atlas handoff prepared: "${handoff.title}". The user can open it from the handoff card.`,
+        parts: [assistantHandoffPart(handoff)],
+      };
+    }
     if (tc.function.name === "generate_file") return dispatchGenerateFile(input);
     if (tc.function.name === "save_insight") {
       const { key, value, note } = input;
@@ -3062,11 +3237,45 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
     }
     // Task tools — same pure executeAiTool dispatcher Atlas also uses,
     // threaded across however many task calls land within this one turn.
-    const { result, nextTasks } = executeTaskTool(tc.function.name, input, plannerWorkingTasksRef.current);
+    const tasksBefore = plannerWorkingTasksRef.current;
+    const { result, nextTasks } = executeTaskTool(tc.function.name, input, tasksBefore);
     plannerWorkingTasksRef.current = nextTasks;
-    setTasks(nextTasks);
-    const part = buildToolConfirmationPart(tc.function.name, input, nextTasks);
-    return { resultText: result, parts: part ? [part] : [] };
+    if (nextTasks === tasksBefore) {
+      return { resultText: `Operation was not proposed: ${result}` };
+    }
+    const affectedTask = input.taskId ? tasksBefore.find((task) => task.id === input.taskId) : null;
+    const label = tc.function.name === "add_task"
+      ? `Add “${input.title}”`
+      : tc.function.name === "move_task"
+        ? `Move “${affectedTask?.title ?? "task"}”`
+        : tc.function.name === "complete_task"
+          ? `Complete “${affectedTask?.title ?? "task"}”`
+          : tc.function.name === "delete_task"
+            ? `Delete “${affectedTask?.title ?? "task"}”`
+            : "Update task";
+    plannerOperationsRef.current.push({ name: tc.function.name, input, label });
+    return { resultText: `Proposed operation validated but not yet committed: ${result}` };
+  };
+
+  const finalizePlannerTurn = async ({ userText, parts }) => {
+    const operations = plannerOperationsRef.current;
+    if (!operations.length) return parts;
+
+    if (shouldPreviewPlannerOperations(userText, operations)) {
+      return [...parts, scheduleProposalPart({
+        id: `proposal-${Date.now()}-${uid()}`,
+        createdAt: Date.now(),
+        userRequest: userText,
+        operations,
+      })];
+    }
+
+    const undoToken = `undo-${Date.now()}-${uid()}`;
+    plannerUndoRef.current.set(undoToken, tasks);
+    setTasks(plannerWorkingTasksRef.current);
+    const operation = operations[0];
+    const confirmation = buildToolConfirmationPart(operation.name, operation.input, plannerWorkingTasksRef.current);
+    return confirmation ? [...parts, { ...confirmation, undoToken }] : parts;
   };
 
   const plannerEngine = useConversationEngine({
@@ -3075,7 +3284,11 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
     buildSystemPrompt: buildPlannerSystem,
     tools: AI_TOOLS,
     dispatchToolCall: dispatchPlannerToolCall,
-    onTurnStart: () => { plannerWorkingTasksRef.current = tasks; },
+    onTurnStart: () => {
+      plannerWorkingTasksRef.current = tasks;
+      plannerOperationsRef.current = [];
+    },
+    finalizeTurn: finalizePlannerTurn,
   });
   const { messages, loading: chatLoading } = plannerEngine;
   useEffect(() => {
@@ -3105,6 +3318,18 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
     plannerEngine.send(text);
   };
 
+  const editPlannerMessage = (message) => {
+    setChatInput(partsToPreviewText(message?.parts));
+    requestAnimationFrame(() => chatInputRef.current?.focus());
+  };
+
+  const retryPlannerMessage = (message) => {
+    const index = messages.indexOf(message);
+    const userMessage = index > 0 ? [...messages.slice(0, index)].reverse().find((item) => item.role === "user") : null;
+    const text = partsToPreviewText(userMessage?.parts);
+    if (text) plannerEngine.send(text);
+  };
+
   // Atlas's own tool dispatcher — deliberately separate from Planner's:
   // Atlas never receives the note/whiteboard/place schemas Planner has
   // (ATLAS_TOOLS never includes those), so merging the two would add
@@ -3113,6 +3338,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
   // workingTasksRef-threaded pattern. Posts includeResearchTool:false so
   // Atlas never gets silent access to Planner's productivity-technique KB.
   const atlasWorkingTasksRef = useRef(tasks);
+  const activeAtlasHandoffRef = useRef(null);
   // Same workingRef-threaded pattern as tasks — lets create_journey followed
   // by update_journey_milestone in the same turn (e.g. pre-marking a
   // milestone the user already mentioned finishing) see the journey it just
@@ -3120,6 +3346,25 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
   const atlasWorkingJourneysRef = useRef(journeys);
   const dispatchAtlasToolCall = async (tc) => {
     const input = JSON.parse(tc.function.arguments);
+    if (tc.function.name === "return_plan_to_nora") {
+      const plan = {
+        id: `atlas-plan-${Date.now()}-${uid()}`,
+        title: input.title,
+        summary: input.summary,
+        sourceConversationId: input.sourceConversationId || activeAtlasHandoffRef.current?.sourceConversationId || null,
+        actionItems: (input.actionItems ?? []).slice(0, 8).map((item) => ({
+          title: String(item.title ?? "").trim(),
+          duration: Math.max(10, Math.min(Number(item.duration) || 30, 240)),
+          notes: String(item.notes ?? "").trim(),
+          preferredTiming: item.preferredTiming ? String(item.preferredTiming) : null,
+          deadline: item.deadline || null,
+        })).filter((item) => item.title),
+      };
+      return {
+        resultText: `Action plan "${plan.title}" is ready to return to Nora with ${plan.actionItems.length} item(s).`,
+        parts: [atlasReturnPlanPart(plan)],
+      };
+    }
     if (tc.function.name === "generate_file") return dispatchGenerateFile(input);
     if (tc.function.name === "save_insight") {
       const { key, value, note } = input;
@@ -3193,6 +3438,63 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
     atlasEngine.send(text);
   };
 
+  const editAtlasMessage = (message) => setAtlasChatInput(partsToPreviewText(message?.parts));
+  const retryAtlasMessage = (message) => {
+    const index = atlasMessages.indexOf(message);
+    const userMessage = index > 0 ? [...atlasMessages.slice(0, index)].reverse().find((item) => item.role === "user") : null;
+    const text = partsToPreviewText(userMessage?.parts);
+    if (text) atlasEngine.send(text);
+  };
+
+  const openAtlasHandoff = async (handoff) => {
+    if (!handoff) return;
+    activeAtlasHandoffRef.current = handoff;
+    setChatOpen(false);
+    setAiHubOpen(false);
+    await atlasEngine.newConversation();
+    setAtlasOpen(true);
+    atlasEngine.send(atlasHandoffToPrompt(handoff));
+  };
+
+  const openNoraReturnPlan = async (plan) => {
+    if (!plan?.actionItems?.length) return false;
+    setAtlasOpen(false);
+    setAiHubOpen(false);
+    setChatOpen(true);
+    await plannerEngine.sendToConversation(
+      plan.sourceConversationId,
+      atlasPlanToNoraPrompt(plan),
+    );
+    return true;
+  };
+
+  const handlePlannerAction = async (action, payload) => {
+    if (action === "apply") {
+      let nextTasks = tasks;
+      for (const operation of payload?.operations ?? []) {
+        nextTasks = executeTaskTool(operation.name, operation.input, nextTasks).nextTasks;
+      }
+      const undoToken = `undo-${Date.now()}-${uid()}`;
+      plannerUndoRef.current.set(undoToken, tasks);
+      setTasks(nextTasks);
+      return true;
+    }
+    if (action === "undo") {
+      const previousTasks = plannerUndoRef.current.get(payload?.undoToken);
+      if (!previousTasks) return false;
+      setTasks(previousTasks);
+      plannerUndoRef.current.delete(payload.undoToken);
+      return true;
+    }
+    if (action === "adjust") {
+      setChatOpen(true);
+      setChatInput(`Adjust this proposed plan: ${payload?.userRequest ?? ""}\n\nChange: `);
+      requestAnimationFrame(() => chatInputRef.current?.focus());
+      return true;
+    }
+    return true;
+  };
+
   // ── New item helper ────────────────────────────────────
   const startNewItem = (type, slot = null) => {
     const isSlot = slot && typeof slot === "object";
@@ -3247,12 +3549,9 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
 
   // ── Landing page ──────────────────────────────────────
   if (showLanding) return (
-    <div className={`app landing-page${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
+    <div className={`app landing-page native-ui${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}`}>
       <div className="landing-content">
-        <img
-          src={dark ? "/logo-dark.png" : "/logo-light.png"}
-          className="landing-hero-logo"
-          alt="Nora" />
+        <BrandLockup size={56} tone="white" className="landing-hero-logo" />
         <p className="landing-tagline">Your intelligent personal planner</p>
         <ul className="landing-features">
           <li><Check size={14} /> Timeline planner with drag &amp; drop</li>
@@ -3284,6 +3583,9 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       setDark, theme, setTheme, isOnline,
       chatOpen, setChatOpen, aiHubOpen, setAiHubOpen, messengerOpen, setMessengerOpen,
       chatInput, setChatInput, chatLoading, messages, sendChat, noraGreeting: NORA_GREETING,
+      editPlannerMessage, retryPlannerMessage,
+      onOpenAtlasHandoff: openAtlasHandoff,
+      onPlannerAction: handlePlannerAction,
       plannerConversations: plannerEngine.conversations,
       plannerActiveConversationId: plannerEngine.activeId,
       plannerConversationsLoading: plannerEngine.conversationsLoading,
@@ -3295,6 +3597,8 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       onDeletePlannerConversation: plannerEngine.remove,
       atlasOpen, setAtlasOpen, atlasShellActive, setStatusMindActive, atlasMessages, atlasChatInput, setAtlasChatInput,
       atlasChatLoading, sendAtlasChat, sendAtlasMessage: atlasEngine.send,
+      editAtlasMessage, retryAtlasMessage,
+      onOpenNoraReturnPlan: openNoraReturnPlan,
       assistantSettings, updateAssistantSettings, visibleAiTools,
       atlasGreeting: ATLAS_GREETING,
       atlasConversations: atlasEngine.conversations,
@@ -3325,7 +3629,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       morningCheckup, showMorningCheckup, setShowMorningCheckup, handleCheckupComplete,
       pendingMobileView, setPendingMobileView,
       reviewCheckupMode, setReviewCheckupMode,
-      showLongTermInsights, setShowLongTermInsights, dailyMetrics,
+      showObservations, setShowObservations, dailyMetrics,
       sleepState, todaySleepQuality, setSleepQuality,
       focus, setFocus, motivation, setMotivation,
       userConfidence, assessmentSummary, keySignals,
@@ -3364,9 +3668,9 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       showLaunchSplash,
       launchRevealing,
     };
-    // display:contents makes this div invisible to layout but gives the overlays
-    // a .dark/.glass ancestor so intelligence.css glass rules match on mobile.
-    const themeClass = [dark ? "dark" : "", theme === "liquid_glass" ? "glass" : ""].filter(Boolean).join(" ");
+    // Mobile now has one black native appearance. Keep sibling overlays in the
+    // same dark environment while their internals migrate in later phases.
+    const themeClass = "dark";
     return (
       <div className={themeClass || undefined} style={{ display: "contents" }}>
         <Suspense fallback={<AppLoadingScreen />}>
@@ -3377,6 +3681,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
             dark={dark}
             glass={theme === "liquid_glass"}
             greeting={launchGreeting}
+            onGreetingShown={() => { launchGreetingLockedRef.current = true; }}
             onReveal={() => setLaunchRevealing(true)}
             onComplete={() => { setShowLaunchSplash(false); setLaunchRevealing(false); }}
           />
@@ -3429,6 +3734,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
           dark={dark}
           glass={theme === "liquid_glass"}
           greeting={launchGreeting}
+          onGreetingShown={() => { launchGreetingLockedRef.current = true; }}
           onReveal={() => setLaunchRevealing(true)}
           onComplete={() => { setShowLaunchSplash(false); setLaunchRevealing(false); }}
         />
@@ -3442,16 +3748,21 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
 
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
-      <aside className={`sidebar${sidebarOpen ? " open" : ""}`}>
+      <aside className={`sidebar native-ui${sidebarOpen ? " open" : ""}`}>
         <div className="sidebar-atlas-glow" aria-hidden="true" />
         <div className="sidebar-top">
           <div className="sidebar-brand">
-            <img
-              src={dark ? "/logo-dark.png" : "/logo-light.png"}
-              className="sidebar-brand-logo"
-              alt="Nora" />
+            <BrandStar size={28} tone="white" />
+            <span className="sidebar-brand-wordmark">NORA</span>
           </div>
-          <button className="sidebar-close" onClick={() => setSidebarOpen(false)}><X size={18} /></button>
+          <NativeIconButton
+            className="sidebar-close"
+            label="Close navigation"
+            size="compact"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X size={18} />
+          </NativeIconButton>
         </div>
 
         <nav className="sidebar-nav">
@@ -3476,30 +3787,49 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
             <div className="sacc-body">
               <div className="sett-row">
                 <span className="sett-label">{t("settings.darkMode")}</span>
-                <button className={`theme-toggle${dark ? " on" : ""}`} onClick={() => setDark((d) => !d)} />
+                <NativeSwitch
+                  checked={dark}
+                  label={t("settings.darkMode")}
+                  onChange={setDark}
+                />
               </div>
               <div className="sett-row">
                 <span className="sett-label">{t("settings.twoAssistantMode")}</span>
-                <button className={`theme-toggle${assistantSettings.twoAssistantMode ? " on" : ""}`}
-                  onClick={() => updateAssistantSettings({ twoAssistantMode: !assistantSettings.twoAssistantMode })} />
+                <NativeSwitch
+                  checked={assistantSettings.twoAssistantMode}
+                  label={t("settings.twoAssistantMode")}
+                  onChange={(enabled) => updateAssistantSettings({ twoAssistantMode: enabled })}
+                />
               </div>
               {assistantSettings.twoAssistantMode && (
                 <p className="sett-field-hint">{t("settings.twoAssistantModeDesc")}</p>
               )}
               <div className="sett-field">
                 <label className="sett-field-lbl">{t("settings.appearance")}</label>
-                <div className="theme-pill-group">
-                  <button className={`theme-pill${theme === "default" ? " active" : ""}`} onClick={() => setTheme("default")}>{t("settings.default")}</button>
-                  <button className={`theme-pill${theme === "liquid_glass" ? " active" : ""}`} onClick={() => setTheme("liquid_glass")}>{t("settings.liquidGlass")}</button>
-                </div>
+                <NativeSegmentedControl
+                  className="theme-pill-group"
+                  label={t("settings.appearance")}
+                  value={theme}
+                  onChange={setTheme}
+                  options={[
+                    { value: "default", label: t("settings.default") },
+                    { value: "liquid_glass", label: t("settings.liquidGlass") },
+                  ]}
+                />
               </div>
               <div className="sett-field">
                 <label className="sett-field-lbl">{t("settings.language")}</label>
-                <div className="theme-pill-group">
-                  <button className={`theme-pill${i18n.resolvedLanguage === "en" ? " active" : ""}`} onClick={() => i18n.changeLanguage("en")}>🇬🇧 EN</button>
-                  <button className={`theme-pill${i18n.resolvedLanguage === "de" ? " active" : ""}`} onClick={() => i18n.changeLanguage("de")}>🇩🇪 DE</button>
-                  <button className={`theme-pill${i18n.resolvedLanguage === "ru" ? " active" : ""}`} onClick={() => i18n.changeLanguage("ru")}>🇷🇺 RU</button>
-                </div>
+                <NativeSegmentedControl
+                  className="theme-pill-group"
+                  label={t("settings.language")}
+                  value={i18n.resolvedLanguage}
+                  onChange={(language) => i18n.changeLanguage(language)}
+                  options={[
+                    { value: "en", label: "EN" },
+                    { value: "de", label: "DE" },
+                    { value: "ru", label: "RU" },
+                  ]}
+                />
               </div>
               <div className="sett-row">
                 <span className="sett-label">{t("settings.notifications")}</span>
@@ -3596,7 +3926,12 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
               className="brand-logo-btn"
               onClick={() => { setSelectedDate(todayStr()); navigateTo("day"); }}
               aria-label="Go to today">
-              <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="brand-logo" alt="Nora" />
+              <BrandLockup
+                size={30}
+                tone={dark ? "white" : "black"}
+                className="brand-logo"
+                markOnly
+              />
             </button>
           </div>
           <div className="header-right">
@@ -3610,7 +3945,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
             <div className="ai-focus-panel">
               <div className="ai-focus-top">
                 <span className="context-badge" style={{ background: `${contextMode.color}1a`, color: contextMode.color, borderColor: `${contextMode.color}40` }}>
-                  <Sparkles size={11} /> {contextMode.label}
+                  <BrandStar size={11} tone="current" /> {contextMode.label}
                 </span>
                 {totalToday > 0 && (
                   <span className="ai-done-count">{doneToday}/{totalToday} done</span>
@@ -3658,7 +3993,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
                     : "What should I focus on right now?");
                   setChatOpen(true);
                 }}>
-                  <Sparkles size={12} /> {totalToday === 0 ? "Plan my day" : "What's next?"}
+                  <BrandStar size={12} tone="current" /> {totalToday === 0 ? "Plan my day" : "What's next?"}
                 </button>
               </div>
             </div>
@@ -3753,14 +4088,14 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
 
                 if (filteredTodayTasks.length === 0) return (
                   <div className="smart-empty">
-                    <Sparkles size={32} style={{ opacity: .2 }} />
+                    <BrandStar size={32} tone="current" style={{ opacity: .2 }} />
                     <p>Nothing scheduled yet.</p>
                     <div className="smart-empty-actions">
                       <button className="smart-empty-btn" onClick={() => {
                         setChatInput("Plan my day for today based on my energy and current workload.");
                         setChatOpen(true);
                       }}>
-                        <Sparkles size={14} /> Plan my day with Nora
+                        <BrandStar size={14} tone="current" /> Plan my day with Nora
                       </button>
                       <button className="smart-empty-add" onClick={() => { setAddingAt("unscheduled"); setAddingTitle(""); }}>
                         <Plus size={14} /> Add task
@@ -3886,7 +4221,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
           {/* Floating nudge bar */}
           {view === "day" && aiFocus.nudge && !nudgeDismissed && (
             <div className="ai-nudge-bar">
-              <Sparkles size={14} className="nudge-icon" />
+              <BrandStar size={14} tone="current" className="nudge-icon" />
               <span className="nudge-text">{aiFocus.nudge}</span>
               <div className="nudge-actions">
                 <button className="nudge-cta" onClick={() => {
@@ -4299,11 +4634,13 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
               { energy, relaxation, focus, motivation, todaySleepQuality, morningCheckup, dailyMetrics },
               {
                 setChatInput, setChatOpen, setAtlasOpen, setRescheduleTask,
-                setShowMorningCheckup, setReviewCheckupMode, setShowLongTermInsights,
+                setShowMorningCheckup, setReviewCheckupMode,
                 setEnergy, setRelaxation, setFocus, setMotivation, setSleepQuality,
               }
-            )} health={health} onOpenHealthSettings={() => { setSidebarOpen(true); setActiveSettings("program"); }}
-              tasks={tasks} dailyMetrics={dailyMetrics} journeys={journeys}
+            )} health={health}
+              onOpenHealthSettings={() => { setSidebarOpen(true); setActiveSettings("program"); }}
+              tasks={tasks} dailyMetrics={dailyMetrics} healthSummary={healthSummary} journeys={journeys}
+              onOpenInsights={() => setShowObservations(true)}
               onAskAtlas={(message) => { setAtlasChatInput(message); setAtlasOpen(true); }}
               onMindModeChange={setStatusMindActive} />
           )}
@@ -4539,7 +4876,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
         <footer className="app-footer">
           <div className="footer-inner">
             <div className="footer-brand">
-              <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="footer-logo" alt="Nora" />
+              <BrandLockup size={24} tone={dark ? "white" : "black"} className="footer-logo" />
               <span className="footer-tagline">More than just a planner</span>
             </div>
             {/* ── Social / info links — add links here later ── */}
@@ -4582,10 +4919,10 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
           }
         }}
       >
-        {(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? <X size={22} /> : <Sparkle size={24} strokeWidth={0} fill="currentColor" />}
+        {(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? <X size={22} /> : <BrandStar size={24} tone="white" />}
       </button>
 
-      <div className={`chat-panel${chatOpen ? " open" : ""}`}>
+      <div className={`chat-panel native-ui${chatOpen ? " open" : ""}`}>
         <ConversationSidebar
           open={chatSidebarOpen}
           onClose={() => setChatSidebarOpen(false)}
@@ -4599,14 +4936,12 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
           onArchive={plannerEngine.archive}
           onDelete={plannerEngine.remove}
         />
-        <div className="chat-header">
-          <div className="chat-header-info">
-            <button className="chat-close" onClick={() => setChatSidebarOpen((v) => !v)} title="Conversations"><PanelLeft size={16} /></button>
-            <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="chat-avatar-logo" alt="Nora" />
-            <div><div className="chat-title">Nora</div><div className="chat-subtitle">Your productivity coach</div></div>
-          </div>
-          <button className="chat-close" onClick={() => setChatOpen(false)}><X size={16} /></button>
-        </div>
+        <AssistantChatHeader
+          title="Nora"
+          subtitle="Planning and execution"
+          onHistory={() => setChatSidebarOpen((visible) => !visible)}
+          onClose={() => setChatOpen(false)}
+        />
         <div className="chat-messages-wrap">
           <div className="chat-messages" ref={chatMsgRef}
             onScroll={(e) => {
@@ -4614,10 +4949,29 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
               setChatAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
             }}>
             {messages.length === 0 && !chatLoading && (
-              <div className="chat-msg assistant"><div className="chat-bubble"><MessagePartsList parts={[textPart(NORA_GREETING)]} /></div></div>
+              <section className="desktop-chat-welcome" aria-label="Nora introduction">
+                <span className="desktop-chat-welcome-mark">
+                  <BrandStar size={23} tone="current" />
+                </span>
+                <h1>What should we make easier?</h1>
+                <div className="desktop-chat-welcome-copy">
+                  <MessagePartsList parts={[textPart(NORA_GREETING)]} />
+                </div>
+              </section>
             )}
             {messages.map((m, i) => (
-              <div key={m.id ?? i} className={`chat-msg ${m.role}`}><div className="chat-bubble"><MessagePartsList parts={m.parts} /></div></div>
+              <ConversationMessage
+                key={m.id ?? i}
+                message={m}
+                className={`chat-msg ${m.role}`}
+                bubbleClassName="chat-bubble"
+                assistantName="Nora"
+                onEdit={editPlannerMessage}
+                onRetry={retryPlannerMessage}
+                onOpenAtlas={openAtlasHandoff}
+                onPlannerAction={handlePlannerAction}
+                plannerTasks={tasks}
+              />
             ))}
             {chatLoading && <div className="chat-msg assistant"><div className="chat-bubble typing"><span /><span /><span /></div></div>}
             <div ref={chatEndRef} />
@@ -4656,70 +5010,65 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
             )
           )}
         </div>}
-        <div className="chat-input-row">
-          <button
-            className={`chat-suggestions-toggle${desktopSuggestionsVisible ? " on" : ""}`}
-            onClick={() => setDesktopSuggestionsVisible((visible) => {
-              const next = !visible;
-              try { localStorage.setItem("nora_desktop_chat_suggestions", next ? "visible" : "hidden"); } catch {}
-              return next;
-            })}
-            aria-label={desktopSuggestionsVisible ? "Hide suggested prompts" : "Show suggested prompts"}
-            title={desktopSuggestionsVisible ? "Hide suggestions" : "Show suggestions"}>
-            <Sparkles size={15} />
-          </button>
-          <button
-            className={`chat-micro-btn${microStartMode ? " on" : ""}`}
-            onClick={() => setMicroStartMode((m) => !m)}>
-            <Zap size={14} />
-            <span className="chat-micro-label">{microStartMode ? "Active" : "Micro Start"}</span>
-          </button>
-          <div className="chat-input-wrap">
-            {chatGhost && (
-              <div className="chat-ghost" aria-hidden="true">
-                {chatInput}<span className="chat-ghost-text">{chatGhost}</span>
-                <span className="chat-ghost-hint">Tab</span>
-              </div>
-            )}
-            <textarea ref={chatInputRef} className="chat-input" value={chatInput} rows={2}
-              onChange={(e) => {
-                const val = e.target.value;
-                setChatInput(val);
-                const ghost = getChatGhost(val);
-                setChatGhost(ghost);
-                setChatSuggestions(getChatAlternatives(val, ghost));
-                e.target.style.height = "auto";
-                e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Tab" && chatGhost) {
-                  e.preventDefault();
-                  const completed = chatInput + chatGhost;
-                  setChatInput(completed);
-                  setChatGhost(getChatGhost(completed));
-                  setChatSuggestions(DEFAULT_CHAT_CHIPS);
-                } else if (e.key === "ArrowRight" && chatGhost &&
-                           e.target.selectionStart === chatInput.length &&
-                           e.target.selectionEnd === chatInput.length) {
-                  e.preventDefault();
-                  const completed = chatInput + chatGhost;
-                  setChatInput(completed);
-                  setChatGhost("");
-                  setChatSuggestions(DEFAULT_CHAT_CHIPS);
-                } else if (e.key === "Escape") {
-                  setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
-                } else if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  sendChat();
-                  setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
-                }
-              }}
-              placeholder="Ask Nora anything…" />
-          </div>
-          <button className="chat-send" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
-            {chatLoading ? <span className="dot-spin" /> : <Send size={16} />}
-          </button>
-        </div>
+        <AssistantChatComposer
+          className="desktop-chat-composer"
+          value={chatInput}
+          inputRef={chatInputRef}
+          rows={2}
+          loading={chatLoading}
+          ghostSuffix={chatGhost}
+          placeholder="Ask Nora anything…"
+          onChange={(event) => {
+            const value = event.target.value;
+            setChatInput(value);
+            const ghost = getChatGhost(value);
+            setChatGhost(ghost);
+            setChatSuggestions(getChatAlternatives(value, ghost));
+            event.target.style.height = "auto";
+            event.target.style.height = `${Math.min(event.target.scrollHeight, 160)}px`;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Tab" && chatGhost) {
+              event.preventDefault();
+              const completed = chatInput + chatGhost;
+              setChatInput(completed);
+              setChatGhost(getChatGhost(completed));
+              setChatSuggestions(DEFAULT_CHAT_CHIPS);
+            } else if (
+              event.key === "ArrowRight" &&
+              chatGhost &&
+              event.target.selectionStart === chatInput.length &&
+              event.target.selectionEnd === chatInput.length
+            ) {
+              event.preventDefault();
+              const completed = chatInput + chatGhost;
+              setChatInput(completed);
+              setChatGhost("");
+              setChatSuggestions(DEFAULT_CHAT_CHIPS);
+            } else if (event.key === "Escape") {
+              setChatGhost("");
+              setChatSuggestions(DEFAULT_CHAT_CHIPS);
+            } else if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              sendChat();
+              setChatGhost("");
+              setChatSuggestions(DEFAULT_CHAT_CHIPS);
+            }
+          }}
+          onSend={sendChat}
+          leading={(
+            <AssistantComposerMenu
+              suggestionsVisible={desktopSuggestionsVisible}
+              onToggleSuggestions={() => setDesktopSuggestionsVisible((visible) => {
+                  const next = !visible;
+                  try { localStorage.setItem("nora_desktop_chat_suggestions", next ? "visible" : "hidden"); } catch {}
+                  return next;
+                })}
+              microStartMode={microStartMode}
+              onToggleMicroStart={() => setMicroStartMode((mode) => !mode)}
+            />
+          )}
+        />
       </div>
 
       <AIHub
@@ -4755,6 +5104,10 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
         onPinConversation={atlasEngine.pin}
         onArchiveConversation={atlasEngine.archive}
         onDeleteConversation={atlasEngine.remove}
+        onOpenNora={openNoraReturnPlan}
+        onEditMessage={editAtlasMessage}
+        onRetryMessage={retryAtlasMessage}
+        plannerTasks={tasks}
       />
       <DesktopToolComingSoon
         open={messengerOpen}
@@ -4774,14 +5127,18 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
         </div>
       )}
 
-      {/* Long-Term Insights overlay */}
-      {showLongTermInsights && (
-        <LongTermInsights
-          dark={dark}
-          glass={theme === "liquid_glass"}
+      {/* Nora's observations — full-page discovery experience */}
+      {showObservations && (
+        <NoraObservations
           metrics={dailyMetrics}
           tasks={tasks}
-          onClose={() => setShowLongTermInsights(false)}
+          healthSummary={healthSummary}
+          onClose={() => setShowObservations(false)}
+          onAskNora={(message) => {
+            setShowObservations(false);
+            setChatInput(message);
+            setChatOpen(true);
+          }}
         />
       )}
 
@@ -4841,24 +5198,50 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
 
       {/* Task edit modal */}
       {editingTask && draft && (
-        <div className="modal-overlay" onClick={() => setEditingTask(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <input className="modal-title-input" value={draft.title} placeholder="Task title"
-                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} />
-              <button className="modal-close" onClick={() => setEditingTask(null)}><X size={18} /></button>
-            </div>
+        <NativeDialog
+          onClose={() => setEditingTask(null)}
+          title="Task details"
+          subtitle="Adjust when, where, and how this task should happen."
+          className="task-editor-dialog"
+          contentClassName="task-editor-dialog__content"
+          footer={(
+            <>
+              <NativeButton variant="danger" leading={<Trash2 size={15} />} onClick={() => deleteTask(draft.id)}>
+                Delete
+              </NativeButton>
+              <NativeButton
+                variant="secondary"
+                leading={draft.sharedObjectId ? <Users size={15} /> : <Share2 size={15} />}
+                onClick={() => setSharingTask({ ...draft })}
+              >
+                {draft.sharedObjectId
+                  ? `${sharedObjects.find(o => o.id === draft.sharedObjectId)?.collaborators?.length ?? 0} people`
+                  : "Share"}
+              </NativeButton>
+              <NativeButton onClick={saveTask}>Save</NativeButton>
+            </>
+          )}
+        >
             <div className="modal-body">
+              <input
+                className="modal-title-input"
+                value={draft.title}
+                placeholder="Task title"
+                aria-label="Task title"
+                autoFocus
+                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+              />
               {/* Type selector */}
-              <div className="type-tabs">
-                {[["task","Task",<Check size={12}/>],["deadline","Deadline",<Flag size={12}/>],["break","Break",<Coffee size={12}/>]].map(([val,label,icon]) => (
-                  <button key={val}
-                    className={`type-tab type-tab-${val}${(draft.type ?? "task") === val ? " active" : ""}`}
-                    onClick={() => setDraft((d) => ({ ...d, type: val }))}>
-                    {icon} {label}
-                  </button>
-                ))}
-              </div>
+              <NativeSegmentedControl
+                label="Task type"
+                value={draft.type ?? "task"}
+                onChange={(type) => setDraft((d) => ({ ...d, type }))}
+                options={[
+                  { value: "task", label: "Task", icon: <Check size={13} /> },
+                  { value: "deadline", label: "Deadline", icon: <Flag size={13} /> },
+                  { value: "break", label: "Break", icon: <Coffee size={13} /> },
+                ]}
+              />
 
               <div className="modal-field">
                 <label className="field-label">Time</label>
@@ -4969,32 +5352,29 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
                   placeholder="Add notes, links, context..." />
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-danger" onClick={() => deleteTask(draft.id)}><Trash2 size={14} /> Delete</button>
-              <button className="btn-share" title="Share this task"
-                onClick={() => { setSharingTask({ ...draft }); }}>
-                <Share2 size={14} />
-                {draft.sharedObjectId
-                  ? <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <Users size={11} />
-                      {(sharedObjects.find(o => o.id === draft.sharedObjectId)?.collaborators?.length ?? 0)}
-                    </span>
-                  : "Share"}
-              </button>
-              <button className="btn-primary" onClick={saveTask}>Save</button>
-            </div>
-          </div>
-        </div>
+        </NativeDialog>
       )}
 
       {/* Group modal */}
       {showGroupModal && (
-        <div className="modal-overlay" onClick={() => setShowGroupModal(false)}>
-          <div className="modal modal-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-heading">Manage Groups</span>
-              <button className="modal-close" onClick={() => setShowGroupModal(false)}><X size={18} /></button>
-            </div>
+        <NativeDialog
+          onClose={() => setShowGroupModal(false)}
+          title="Manage groups"
+          subtitle="Create a clear home for related work."
+          className="group-editor-dialog"
+          footer={(
+            <>
+              <NativeButton variant="tertiary" onClick={() => setShowGroupModal(false)}>Close</NativeButton>
+              <NativeButton
+                leading={<Plus size={15} />}
+                onClick={createGroup}
+                disabled={!newGroupName.trim() || groups.some((g) => g.name.toLowerCase() === newGroupName.trim().toLowerCase())}
+              >
+                Create
+              </NativeButton>
+            </>
+          )}
+        >
             <div className="modal-body">
               <div className="modal-field">
                 <label className="field-label">New Group Name</label>
@@ -5032,14 +5412,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
                 </div>
               )}
             </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowGroupModal(false)}>Close</button>
-              <button className="btn-primary" onClick={createGroup}
-                disabled={!newGroupName.trim() || groups.some((g) => g.name.toLowerCase() === newGroupName.trim().toLowerCase())}>
-                <Plus size={14} /> Create</button>
-            </div>
-          </div>
-        </div>
+        </NativeDialog>
       )}
 
       {/* Share modal */}
@@ -5221,10 +5594,10 @@ function PasswordResetForm({ dark, glass, onDone }) {
   };
 
   return (
-    <div className={`app${dark ? " dark" : ""}${glass ? " glass" : ""} auth-wrap`}>
+    <div className={`app native-ui${dark ? " dark" : ""}${glass ? " glass" : ""} auth-wrap`}>
       <div className="auth-card pw-reset-card">
         <div className="auth-brand">
-          <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="auth-brand-logo" alt="Nora" />
+          <BrandLockup size={38} tone="white" className="auth-brand-logo" />
         </div>
         <p className="auth-tagline">Set your new password</p>
         {success ? (
@@ -5268,13 +5641,18 @@ function RescheduleModal({ task, onSave, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal reschedule-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <span className="reschedule-modal-title">Move task</span>
-          <button className="modal-close" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="reschedule-task-name">{task.title || "Untitled"}</div>
+    <NativeDialog
+      onClose={onClose}
+      title="Move task"
+      subtitle={task.title || "Untitled task"}
+      className="reschedule-modal"
+      footer={(
+        <>
+          <NativeButton variant="tertiary" onClick={onClose}>Cancel</NativeButton>
+          <NativeButton onClick={handleSave}>Save</NativeButton>
+        </>
+      )}
+    >
         <div className="modal-body">
           <div className="sett-field">
             <label className="sett-field-lbl">Date</label>
@@ -5308,12 +5686,7 @@ function RescheduleModal({ task, onSave, onClose }) {
               placeholder="Add a note about why it moved…" />
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="modal-cancel" onClick={onClose}>Cancel</button>
-          <button className="modal-save" onClick={handleSave}>Save</button>
-        </div>
-      </div>
-    </div>
+    </NativeDialog>
   );
 }
 

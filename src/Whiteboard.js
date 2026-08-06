@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Plus, X, Trash2, Link2, Target, Zap, List, Calendar,
-  FileText, GitBranch, ChevronLeft, Sparkles, Check,
+  FileText, GitBranch, ChevronLeft, Check,
   ZoomIn, ZoomOut, Edit3, Layers, ArrowRight, Activity, Flag,
   Share2, Users,
 } from "lucide-react";
+import BrandStar from "./components/BrandStar";
 import "./Whiteboard.css";
 import { isNativeActionMenuAvailable, showNativeActionMenu } from "./lib/nativeActionMenu";
 import { hapticLight } from "./lib/haptics";
@@ -226,7 +227,7 @@ function WhiteboardList({ boards, setBoards, onOpen, onClose, session, boardShar
           <p>No whiteboards yet.</p>
           <p className="wb-empty-sub">Plan your big projects visually — map goals, tasks, and deadlines before turning them into action.</p>
           <button className="wb-btn-primary" onClick={()=>setShowTpl(true)}>
-            <Sparkles size={14}/> Start from a Template
+            <BrandStar size={14} tone="current" /> Start from a Template
           </button>
         </div>
       ) : (
@@ -501,7 +502,7 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask, 
           {sharedObjectId ? <Users size={12}/> : "Share"}
         </button>
         <button className={`wb-ai-btn${showAI?' wb-ai-btn-on':''}`} onClick={()=>setShowAI(v=>!v)}>
-          <Sparkles size={14}/> Ask Nora
+          <BrandStar size={14} tone="current" /> Ask Nora
         </button>
       </div>
 
@@ -629,7 +630,7 @@ function WhiteboardEditor({ board, onChange, onClose, onAskNora, onConvertTask, 
         {showAI && (
           <div className="wb-ai-panel" onMouseDown={e=>e.stopPropagation()}>
             <div className="wb-ai-panel-hdr">
-              <Sparkles size={14}/> <span>Ask Nora about this board</span>
+              <BrandStar size={14} tone="current" /> <span>Ask Nora about this board</span>
               <button className="wb-modal-close" onClick={()=>setShowAI(false)}><X size={15}/></button>
             </div>
             <div className="wb-ai-chips">
@@ -779,7 +780,7 @@ export function MobileWhiteboardView({ onAskNora, onClose, boards: boardsProp })
               const s=`[Whiteboard: ${openBoard.title}]\nBlocks: ${openBoard.blocks.map(b=>`${b.type}: ${b.title}`).join('; ')}\n\nWhat are the most important next steps?`;
               onAskNora(s);
             }}>
-              <Sparkles size={14}/>
+              <BrandStar size={14} tone="current" />
             </button>
           )}
         </div>

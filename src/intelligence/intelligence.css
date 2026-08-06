@@ -38,24 +38,10 @@
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(0,0,0,0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(0,0,0,0.62);
   animation: intel-fade-in 0.2s ease both;
 }
 @keyframes intel-fade-in { from { opacity: 0 } to { opacity: 1 } }
-
-/* ── Proactive overlay mask (no blur — sheet slides up from bottom) ─────────── */
-/* backdrop-filter is intentionally absent: the sheet animates in from below,    */
-/* so blurring before it's visible produces a jarring "why is everything blurry" */
-/* moment. A plain dim is enough context that a sheet is about to appear.         */
-.proactive-overlay-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  background: rgba(0,0,0,0.35);
-  animation: intel-fade-in 0.35s ease both;
-}
 
 /* ── Suggestion Center panel ─────────────────────────────────────────────────── */
 /* Mobile: full-screen bottom sheet */
@@ -63,13 +49,20 @@
   position: fixed;
   inset: 0;
   z-index: 2001;
-  background: var(--modal-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--native-canvas);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: intel-slide-up 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
+  --text: var(--native-label);
+  --text-muted: var(--native-label-secondary);
+  --surface: var(--native-surface);
+  --surface-2: var(--native-surface-raised);
+  --border: var(--native-separator);
+  --accent: var(--native-accent);
+  --accent-light: var(--native-accent-soft);
+  --success: var(--native-success);
+  --danger: var(--native-danger);
 }
 @keyframes intel-slide-up {
   from { transform: translateY(100%); }
@@ -118,11 +111,10 @@
 .intel-head-orb {
   width: 38px; height: 38px;
   border-radius: 12px;
-  background: var(--grad);
+  background: var(--native-accent-soft);
   display: flex; align-items: center; justify-content: center;
-  color: #fff;
+  color: var(--native-accent);
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(124,58,237,0.35);
 }
 .intel-head-title {
   font-size: 17px; font-weight: 700;
@@ -361,78 +353,45 @@
 }
 .sc-reject-btn:active { background: rgba(239,68,68,0.15); color: var(--danger); }
 
-/* ── Proactive Overlay ───────────────────────────────────────────────────────── */
-.proactive-sheet {
-  position: fixed;
-  bottom: 0; left: 0; right: 0; z-index: 2001;
-  max-width: 480px; margin: 0 auto;
-  background: var(--modal-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border);
-  border-bottom: none; border-radius: 24px 24px 0 0;
-  padding: 24px 22px max(28px, calc(env(safe-area-inset-bottom) + 16px));
-  animation: intel-slide-up 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
-  box-shadow: var(--shadow);
+.proactive-dialog {
+  width: min(100%, 440px);
 }
-@media (min-width: 600px) {
-  .proactive-sheet {
-    bottom: auto; top: 50%; left: 50%; right: auto; margin: 0;
-    transform: translate(-50%, -50%);
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    padding: 28px 24px; max-width: 400px;
-    animation: intel-scale-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
-  }
-  @keyframes intel-scale-in {
-    from { transform: translate(-50%, -46%) scale(0.92); opacity: 0; }
-    to   { transform: translate(-50%, -50%) scale(1);    opacity: 1; }
-  }
+
+.proactive-mark {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--native-space-4);
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: var(--native-accent-soft);
+  color: var(--native-accent);
 }
-.proactive-sparkle {
-  width: 48px; height: 48px; border-radius: 15px;
-  overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 16px;
-  box-shadow: 0 4px 16px rgba(124,58,237,0.4);
-}
-.proactive-sparkle img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
-}
-.proactive-greeting {
-  font-size: 20px; font-weight: 700; letter-spacing: -0.4px;
-  color: var(--text); text-align: center; margin-bottom: 6px;
-}
-.proactive-sub {
-  font-size: 14px; color: var(--text-muted);
-  text-align: center; line-height: 1.5; margin-bottom: 18px;
-}
-.proactive-sub b { color: var(--text); font-weight: 600; }
+
 .proactive-preview {
-  display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--native-space-2);
 }
 .proactive-preview-chip {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 13px; border-radius: 12px;
-  background: var(--surface); border: 1px solid var(--border);
-  font-size: 13px; color: var(--text); line-height: 1.4;
+  min-height: 48px;
+  padding: 8px var(--native-space-3);
+  border: 1px solid var(--native-separator);
+  border-radius: var(--native-radius-control);
+  display: flex;
+  align-items: center;
+  gap: var(--native-space-3);
+  background: var(--native-surface);
+  color: var(--native-label);
+  font-size: var(--native-type-footnote);
+  line-height: 1.4;
 }
 .proactive-preview-chip-icon { font-size: 18px; flex-shrink: 0; }
 .proactive-preview-more {
-  font-size: 12px; color: var(--text-muted); text-align: center; padding: 4px 0;
-}
-.proactive-actions { display: flex; flex-direction: column; gap: 10px; }
-.proactive-cta {
-  width: 100%; padding: 14px; border-radius: 14px; border: none;
-  background: var(--grad); color: #fff;
-  font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
-  transition: opacity 0.15s;
-}
-.proactive-cta:hover { opacity: 0.88; }
-.proactive-dismiss {
-  width: 100%; padding: 11px; border-radius: 12px;
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-muted); font-size: 14px; font-family: inherit; cursor: pointer;
+  padding: 4px 0;
+  color: var(--native-label-secondary);
+  font-size: var(--native-type-caption);
+  text-align: center;
 }
 
 /* ── Onboarding ──────────────────────────────────────────────────────────────── */
@@ -445,16 +404,23 @@
 }
 .intel-onboarding-modal {
   width: 100%; max-width: 480px;
-  background: var(--modal-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border);
+  background: var(--native-canvas);
+  border: 1px solid var(--native-hairline);
   border-bottom: none; border-radius: 28px 28px 0 0;
   padding: 28px 24px max(36px, calc(env(safe-area-inset-bottom) + 24px));
   position: relative;
   animation: intel-slide-up 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
   max-height: 92dvh; overflow-y: auto;
-  box-shadow: var(--shadow);
+  box-shadow: var(--native-shadow-sheet);
+  --text: var(--native-label);
+  --text-muted: var(--native-label-secondary);
+  --surface: var(--native-surface);
+  --surface-2: var(--native-surface-raised);
+  --border: var(--native-separator);
+  --accent: var(--native-accent);
+  --accent-light: var(--native-accent-soft);
+  --success: var(--native-success);
+  --danger: var(--native-danger);
 }
 @media (min-width: 600px) {
   .intel-onboarding-modal {
@@ -480,10 +446,9 @@
 .ob-hero { text-align: center; margin-bottom: 24px; }
 .ob-hero-orb {
   width: 68px; height: 68px; border-radius: 20px;
-  background: var(--grad);
+  background: var(--native-accent);
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 16px; color: #fff;
-  box-shadow: 0 8px 24px rgba(124,58,237,0.4);
 }
 .ob-hero h1 {
   font-size: 22px; font-weight: 800; letter-spacing: -0.4px;
@@ -580,7 +545,7 @@
 
 .ob-cta {
   width: 100%; padding: 14px; border-radius: 14px; border: none;
-  background: var(--grad); color: #fff;
+  background: var(--native-accent); color: var(--native-on-accent);
   font-size: 15px; font-weight: 600; font-family: inherit;
   cursor: pointer; margin-bottom: 10px; transition: opacity 0.15s;
 }
@@ -589,137 +554,4 @@
   width: 100%; padding: 11px; border-radius: 12px;
   border: none; background: transparent; color: var(--text-muted);
   font-size: 14px; font-family: inherit; cursor: pointer;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   GLASS MODE ENHANCEMENTS
-   Adds frosted glass specular reflection to all intel surfaces.
-   Mirrors the patterns in glass.css (Level 3 modal treatment).
-   ───────────────────────────────────────────────────────────────────────────── */
-
-/* Panel — same glass treatment as .chat-panel (Level 1 navigation surface) */
-.glass .intel-center-panel {
-  backdrop-filter: blur(44px) saturate(1.7);
-  -webkit-backdrop-filter: blur(44px) saturate(1.7);
-  border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-nav);
-}
-.glass.dark .intel-center-panel {
-  box-shadow: 0 1px 0 rgba(255,255,255,0.09) inset, -6px 0 40px rgba(0,0,0,0.55);
-}
-
-/* Icon buttons with glass backdrop */
-.glass .intel-icon-btn {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 1px 0 var(--reflect-top) inset;
-}
-
-/* Suggestion cards — Level 2 glass (content cards, same as .task-card) */
-.glass .suggestion-card {
-  position: relative; overflow: hidden;
-  backdrop-filter: blur(20px) saturate(1.8);
-  -webkit-backdrop-filter: blur(20px) saturate(1.8);
-  border: 1px solid var(--border);
-  box-shadow:
-    0 1.5px 0   var(--reflect-top)    inset,
-    1px 0 0     rgba(255,255,255,0.20) inset,
-    0 0 0 0.5px rgba(255,255,255,0.12) inset,
-    0 6px 24px  rgba(0,0,0,0.25),
-    0 2px 6px   rgba(0,0,0,0.14);
-}
-.glass .suggestion-card::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: linear-gradient(
-    135deg,
-    var(--reflect-top) 0%,
-    var(--reflect-mid) 28%,
-    transparent 55%
-  );
-  border-radius: inherit; pointer-events: none; z-index: 1;
-}
-.glass .suggestion-card > * { position: relative; z-index: 2; }
-.glass .suggestion-card:hover {
-  transform: translateY(-2px) scale(1.008);
-  box-shadow: var(--shadow-glow);
-}
-
-/* Proactive sheet + onboarding — Level 3 glass (modal treatment) */
-/* NOTE: .proactive-sheet must keep the position:fixed set by its base rule   */
-/* (and the desktop top:50%/left:50% centering transform) — position:relative */
-/* here would silently break both the mobile anchor and desktop centering.    */
-.glass .intel-onboarding-modal { position: relative; }
-.glass .proactive-sheet,
-.glass .intel-onboarding-modal {
-  overflow: hidden;
-  backdrop-filter: blur(56px) saturate(2.0);
-  -webkit-backdrop-filter: blur(56px) saturate(2.0);
-  border: 1px solid var(--border);
-  box-shadow:
-    0 1.5px 0   var(--reflect-top)    inset,
-    0 1px 0     var(--specular-iris)  inset,
-    0 0 0 0.5px rgba(255,255,255,0.14) inset,
-    0 60px 140px rgba(0,0,0,0.30),
-    0 12px 40px  rgba(124,58,237,0.18);
-}
-.glass .proactive-sheet::before,
-.glass .intel-onboarding-modal::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 40%;
-  background: linear-gradient(135deg, var(--reflect-top) 0%, var(--reflect-mid) 30%, transparent 55%);
-  border-radius: inherit; pointer-events: none; z-index: 0;
-}
-.glass .proactive-sheet > *,
-.glass .intel-onboarding-modal > * { position: relative; z-index: 1; }
-
-/* Overlay mask — softer in glass mode */
-.glass .intel-overlay-mask {
-  background: rgba(0,0,0,0.28);
-}
-.glass.dark .intel-overlay-mask {
-  background: rgba(0,0,0,0.45);
-}
-
-/* Ob-feature cards inherit glass treatment from parent */
-.glass .ob-feature {
-  backdrop-filter: blur(12px) saturate(1.5);
-  -webkit-backdrop-filter: blur(12px) saturate(1.5);
-  box-shadow: 0 1px 0 var(--reflect-top) inset;
-}
-
-/* Primary buttons in glass — lifted, glowing */
-.glass .sc-accept-btn,
-.glass .ob-cta,
-.glass .proactive-cta,
-.glass .intel-empty-cta {
-  border-radius: 14px;
-  box-shadow:
-    0 1.5px 0 rgba(255,255,255,0.45) inset,
-    0 8px 28px rgba(124,58,237,0.38);
-  transition: transform 0.22s cubic-bezier(0.25,1,0.35,1), box-shadow 0.22s ease;
-}
-.glass .sc-accept-btn:hover,
-.glass .ob-cta:hover,
-.glass .proactive-cta:hover,
-.glass .intel-empty-cta:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow:
-    0 1.5px 0 rgba(255,255,255,0.50) inset,
-    0 14px 40px rgba(124,58,237,0.48);
-}
-
-/* Input fields in glass */
-.glass .ob-link-code-input input {
-  backdrop-filter: blur(16px) saturate(1.5);
-  -webkit-backdrop-filter: blur(16px) saturate(1.5);
-  border: 1px solid var(--border);
-  box-shadow: 0 1px 0 var(--reflect-top) inset, 0 1px 4px rgba(0,0,0,0.12);
-}
-.glass .ob-link-code-input input:focus {
-  border-color: var(--border-glow);
-  box-shadow:
-    0 1px 0 var(--reflect-top) inset,
-    0 0 0 3px rgba(124,58,237,0.16),
-    0 2px 20px rgba(124,58,237,0.16);
 }

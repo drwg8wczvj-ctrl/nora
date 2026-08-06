@@ -1,6 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { Search, Plus, Pin, Archive, Trash2, Pencil, Check, MoreHorizontal } from "lucide-react";
-import CloseButton from "../components/CloseButton";
+import {
+  NativeButton,
+  NativeField,
+  NativeIconButton,
+  NativeNavButton,
+} from "../components/ui/NativeUI";
 import { isNativeActionMenuAvailable, showNativeActionMenu } from "../lib/nativeActionMenu";
 import { hapticLight } from "../lib/haptics";
 import "./ConversationList.css";
@@ -38,13 +43,34 @@ function ConversationRow({ conv, active, onSelect, onRename, onPin, onArchive, o
           onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(conv.title); setEditing(false); } }}
           onBlur={commit}
         />
-        <button className="conv-row-icon-btn" onMouseDown={(e) => e.preventDefault()} onClick={commit}><Check size={14} /></button>
+        <NativeIconButton
+          className="conv-row-icon-btn"
+          label="Save conversation title"
+          size="compact"
+          variant="plain"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={commit}
+        >
+          <Check size={14} />
+        </NativeIconButton>
       </div>
     );
   }
 
   return (
-    <div className={`conv-row${active ? " active" : ""}`} onClick={() => onSelect(conv.id)}>
+    <div
+      className={`conv-row${active ? " active" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-current={active ? "page" : undefined}
+      onClick={() => onSelect(conv.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(conv.id);
+        }
+      }}
+    >
       <div className="conv-row-main">
         <div className="conv-row-title-line">
           {conv.pinned && <Pin size={11} className="conv-row-pin-dot" />}
@@ -54,9 +80,11 @@ function ConversationRow({ conv, active, onSelect, onRename, onPin, onArchive, o
       </div>
       {isNativeActionMenuAvailable() ? (
         <div className="conv-row-actions">
-          <button
+          <NativeIconButton
             className="conv-row-icon-btn"
-            title="More"
+            label={`More actions for ${conv.title || "New Chat"}`}
+            size="compact"
+            variant="plain"
             onClick={async (e) => {
               e.stopPropagation();
               hapticLight();
@@ -89,14 +117,14 @@ function ConversationRow({ conv, active, onSelect, onRename, onPin, onArchive, o
             }}
           >
             <MoreHorizontal size={15} />
-          </button>
+          </NativeIconButton>
         </div>
       ) : (
         <div className="conv-row-actions">
-          <button className="conv-row-icon-btn" title="Rename" onClick={(e) => { e.stopPropagation(); setEditing(true); }}><Pencil size={13} /></button>
-          <button className="conv-row-icon-btn" title={conv.pinned ? "Unpin" : "Pin"} onClick={(e) => { e.stopPropagation(); onPin(conv.id, !conv.pinned); }}><Pin size={13} /></button>
-          <button className="conv-row-icon-btn" title="Archive" onClick={(e) => { e.stopPropagation(); onArchive(conv.id); }}><Archive size={13} /></button>
-          <button className="conv-row-icon-btn conv-row-danger" title="Delete" onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this conversation? This can't be undone.")) onDelete(conv.id); }}><Trash2 size={13} /></button>
+          <NativeIconButton className="conv-row-icon-btn" label="Rename conversation" size="compact" variant="plain" onClick={(e) => { e.stopPropagation(); setEditing(true); }}><Pencil size={13} /></NativeIconButton>
+          <NativeIconButton className="conv-row-icon-btn" label={conv.pinned ? "Unpin conversation" : "Pin conversation"} size="compact" variant="plain" onClick={(e) => { e.stopPropagation(); onPin(conv.id, !conv.pinned); }}><Pin size={13} /></NativeIconButton>
+          <NativeIconButton className="conv-row-icon-btn" label="Archive conversation" size="compact" variant="plain" onClick={(e) => { e.stopPropagation(); onArchive(conv.id); }}><Archive size={13} /></NativeIconButton>
+          <NativeIconButton className="conv-row-icon-btn conv-row-danger" label="Delete conversation" size="compact" variant="plain" onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this conversation? This can't be undone.")) onDelete(conv.id); }}><Trash2 size={13} /></NativeIconButton>
         </div>
       )}
     </div>
@@ -118,16 +146,17 @@ export function ConversationList({ conversations, activeId, loading, onSelect, o
   return (
     <div className="conv-list-root">
       <div className="conv-list-toolbar">
-        <div className="conv-search">
-          <Search size={14} className="conv-search-icon" />
-          <input
-            className="conv-search-input"
-            placeholder="Search conversations"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-        <button className="conv-new-btn" onClick={onNew}><Plus size={15} /><span>New chat</span></button>
+        <NativeField
+          className="conv-search"
+          leading={<Search size={15} />}
+          placeholder="Search conversations"
+          aria-label="Search conversations"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <NativeButton className="conv-new-btn" leading={<Plus size={16} />} onClick={onNew}>
+          New chat
+        </NativeButton>
       </div>
       <div className="conv-list-scroll">
         {loading ? (
@@ -159,7 +188,7 @@ export default function ConversationSidebar({ open, onClose, ...listProps }) {
     <div className={`conv-sidebar${open ? " open" : ""}`}>
       <div className="conv-sidebar-header">
         <span>Conversations</span>
-        <CloseButton onClick={onClose} size={24} />
+        <NativeNavButton direction="close" label="Close conversations" onClick={onClose} />
       </div>
       <ConversationList {...listProps} />
     </div>
@@ -172,8 +201,11 @@ export function ConversationSheet({ open, onClose, ...listProps }) {
   return (
     <div className="conv-sheet">
       <div className="conv-sheet-header">
-        <span>Conversations</span>
-        <CloseButton onClick={onClose} />
+        <div>
+          <span>Conversations</span>
+          <small>Continue where you left off</small>
+        </div>
+        <NativeNavButton direction="close" label="Close conversations" onClick={onClose} />
       </div>
       <ConversationList {...listProps} />
     </div>

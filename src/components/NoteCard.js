@@ -1,5 +1,5 @@
 import React from "react";
-import { Pin, Star, Trash2, CheckSquare, ShoppingCart, Lightbulb, Zap, FileText } from "lucide-react";
+import { Pin, Star, Trash2, CheckSquare, ShoppingCart, Lightbulb, Zap, FileText, MoreHorizontal } from "lucide-react";
 import { hapticSelection, hapticWarning } from "../lib/haptics";
 import "./NoteCard.css";
 
@@ -31,7 +31,7 @@ const TYPE_LABEL = {
   capture:   "Quick note",
 };
 
-export default function NoteCard({ note, onClick, onDelete, onPin, onStar, deleting, isNew }) {
+export default function NoteCard({ note, onClick, onDelete, onPin, onStar, onMore, deleting, isNew }) {
   const { type = "note", title, content, items = [], color = "default", pinned, starred, updatedAt, createdAt } = note;
   const checkedCount = items.filter(i => i.checked).length;
   const totalCount   = items.length;
@@ -47,10 +47,33 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
     <div
       className={`nc${deleting ? " nc-deleting" : ""}${isNew ? " nc-new" : ""}`}
       data-color={color}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${title || "note"}`}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick?.();
+        }
+      }}
       onClick={onClick}
     >
+      {onMore && (
+        <button
+          type="button"
+          className="nc-more-btn"
+          onClick={stopPropAndRun(() => {
+            hapticSelection();
+            onMore();
+          })}
+          aria-label={`More actions for ${title || "note"}`}
+        >
+          <MoreHorizontal size={17} />
+        </button>
+      )}
+
       {/* Hover actions — desktop only (CSS hides on touch) */}
-      <div className="nc-hover-actions">
+      {!onMore && <div className="nc-hover-actions">
         <button
           className={`nc-hbtn nc-hbtn-pin${pinned ? " nc-hbtn-on" : ""}`}
           onClick={stopPropAndRun(onPin)}
@@ -72,7 +95,7 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
         >
           <Trash2 size={11} />
         </button>
-      </div>
+      </div>}
 
       {/* Top row: type label + badges */}
       {(type !== "note" || pinned || starred) && (
@@ -141,7 +164,7 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
       </div>
 
       {/* Mobile action bar — touch devices only, CSS-gated */}
-      <div className="nc-mobile-actions" onClick={e => e.stopPropagation()}>
+      {!onMore && <div className="nc-mobile-actions" onClick={e => e.stopPropagation()}>
         <button
           className={`nc-mob-btn nc-mob-btn-pin${pinned ? " nc-mob-on" : ""}`}
           onClick={(e) => { hapticSelection(); onPin(e); }}
@@ -163,7 +186,7 @@ export default function NoteCard({ note, onClick, onDelete, onPin, onStar, delet
         >
           <Trash2 size={14} />
         </button>
-      </div>
+      </div>}
     </div>
   );
 }

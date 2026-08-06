@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
+import BrandStar from './components/BrandStar';
 import { usePWA } from './hooks/usePWA';
 import './PWABanners.css';
 
@@ -27,8 +29,8 @@ export default function PWABanners({ dark }) {
   return (
     <>
       {updateAvailable && (
-        <div className={`pwa-banner pwa-update-banner${dark ? ' pwa-dark' : ''}`} role="alert">
-          <span className="pwa-banner-icon">✦</span>
+        <div className={`pwa-banner native-ui pwa-update-banner${dark ? ' pwa-dark' : ''}`} role="alert">
+          <BrandStar size={17} tone="purple" className="pwa-banner-icon" />
           <span className="pwa-banner-text">New version of Nora available</span>
           <button className="pwa-btn pwa-update-btn" onClick={applyUpdate}>
             Update
@@ -37,14 +39,14 @@ export default function PWABanners({ dark }) {
       )}
 
       {showInstall && !updateAvailable && (
-        <div className={`pwa-banner pwa-install-banner${dark ? ' pwa-dark' : ''}`} role="complementary">
-          <span className="pwa-banner-icon">📲</span>
+        <div className={`pwa-banner native-ui pwa-install-banner${dark ? ' pwa-dark' : ''}`} role="complementary">
+          <BrandStar size={17} tone="purple" className="pwa-banner-icon" />
           <span className="pwa-banner-text">Install Nora on your device</span>
           <button className="pwa-btn pwa-install-btn" onClick={handleInstall}>
             Install
           </button>
           <button className="pwa-close-btn" onClick={dismissInstall} aria-label="Dismiss">
-            ✕
+            <X size={15} />
           </button>
         </div>
       )}

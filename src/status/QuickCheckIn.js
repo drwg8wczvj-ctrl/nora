@@ -75,7 +75,7 @@ export default function QuickCheckIn({ items, sleep, collapsedByDefault = true }
                           key={lvl.value}
                           type="button"
                           className={`status-level-btn${isActive ? " active" : ""}`}
-                          style={isActive ? { background: `${item.color}18`, borderColor: `${item.color}55`, color: item.color } : undefined}
+                          style={{ "--level-accent": item.color }}
                           onClick={() => item.onChange?.(lvl.value)}
                         >
                           {lvl.label}

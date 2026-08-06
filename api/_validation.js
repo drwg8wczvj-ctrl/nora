@@ -31,7 +31,7 @@ const schemas = {
     includeResearchTool: z.boolean().optional(),
   }),
   tips: z.object({
-    type: z.enum(["morning", "focus_start", "focus_complete", "chat_prompts", "status_coach", "morning_briefing"]),
+    type: z.enum(["morning", "focus_start", "focus_complete", "chat_prompts", "status_coach", "morning_briefing", "launch_greeting"]),
     context: z.record(z.string(), z.any()).optional(),
   }),
   intelligenceExtract: z.object({

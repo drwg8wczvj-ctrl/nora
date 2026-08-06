@@ -1,5 +1,5 @@
 import React from "react";
-import { Calendar, Clock, MapPin, CheckCircle, X } from "lucide-react";
+import { Calendar, Clock, MapPin, CheckCircle, ClipboardPaste, X } from "lucide-react";
 
 const TYPE_ICONS = {
   event:       "📅",
@@ -68,7 +68,7 @@ export default function SuggestionCard({ suggestion, onAccept, onReject }) {
           <span className={`sc-source-badge ${source_type}`}>
             {source_type === "gmail"    && "✉ Gmail"}
             {source_type === "telegram" && "✈ Telegram"}
-            {source_type === "manual"   && "✦ Pasted"}
+            {source_type === "manual"   && <><ClipboardPaste size={10} /> Pasted</>}
             {source_type === "outlook"  && "✉ Outlook"}
           </span>
           {confidence != null && (

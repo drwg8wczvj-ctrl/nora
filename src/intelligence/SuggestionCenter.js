@@ -1,5 +1,6 @@
 import React from "react";
-import { RefreshCw, Sparkles, Plus, AlertCircle } from "lucide-react";
+import { RefreshCw, Plus, AlertCircle } from "lucide-react";
+import BrandStar from "../components/BrandStar";
 import CloseButton from "../components/CloseButton";
 import { useTranslation } from "react-i18next";
 import SuggestionCard from "./SuggestionCard";
@@ -38,13 +39,13 @@ export default function SuggestionCenter({
   return (
     <>
       <div className="intel-overlay-mask" onClick={onClose} />
-      <div className="intel-center-panel">
+      <div className="intel-center-panel native-ui" role="dialog" aria-modal="true" aria-label={t("intel.title")}>
 
         {/* ── Header ──────────────────────────────────────── */}
         <div className="intel-panel-head">
           <div className="intel-panel-head-left">
             <div className="intel-head-orb">
-              <Sparkles size={15} />
+              <BrandStar size={15} tone="current" />
             </div>
             <div>
               <div className="intel-head-title">{t("intel.title")}</div>
@@ -106,7 +107,7 @@ export default function SuggestionCenter({
           {syncing && suggestions.length === 0 && (
             <div className="intel-scanning">
               <div className="intel-scanning-orb">
-                <Sparkles size={22} />
+                <BrandStar size={22} tone="current" />
               </div>
               <p>{t("intel.scanningMessages")}</p>
             </div>
@@ -135,7 +136,7 @@ export default function SuggestionCenter({
           {/* Empty state */}
           {!syncing && suggestions.length === 0 && !syncError && (
             <div className="intel-empty">
-              <div className="intel-empty-orb">✨</div>
+              <div className="intel-empty-orb"><BrandStar size={24} tone="purple" /></div>
               <h3>{t("intel.allCaughtUp")}</h3>
               <p>
                 {accounts.length > 0

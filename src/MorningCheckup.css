@@ -12,14 +12,21 @@
 
 .mcu-screen {
   position: fixed; inset: 0; z-index: 600;
-  background: var(--bg);
+  background: var(--native-canvas);
   display: flex; align-items: stretch; justify-content: center;
+  --bg: var(--native-canvas);
+  --text: var(--native-label);
+  --text-muted: var(--native-label-secondary);
+  --surface: var(--native-surface);
+  --surface-2: var(--native-surface-raised);
+  --border: var(--native-separator);
+  --accent: var(--native-accent);
+  --accent-light: var(--native-accent-soft);
 }
-/* Sunrise gradient decoration */
 .mcu-sunrise-glow {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background: radial-gradient(ellipse 70% 40% at 50% -10%, rgba(251,146,60,0.16) 0%, transparent 60%),
-              radial-gradient(ellipse 50% 30% at 50% 0%, rgba(245,158,11,0.10) 0%, transparent 50%);
+  border-top: 2px solid rgba(201, 168, 97, .44);
+  background: transparent;
 }
 .mcu-screen.glass .mcu-page { background: transparent; }
 .mcu-screen.glass .mcu-body { background: transparent; }
@@ -34,7 +41,7 @@
 
 /* Progress */
 .mcu-progress-bar { height: 3px; background: var(--surface-2); flex-shrink: 0; }
-.mcu-progress-fill { height: 100%; background: linear-gradient(90deg, #f59e0b, #7c3aed); transition: width .45s cubic-bezier(.25,1,.35,1); }
+.mcu-progress-fill { height: 100%; background: var(--native-accent); transition: width .45s cubic-bezier(.25,1,.35,1); }
 
 /* Top bar */
 .mcu-top-bar {
@@ -232,13 +239,11 @@
 .mcu-tip-shimmer {
   display: block; height: 14px; border-radius: 6px;
   flex: 1;
-  background: linear-gradient(90deg, var(--border) 25%, var(--surface-2) 50%, var(--border) 75%);
-  background-size: 200% 100%;
+  background: var(--surface-2);
   animation: mcuShimmer 1.4s ease-in-out infinite;
 }
 @keyframes mcuShimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  50% { opacity: .45; }
 }
 
 /* AI planning nudge */
@@ -295,11 +300,11 @@
 }
 .mcu-secondary-btn:hover { background: var(--surface); color: var(--text); }
 .mcu-next-btn {
-  flex: 2; padding: 13px; border-radius: 14px;
-  background: linear-gradient(135deg, #f59e0b, #7c3aed); color: #fff; border: none;
+  flex: 2; min-height: 48px; padding: 13px; border-radius: 14px;
+  background: var(--native-accent); color: var(--native-on-accent); border: none;
   font-size: 15px; font-weight: 700; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  box-shadow: 0 4px 20px rgba(124,58,237,0.38);
+  box-shadow: none;
   transition: opacity .15s, transform .15s;
 }
 .mcu-next-btn:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); }

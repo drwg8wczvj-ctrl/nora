@@ -80,7 +80,6 @@ const computeFocusInsights = () => {
 
 // ── FUTURE BLOCKING HOOK ───────────────────────────────────────────────────────
 // Architecture placeholder for future distraction-blocking integrations.
-// - iOS: FamilyControls / ScreenTime API (requires native Swift extension)
 // - Android: UsageStatsManager / AccessibilityService (requires native wrapper)
 // - Desktop: Browser extension via native messaging
 // When implemented: blockDistractions(appList, durationSecs) / unblockDistractions()
@@ -112,6 +111,14 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   const [aiTip,      setAiTip]      = useState(null);
   const [aiComplete, setAiComplete] = useState(null);
   const tipFetchedRef = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   // Fetch AI tip once when prepare phase is active
   useEffect(() => {
@@ -251,7 +258,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   const isActive = phase === "running" || phase === "paused" || phase === "break";
 
   return (
-    <div className={`fs-overlay${dark ? " dark" : ""}`} role="dialog" aria-modal="true">
+    <div className={`fs-overlay native-ui${dark ? " dark" : ""}`} role="dialog" aria-modal="true" aria-label="Focus session">
       <div className="fs-backdrop" onClick={() => onClose?.()} />
 
       <div className="fs-panel">

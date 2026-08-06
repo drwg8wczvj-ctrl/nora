@@ -60,6 +60,38 @@ Select the 2-3 most relevant candidates for today's specific numbers, and rephra
 Return a JSON array: [{ "id": <candidate id>, "text": <rephrased recommendation> }]. Nothing else.
 Example: [{"id":"delay_deep_work","text":"You're carrying about 90 minutes of sleep debt — delay deep work until 10am."}]`;
 
+  } else if (type === "launch_greeting") {
+    const {
+      firstName = "", timeOfDay = "day", daysSinceLastOpen = null,
+      workloadLevel = null, todayTaskCount = 0, yesterdayCompletionPct = null,
+      momentumState = null, recoveryLevel = null, sleepContext = null,
+      recentGreetings = [],
+    } = context;
+
+    const realSignals = [
+      daysSinceLastOpen != null ? `- Days since previous visit: ${daysSinceLastOpen}` : null,
+      workloadLevel ? `- Today's workload: ${workloadLevel} (${todayTaskCount} scheduled items)` : null,
+      yesterdayCompletionPct != null ? `- Yesterday's completion: ${yesterdayCompletionPct}%` : null,
+      momentumState && momentumState !== "new" ? `- Recent momentum: ${momentumState}` : null,
+      recoveryLevel ? `- Current recovery state: ${recoveryLevel}` : null,
+      sleepContext ? `- Sleep context: ${sleepContext}` : null,
+    ].filter(Boolean);
+
+    systemPrompt = `You are Nora, a highly capable private AI companion welcoming her owner into the app. Write a calm, elegant two-line arrival greeting. It should feel handcrafted: intelligent, warm, observant, confident, and occasionally dryly witty. Never theatrical, corporate, clingy, or overly motivational. Never use a cliché. Never mention surveillance, tracking, data, scores, or that you are an AI. Use a supplied personal signal only when it makes the welcome more meaningful, and never invent a fact.`;
+
+    userPrompt = `Arrival context:
+- First name: ${String(firstName).slice(0, 28) || "(unknown)"}
+- Time of day: ${timeOfDay}
+${realSignals.length ? realSignals.join("\n") : "- No strong personal signal is available; write an elegant general welcome."}
+
+Recently used greetings to avoid:
+${recentGreetings.length ? recentGreetings.slice(-8).map((g) => `- ${String(g).slice(0, 180)}`).join("\n") : "- None"}
+
+Return JSON only:
+{"line1":"3-9 words, may naturally use the first name","line2":"5-14 words, adds the interesting thought","category":"classic|observational|reflective|playful|prepared"}
+
+Both lines must work together as one welcome. Do not write only "Hello" or "Welcome back." Do not put quotation marks inside the lines.`;
+
   } else if (type === "focus_start") {
     const { taskTitle, blockReason, daysDeferred, duration } = context;
 
@@ -179,7 +211,7 @@ Return nothing but that JSON object — no markdown fences, no extra text.`;
 
   // No per-branch override existed before "morning" needed one — number-citing
   // sentences run longer than the other branches' short single-string tips.
-  const MAX_TOKENS = { morning: 260, morning_briefing: 180 }[type] ?? 200;
+  const MAX_TOKENS = { morning: 260, morning_briefing: 180, launch_greeting: 140 }[type] ?? 200;
 
   try {
     const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -258,6 +290,20 @@ Return nothing but that JSON object — no markdown fences, no extra text.`;
           result = {
             greeting: typeof parsed.greeting === "string" ? parsed.greeting : null,
             analysis: typeof parsed.analysis === "string" ? parsed.analysis : null,
+          };
+        }
+      } catch {}
+      return res.status(200).json(result);
+    } else if (type === "launch_greeting") {
+      let result = { line1: null, line2: null, category: null };
+      try {
+        const cleaned = text.replace(/^```json?\s*/i, "").replace(/```$/, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed && typeof parsed === "object") {
+          result = {
+            line1: typeof parsed.line1 === "string" ? parsed.line1 : null,
+            line2: typeof parsed.line2 === "string" ? parsed.line2 : null,
+            category: typeof parsed.category === "string" ? parsed.category : null,
           };
         }
       } catch {}

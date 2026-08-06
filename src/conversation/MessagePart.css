@@ -126,3 +126,83 @@
 .mp-progress-icon { color: var(--accent); flex-shrink: 0; }
 .mp-progress-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-muted); }
 .mp-progress-stat strong { color: var(--text); font-weight: 700; }
+
+/* Nora → Atlas focused-session handoff */
+.mp-handoff {
+  border-color: var(--brand-atlas-gold-hairline, rgba(218,188,119,.3));
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.mp-handoff-kicker {
+  color: var(--brand-atlas-gold, #c9a861);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.mp-handoff-title { color: var(--text); font-size: 14px; font-weight: 700; }
+.mp-handoff-objective { color: var(--text-muted); font-size: 12.5px; line-height: 1.45; }
+.mp-handoff-meta { color: var(--text-muted); font-size: 11.5px; }
+.mp-handoff .mp-handoff-action {
+  align-self: flex-start;
+  margin-top: 3px;
+  background: var(--brand-atlas-gold, #c9a861);
+  color: #17130b;
+}
+.mp-handoff-action:disabled { cursor: default; opacity: .55; }
+.mp-return-plan {
+  border-color: var(--brand-nora-purple-hairline, rgba(151,124,255,.3));
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.mp-return-plan .mp-handoff-kicker { color: var(--brand-nora-purple, #7c5cff); }
+.mp-return-plan .mp-handoff-action {
+  align-self: flex-start;
+  background: var(--brand-nora-purple, #7c5cff);
+  color: #fff;
+}
+.mp-return-items { display: flex; flex-direction: column; gap: 5px; margin: 2px 0; }
+.mp-return-item { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-top: 5px; border-top: 1px solid var(--border); color: var(--text); font-size: 12px; }
+.mp-return-item small { color: var(--text-muted); font-size: 10.5px; white-space: nowrap; }
+.mp-return-sent { color: var(--success); font-size: 11.5px; font-weight: 650; }
+
+.mp-inline-action {
+  align-self: flex-start;
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+/* Transactional schedule proposal */
+.mp-proposal { display: flex; flex-direction: column; gap: 9px; }
+.mp-proposal .mp-calendar-head { margin-bottom: 0; color: var(--accent); }
+.mp-proposal-summary { color: var(--text-muted); font-size: 11.5px; }
+.mp-proposal-list { display: flex; flex-direction: column; gap: 7px; }
+.mp-proposal-row { display: flex; flex-direction: column; gap: 2px; color: var(--text); font-size: 12.8px; }
+.mp-proposal-time { color: var(--text-muted); font-size: 10.8px; }
+.mp-proposal-more { color: var(--text-muted); font-size: 11.5px; }
+.mp-proposal-actions { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 2px; }
+.mp-proposal-actions button {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 11.8px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mp-proposal-actions .mp-proposal-apply { border-color: transparent; background: var(--accent); color: #fff; }
+.mp-proposal-status { font-size: 11.8px; font-weight: 650; }
+.mp-proposal-applied { color: var(--success); }
+.mp-proposal-rejected { color: var(--text-muted); }

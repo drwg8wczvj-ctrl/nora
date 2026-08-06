@@ -19,7 +19,10 @@ export class AppErrorBoundary extends React.Component<React.PropsWithChildren, S
     if (!this.state.error) return this.props.children;
     return (
       <main className="fatal-error" role="alert">
-        <img src="/logo-dark.png" alt="Nora" />
+        <div className="fatal-error__brand" aria-label="Nora">
+          <img src="/star-white.png" alt="" />
+          <span>NORA</span>
+        </div>
         <p>Something went wrong. Please reload to continue.</p>
         <button onClick={() => window.location.reload()}>Reload Nora</button>
         {import.meta.env.DEV && <pre>{this.state.error.toString()}</pre>}

@@ -90,7 +90,7 @@ export function computeReadinessSubScores({
 // ── Overall backward-compatible 0-100 pct ───────────────────────────────────
 // Same bucket thresholds/labels as the pre-redesign computeReadiness, so
 // nothing downstream (computeMentalBattery, widget sync, Action Center meta,
-// LongTermInsights's trend chart) perceives a meaning shift.
+// historical observation engine) perceives a meaning shift.
 export function computeReadinessV2(subScores) {
   const pct = Math.round(
     subScores.recovery.value * 0.25 +

@@ -50,10 +50,10 @@ export function buildWorkMindProps(engine, scalars, callbacks) {
     mostAvoided, deferredTasks = [], flowPrediction, implementationIntention,
     workPatterns = [], mindPatterns = [], sleepAnalysis, sleepState,
   } = engine;
-  const { energy, relaxation, focus, motivation, todaySleepQuality, morningCheckup, dailyMetrics } = scalars;
+  const { energy, relaxation, focus, motivation, todaySleepQuality, morningCheckup } = scalars;
   const {
     setChatInput, setChatOpen, setAtlasOpen, setRescheduleTask,
-    setShowMorningCheckup, setReviewCheckupMode, setShowLongTermInsights,
+    setShowMorningCheckup, setReviewCheckupMode,
     setEnergy, setRelaxation, setFocus, setMotivation, setSleepQuality,
   } = callbacks;
 
@@ -103,7 +103,6 @@ export function buildWorkMindProps(engine, scalars, callbacks) {
   const mindPrimary = primaryActions.filter((a) => ACTION_DOMAIN[a.id] === "mind");
 
   const readiness = morningCheckup ? (computeReadiness(morningCheckup) ?? { label: "Moderate", pct: 50 }) : null;
-  const metricsEntryCount = Object.keys(dailyMetrics ?? {}).length;
   const workGhostActions = [
     {
       id: "mcu", tone: "ghost",
@@ -111,11 +110,6 @@ export function buildWorkMindProps(engine, scalars, callbacks) {
       meta: readiness ? `${readiness.label} readiness${Number.isFinite(readiness.pct) ? ` · ${readiness.pct}%` : ""}` : undefined,
       preview: morningCheckup?.noraSummary,
       onClick: () => { setReviewCheckupMode(!!morningCheckup); setShowMorningCheckup(true); },
-    },
-    {
-      id: "lti", tone: "ghost", label: "Long-Term Insights",
-      meta: metricsEntryCount >= 3 ? `${metricsEntryCount} days tracked` : "Complete a few check-ins to unlock",
-      onClick: () => setShowLongTermInsights(true),
     },
     ...(flowPrediction?.confidence !== "insufficient_data" ? [{
       id: "flow_window", tone: "ghost", label: "Best Focus Window Today",

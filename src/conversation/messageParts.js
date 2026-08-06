@@ -22,6 +22,9 @@ export const PART_TYPES = {
   SUCCESS: "success",
   ERROR: "error",
   PROGRESS_UPDATE: "progress_update",
+  ASSISTANT_HANDOFF: "assistant_handoff",
+  SCHEDULE_PROPOSAL: "schedule_proposal",
+  ATLAS_RETURN_PLAN: "atlas_return_plan",
 };
 
 // `text` covers the brief's "text"/"markdown"/"streaming response" as one
@@ -35,8 +38,8 @@ export const taskCardPart = (task) => ({ type: PART_TYPES.TASK_CARD, task });
 export const calendarPreviewPart = (tasks, label) => ({ type: PART_TYPES.CALENDAR_PREVIEW, tasks, label: label ?? null });
 
 // `action` drives both the icon and the phrasing in the renderer.
-export const confirmationCardPart = ({ action, summary, task = null, before = null, after = null }) => ({
-  type: PART_TYPES.CONFIRMATION_CARD, action, summary, task, before, after,
+export const confirmationCardPart = ({ action, summary, task = null, before = null, after = null, undoToken = null }) => ({
+  type: PART_TYPES.CONFIRMATION_CARD, action, summary, task, before, after, undoToken,
 });
 
 export const checklistPart = (items) => ({ type: PART_TYPES.CHECKLIST, items });
@@ -58,6 +61,21 @@ export const successPart = (text) => ({ type: PART_TYPES.SUCCESS, text });
 export const errorPart = (text) => ({ type: PART_TYPES.ERROR, text });
 
 export const progressUpdatePart = (stats) => ({ type: PART_TYPES.PROGRESS_UPDATE, stats });
+
+export const assistantHandoffPart = (handoff) => ({
+  type: PART_TYPES.ASSISTANT_HANDOFF,
+  handoff,
+});
+
+export const scheduleProposalPart = (proposal) => ({
+  type: PART_TYPES.SCHEDULE_PROPOSAL,
+  proposal,
+});
+
+export const atlasReturnPlanPart = (plan) => ({
+  type: PART_TYPES.ATLAS_RETURN_PLAN,
+  plan,
+});
 
 // ── Rich response blocks ─────────────────────────────────────────────────
 // Every persona's text output can use these emoji-headed blocks to mark a
@@ -157,6 +175,9 @@ export function partsToPreviewText(parts = []) {
         case PART_TYPES.ERROR: return p.text;
         case PART_TYPES.TASK_CARD: return p.task?.title ?? "";
         case PART_TYPES.FILE_ATTACHMENT: return p.filename;
+        case PART_TYPES.ASSISTANT_HANDOFF: return `Continue with Atlas: ${p.handoff?.title ?? "Focused session"}`;
+        case PART_TYPES.SCHEDULE_PROPOSAL: return `Proposed schedule: ${p.proposal?.operations?.length ?? 0} changes`;
+        case PART_TYPES.ATLAS_RETURN_PLAN: return `Atlas action plan: ${p.plan?.title ?? "Focused session"}`;
         default: return "";
       }
     })

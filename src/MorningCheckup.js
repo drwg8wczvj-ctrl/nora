@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Sunrise, Zap, Brain, Moon, Target, Wind, Heart, BatteryCharging, HeartHandshake, Send, Sparkle, TrendingUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sunrise, Zap, Brain, Moon, Target, Wind, Heart, BatteryCharging, HeartHandshake, Send, TrendingUp } from "lucide-react";
+import BrandStar from "./components/BrandStar";
 import CloseButton from "./components/CloseButton";
 import AnimatedNumber from "./components/AnimatedNumber";
 import AnimatedRing from "./components/AnimatedRing";
@@ -143,6 +144,14 @@ export default function MorningCheckup({
   const [showSleepTimes, setShowSleepTimes] = useState(false);
   const [sleepPrefillSource, setSleepPrefillSource] = useState(null); // null | "lastNight" | "usual"
   const [askAtlasText, setAskAtlasText] = useState("");
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   // Auto-prefill bedtime/wake time, once, the first time this checkup opens
   // with nothing entered yet — the user only has to correct it, never
@@ -421,7 +430,12 @@ export default function MorningCheckup({
   const stepsBaseline = healthSummary?.activityBaselineSteps ?? 10000;
 
   return (
-    <div className={`mcu-screen${dark ? " dark" : ""}${glass ? " glass" : ""}`}>
+    <div
+      className={`mcu-screen native-ui${dark ? " dark" : ""}${glass ? " glass" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Morning briefing"
+    >
       {/* Sunrise gradient decoration */}
       <div className="mcu-sunrise-glow" />
 
@@ -523,7 +537,7 @@ export default function MorningCheckup({
                 <div className="mcu-facts-list">
                   {facts.map((f, i) => (
                     <div key={i} className="mcu-fact-card mcu-anim-in" style={{ animationDelay: `${460 + i * 90}ms` }}>
-                      <Sparkle size={13} className="mcu-fact-icon" />
+                      <BrandStar size={13} tone="gold" className="mcu-fact-icon" />
                       <span>{f}</span>
                     </div>
                   ))}
@@ -780,7 +794,7 @@ export default function MorningCheckup({
                   className="mcu-plan-nudge-btn"
                   onClick={() => submitAskAtlas("Based on my check-in this morning, please adjust today's plan.")}
                 >
-                  <Sparkle size={14} /> Ask Atlas to adjust today's plan
+                  <BrandStar size={14} tone="gold" /> Ask Atlas to adjust today's plan
                 </button>
               )}
 

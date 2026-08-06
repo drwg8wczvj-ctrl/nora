@@ -97,60 +97,6 @@
     0 14px 70px rgba(0,0,0,0.75);
 }
 
-/* ── Full mobile-shell takeover ──────────────────────────────────────────
-   MobileApp.css has its own later, more specific "Premium iOS Polish" layer
-   (.mob-app:not(.glass) / .mob-app.dark:not(.glass), plus their .mob-header/
-   .mob-bottom-nav/.mob-nav-indicator/.mob-nav-btn.mob-nav-active children)
-   that paints the shell with hardcoded gradients on a SEPARATE --ios-* token
-   family, bypassing --bg/--header-bg/--accent entirely. That's why the
-   first Atlas pass recolored every card correctly but left the header, tab
-   bar, active-tab highlight, and FAB in Nora's navy/purple.
-   !important is deliberate and narrowly scoped to this one override, purely
-   because that competing layer is itself several selectors deep across two
-   files; matching it rule-for-rule would mean touching ~10 more sites for
-   the same result. Never used on the base Nora rules, only here. */
-.mob-app.atlas-active,
-.mob-app.dark.atlas-active,
-.mob-app.atlas-active:not(.glass),
-.mob-app.dark.atlas-active:not(.glass) {
-  --ios-hairline:        rgba(201,168,96,0.22) !important;
-  --ios-material:        rgba(11,10,13,0.86) !important;
-  --ios-material-strong: rgba(17,15,19,0.92) !important;
-  --ios-card-bg:         rgba(11,10,13,0.9) !important;
-  --ios-card-border:     rgba(201,168,96,0.2) !important;
-  --ios-card-shadow:     0 18px 44px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.4) !important;
-  --ios-raised-shadow:   0 24px 70px rgba(0,0,0,.55), 0 0 32px rgba(201,168,96,0.18) !important;
-  --ios-press-shadow:    0 9px 24px rgba(0,0,0,.35) !important;
-  --ios-control-bg:      rgba(255,255,255,0.06) !important;
-  --ios-control-active:  var(--grad) !important;
-  --ios-soft-shadow:     0 20px 52px rgba(0,0,0,.5), 0 2px 10px rgba(0,0,0,.3) !important;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(201,168,96,0.14), transparent 34%),
-    radial-gradient(circle at 85% 18%, rgba(163,133,63,0.10), transparent 34%),
-    linear-gradient(180deg, #0d0c10 0%, #0a090c 46%, #08070a 100%) !important;
-}
-
-.mob-app.atlas-active .mob-ai-fab {
-  background: var(--grad) !important;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.20) inset,
-    0 -8px 12px -8px rgba(0,0,0,0.4) inset,
-    0 6px 24px rgba(var(--accent-rgb),.45) !important;
-}
-.mob-app.atlas-active .mob-ai-fab.fab-open {
-  background: var(--ios-material-strong) !important;
-  box-shadow: var(--ios-card-shadow), 0 1px 0 rgba(255,255,255,0.12) inset !important;
-}
-.mob-app.atlas-active .mob-bottom-nav {
-  background: var(--ios-material) !important;
-}
-.mob-app.atlas-active .mob-nav-indicator {
-  background: rgba(var(--accent-rgb),0.16) !important;
-}
-.mob-app.atlas-active .mob-nav-btn.mob-nav-active {
-  color: var(--accent) !important;
-}
-
 /* Premium typography — Atlas gets a touch more air in its letterforms and
    firmer title weight than Nora's brisker, denser productivity type scale.
    Deliberately just letter-spacing/weight on titles (never a new font face

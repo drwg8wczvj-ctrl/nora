@@ -4,8 +4,12 @@ import {
   TrendingUp, CalendarDays, FileText, FileSpreadsheet, FileImage,
   Plus, ArrowRight, Trash2, CheckCheck, Download,
   Brain, ClipboardList, Zap, BookOpen, Flame, Target, FlaskConical, Heart, NotebookPen, Lightbulb,
+  ArrowUpRight,
+  ArrowLeft,
 } from "lucide-react";
 import { PART_TYPES, parseRichBlocks } from "./messageParts";
+import SchedulePlanboard from "./SchedulePlanboard";
+import { NativeButton } from "../components/ui/NativeUI";
 import "./MessagePart.css";
 
 // Dumb text formatter — bold/italic/inline-code/line-breaks only. A full
@@ -76,7 +80,8 @@ const ACTION_META = {
   update:   { icon: CheckCircle2,label: "Updated" },
 };
 
-function ConfirmationCardPart({ action, summary, task }) {
+function ConfirmationCardPart({ action, summary, task, undoToken, onPlannerAction }) {
+  const [undone, setUndone] = useState(false);
   const meta = ACTION_META[action] ?? ACTION_META.update;
   const Icon = meta.icon;
   return (
@@ -90,6 +95,15 @@ function ConfirmationCardPart({ action, summary, task }) {
             {task.date}{task.startHour != null ? ` · ${String(task.startHour).padStart(2, "0")}:${String(task.startMinute ?? 0).padStart(2, "0")}` : ""}
           </span>
         )}
+        {undoToken && !undone && (
+          <button type="button" className="mp-inline-action" onClick={async () => {
+            const didUndo = await onPlannerAction?.("undo", { undoToken });
+            if (didUndo !== false) setUndone(true);
+          }}>
+            Undo
+          </button>
+        )}
+        {undone && <span className="mp-confirmation-meta">Change undone</span>}
       </div>
     </div>
   );
@@ -220,17 +234,76 @@ function ProgressUpdatePart({ stats = [] }) {
   );
 }
 
+function AssistantHandoffPart({ handoff, onOpenAtlas }) {
+  return (
+    <div className="mp-card mp-handoff">
+      <div className="mp-handoff-kicker">Continue with Atlas</div>
+      <div className="mp-handoff-title">{handoff?.title ?? "Focused training session"}</div>
+      {handoff?.objective && <div className="mp-handoff-objective">{handoff.objective}</div>}
+      <div className="mp-handoff-meta">
+        {handoff?.sessionType ? `${handoff.sessionType.replace(/_/g, " ")} · ` : ""}
+        {handoff?.suggestedMinutes ? `${handoff.suggestedMinutes} min` : "Focused session"}
+        {handoff?.deadline ? ` · Before ${handoff.deadline}` : ""}
+      </div>
+      <NativeButton
+        className="mp-handoff-action"
+        size="compact"
+        trailing={<ArrowUpRight size={14} />}
+        onClick={() => onOpenAtlas?.(handoff)}
+        disabled={!onOpenAtlas}
+      >
+        Prepare with Atlas
+      </NativeButton>
+    </div>
+  );
+}
+
+function AtlasReturnPlanPart({ plan, onOpenNora }) {
+  const [sent, setSent] = useState(false);
+  return (
+    <div className="mp-card mp-return-plan">
+      <div className="mp-handoff-kicker">Ready for Nora</div>
+      <div className="mp-handoff-title">{plan?.title ?? "Action plan"}</div>
+      {plan?.summary && <div className="mp-handoff-objective">{plan.summary}</div>}
+      <div className="mp-return-items">
+        {(plan?.actionItems ?? []).map((item, index) => (
+          <div className="mp-return-item" key={index}>
+            <span>{item.title}</span>
+            <small>{item.duration} min{item.deadline ? ` · by ${item.deadline}` : ""}</small>
+          </div>
+        ))}
+      </div>
+      {!sent ? (
+        <NativeButton
+          className="mp-handoff-action"
+          size="compact"
+          leading={<ArrowLeft size={14} />}
+          onClick={async () => {
+            const opened = await onOpenNora?.(plan);
+            if (opened !== false) setSent(true);
+          }}
+          disabled={!onOpenNora}
+        >
+          Send action plan to Nora
+        </NativeButton>
+      ) : (
+        <div className="mp-return-sent">Sent to Nora for scheduling</div>
+      )}
+    </div>
+  );
+}
+
 // Dispatch by `part.type` — this is the entire "modular renderer" contract.
 // A future part type is one new case here plus one factory in
 // messageParts.js; nothing about the conversation engine or persistence
 // layer needs to change.
-export default function MessagePart({ part }) {
+export default function MessagePart({ part, onOpenAtlas, onOpenNora, onPlannerAction, plannerTasks }) {
   if (!part) return null;
   switch (part.type) {
     case PART_TYPES.TEXT: return <TextPart text={part.text} streaming={part.streaming} />;
     case PART_TYPES.TASK_CARD: return <TaskCardPart task={part.task} />;
     case PART_TYPES.CALENDAR_PREVIEW: return <CalendarPreviewPart tasks={part.tasks} label={part.label} />;
-    case PART_TYPES.CONFIRMATION_CARD: return <ConfirmationCardPart {...part} />;
+    case PART_TYPES.CONFIRMATION_CARD: return <ConfirmationCardPart {...part} onPlannerAction={onPlannerAction} />;
     case PART_TYPES.CHECKLIST: return <ChecklistPart items={part.items} />;
     case PART_TYPES.TABLE: return <TablePart headers={part.headers} rows={part.rows} />;
     case PART_TYPES.FILE_ATTACHMENT: return <FileAttachmentPart {...part} />;
@@ -239,15 +312,18 @@ export default function MessagePart({ part }) {
     case PART_TYPES.SUCCESS: return <BannerPart tone="success" text={part.text} />;
     case PART_TYPES.ERROR: return <BannerPart tone="error" text={part.text} />;
     case PART_TYPES.PROGRESS_UPDATE: return <ProgressUpdatePart stats={part.stats} />;
+    case PART_TYPES.ASSISTANT_HANDOFF: return <AssistantHandoffPart handoff={part.handoff} onOpenAtlas={onOpenAtlas} />;
+    case PART_TYPES.SCHEDULE_PROPOSAL: return <SchedulePlanboard proposal={part.proposal} existingTasks={plannerTasks} onPlannerAction={onPlannerAction} />;
+    case PART_TYPES.ATLAS_RETURN_PLAN: return <AtlasReturnPlanPart plan={part.plan} onOpenNora={onOpenNora} />;
     default: return null;
   }
 }
 
 // Renders a whole parts array in order, each part on its own line/block.
-export function MessagePartsList({ parts = [] }) {
+export function MessagePartsList({ parts = [], onOpenAtlas = null, onOpenNora = null, onPlannerAction = null, plannerTasks = [] }) {
   return (
     <div className="mp-list">
-      {parts.map((p, i) => <MessagePart key={i} part={p} />)}
+      {parts.map((p, i) => <MessagePart key={i} part={p} onOpenAtlas={onOpenAtlas} onOpenNora={onOpenNora} onPlannerAction={onPlannerAction} plannerTasks={plannerTasks} />)}
     </div>
   );
 }

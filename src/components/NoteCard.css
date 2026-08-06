@@ -1,18 +1,56 @@
 /* ─── Note Card ─────────────────────────────────────────────────────────── */
 
 .nc {
-  background:    var(--nc-bg,     var(--surface));
-  border:        1px solid var(--nc-border, var(--border));
-  color:         var(--nc-text,   var(--text));
+  --nc-accent: #8b5cf6;
+  --nc-accent-2: #4f46e5;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--nc-accent) 11%, var(--surface)) 0%,
+      color-mix(in srgb, var(--nc-accent-2) 5%, var(--surface)) 48%,
+      var(--surface) 100%
+    );
+  border:        1px solid color-mix(in srgb, var(--nc-accent) 27%, var(--border));
+  color:         var(--text);
   border-radius: 16px;
-  padding:       14px 14px 8px;
+  padding:       14px 14px 8px 17px;
   cursor:        pointer;
   position:      relative;
-  transition:    transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  transition:    transform .15s ease, box-shadow .15s ease, opacity .15s ease, border-color .15s ease;
   overflow:      hidden;
   touch-action:  manipulation;
   -webkit-user-select: none;
   user-select:   none;
+}
+.nc::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 11px;
+  bottom: 11px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, var(--nc-accent), var(--nc-accent-2));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--nc-accent) 28%, transparent);
+  opacity: .9;
+  pointer-events: none;
+}
+.nc::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: radial-gradient(
+    circle at 4% 0%,
+    color-mix(in srgb, var(--nc-accent) 11%, transparent),
+    transparent 42%
+  );
+  pointer-events: none;
+}
+.nc > * {
+  position: relative;
+  z-index: 2;
 }
 /* Enter animation only for newly created notes (.nc-new is applied programmatically) */
 .nc.nc-new {
@@ -21,7 +59,10 @@
 @media (hover: hover) {
   .nc:hover {
     transform:  translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,.09);
+    border-color: color-mix(in srgb, var(--nc-accent) 43%, var(--border));
+    box-shadow:
+      0 10px 28px rgba(0,0,0,.15),
+      0 0 24px color-mix(in srgb, var(--nc-accent) 9%, transparent);
   }
 }
 .nc.nc-deleting {
@@ -31,27 +72,40 @@
 @keyframes nc-enter { from { opacity: 0; transform: scale(.93); } to { opacity: 1; transform: scale(1); } }
 @keyframes nc-exit  { to   { opacity: 0; transform: scale(.88); } }
 
-/* ── Color tokens — light ─────── */
-.nc[data-color="cream"]    { --nc-bg: #fef7ed; --nc-border: #fed7aa; --nc-text: #7c2d12; --nc-muted: #92400e; }
-.nc[data-color="yellow"]   { --nc-bg: #fefce8; --nc-border: #fde047; --nc-text: #713f12; --nc-muted: #854d0e; }
-.nc[data-color="orange"]   { --nc-bg: #ffedd5; --nc-border: #fb923c; --nc-text: #9a3412; --nc-muted: #c2410c; }
-.nc[data-color="rose"]     { --nc-bg: #fff1f2; --nc-border: #fecdd3; --nc-text: #881337; --nc-muted: #9f1239; }
-.nc[data-color="teal"]     { --nc-bg: #f0fdfa; --nc-border: #5eead4; --nc-text: #0f5f56; --nc-muted: #0d9488; }
-.nc[data-color="blue"]     { --nc-bg: #eff6ff; --nc-border: #bfdbfe; --nc-text: #1e3a8a; --nc-muted: #1d4ed8; }
-.nc[data-color="mint"]     { --nc-bg: #f0fdf4; --nc-border: #bbf7d0; --nc-text: #14532d; --nc-muted: #15803d; }
-.nc[data-color="lavender"] { --nc-bg: #f5f3ff; --nc-border: #c4b5fd; --nc-text: #4c1d95; --nc-muted: #7c3aed; }
-.nc[data-color="purple"]   { --nc-bg: #faf5ff; --nc-border: #e9d5ff; --nc-text: #4c1d95; --nc-muted: #7c3aed; }
+.nc-more-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--native-label-tertiary, var(--nc-muted, var(--text-muted)));
+  cursor: pointer;
+}
+.nc-more-btn:hover {
+  background: var(--native-accent-soft, rgba(139,92,246,.12));
+  color: var(--native-accent, var(--accent));
+}
 
-/* ── Color tokens — dark ─────── */
-.dark .nc[data-color="cream"]    { --nc-bg: hsl(38 30% 17%);  --nc-border: rgba(245,158,11,.40); --nc-text: #fbbf24; --nc-muted: #d97706; }
-.dark .nc[data-color="yellow"]   { --nc-bg: hsl(55 32% 17%);  --nc-border: rgba(234,179,8,.40);  --nc-text: #facc15; --nc-muted: #ca8a04; }
-.dark .nc[data-color="orange"]   { --nc-bg: hsl(25 30% 17%);  --nc-border: rgba(249,115,22,.40); --nc-text: #fb923c; --nc-muted: #ea580c; }
-.dark .nc[data-color="rose"]     { --nc-bg: hsl(350 28% 17%); --nc-border: rgba(244,63,94,.40);  --nc-text: #fb7185; --nc-muted: #e11d48; }
-.dark .nc[data-color="teal"]     { --nc-bg: hsl(175 28% 16%); --nc-border: rgba(20,184,166,.40); --nc-text: #2dd4bf; --nc-muted: #0d9488; }
-.dark .nc[data-color="blue"]     { --nc-bg: hsl(220 28% 17%); --nc-border: rgba(59,130,246,.40); --nc-text: #60a5fa; --nc-muted: #3b82f6; }
-.dark .nc[data-color="mint"]     { --nc-bg: hsl(140 28% 16%); --nc-border: rgba(34,197,94,.40);  --nc-text: #4ade80; --nc-muted: #22c55e; }
-.dark .nc[data-color="lavender"] { --nc-bg: hsl(250 28% 18%); --nc-border: rgba(167,139,250,.40); --nc-text: #c4b5fd; --nc-muted: #a78bfa; }
-.dark .nc[data-color="purple"]   { --nc-bg: hsl(270 28% 17%); --nc-border: rgba(139,92,246,.40); --nc-text: #a78bfa; --nc-muted: #8b5cf6; }
+/* ── Color identity ────────────────────────────────────────────────
+   Notes stay on the same black surface; their chosen color only changes
+   the quiet gradient wash and the edge rail, making a library scannable. */
+.nc[data-color="default"],
+.nc[data-color="purple"]   { --nc-accent: #9b72ff; --nc-accent-2: #5b5de8; --nc-muted: #b7a0ff; }
+.nc[data-color="cream"]    { --nc-accent: #e0b56e; --nc-accent-2: #d07b45; --nc-muted: #e3bd7c; }
+.nc[data-color="yellow"]   { --nc-accent: #f2d04f; --nc-accent-2: #d79c32; --nc-muted: #ebcf68; }
+.nc[data-color="orange"]   { --nc-accent: #ff9f43; --nc-accent-2: #ef5f5f; --nc-muted: #ffac69; }
+.nc[data-color="rose"]     { --nc-accent: #fb7185; --nc-accent-2: #c45edb; --nc-muted: #fb8ca0; }
+.nc[data-color="teal"]     { --nc-accent: #2dd4bf; --nc-accent-2: #249ed0; --nc-muted: #58ddcd; }
+.nc[data-color="blue"]     { --nc-accent: #60a5fa; --nc-accent-2: #6366f1; --nc-muted: #86b9fa; }
+.nc[data-color="mint"]     { --nc-accent: #4ade80; --nc-accent-2: #14b8a6; --nc-muted: #6ee39a; }
+.nc[data-color="lavender"] { --nc-accent: #c4b5fd; --nc-accent-2: #818cf8; --nc-muted: #cfc4fc; }
 
 /* ── Hover actions (desktop only) ─────── */
 .nc-hover-actions {

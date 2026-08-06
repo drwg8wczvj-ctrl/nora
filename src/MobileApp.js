@@ -1,24 +1,52 @@
-import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MessageSquare, X, Send,
-  FileText, Trash2, User, RotateCcw, CalendarDays,
+  Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MessageSquare, X,
+  FileText, Trash2, User, RotateCcw, CalendarDays, Pin, Star,
   Flag, Coffee, Bell, Activity,
-  SkipForward, Sparkles, Sparkle, Plus, Settings,
-  BarChart2, Zap, List, CheckSquare, Pencil, Layers,
-  Share2, Users, Search, KeyRound, PanelLeft, HeartPulse, MoreHorizontal,
+  SkipForward, Plus,
+  BarChart2, Zap, List, Pencil,
+  Share2, Users, Search, KeyRound, HeartPulse, MoreHorizontal, Languages,
+  SlidersHorizontal,
 } from "lucide-react";
 import { MessagePartsList } from "./conversation/MessagePart";
+import ConversationMessage from "./conversation/ConversationMessage";
 import { textPart } from "./conversation/messageParts";
 import { ConversationSheet } from "./conversation/ConversationList";
 import CloseButton from "./components/CloseButton";
+import BrandStar from "./components/BrandStar";
+import {
+  NativeButton,
+  NativeDialog,
+  NativeEmptyState,
+  NativeField,
+  NativeIconButton,
+  NativeListRow,
+  NativeSection,
+  NativeSegmentedControl,
+  NativeSheet,
+  NativeSwitch,
+} from "./components/ui/NativeUI";
+import { MobileShellHeader, MobileShellTabBar } from "./components/mobile/MobileShell";
+import {
+  AssistantChatComposer,
+  AssistantComposerMenu,
+  AssistantChatHeader,
+} from "./components/mobile/AssistantChatUI";
+import {
+  buildDaySummary,
+  formatPlannerDate,
+  partitionDayTasks,
+  shiftIsoDate,
+} from "./components/mobile/plannerModel";
 import { isNativeActionMenuAvailable, showNativeActionMenu } from "./lib/nativeActionMenu";
 import { hapticLight, hapticSelection } from "./lib/haptics";
 import NoteCard from "./components/NoteCard";
 import NoteEditor, { NOTE_TYPE_DEFS, migrateNote } from "./components/NoteEditor";
 import { supabase } from "./lib/supabase";
 import MorningCheckup from "./MorningCheckup";
-import LongTermInsights from "./LongTermInsights";
+import NoraObservations from "./NoraObservations";
 import FocusSession from "./FocusSession";
+import DeskMode from "./components/desk/DeskMode";
 import NotificationPermissionBanner from "./components/NotificationPermissionBanner";
 import NotificationSettings from "./components/NotificationSettings";
 import HealthSettings from "./components/HealthSettings";
@@ -28,7 +56,6 @@ import UsernameOnboarding from "./components/UsernameOnboarding";
 import UsernameNudgeBanner from "./components/UsernameNudgeBanner";
 import ProfileModal from "./components/ProfileModal";
 import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
-import { MobileWhiteboardView } from "./Whiteboard";
 import { MapPin } from "lucide-react";
 import LocationField from "./components/LocationField";
 import SavedPlacesManager from "./components/SavedPlacesManager";
@@ -42,6 +69,7 @@ import { buildWorkMindProps } from "./status/buildStatusProps";
 import "./MobileApp.css";
 import { useTranslation } from "react-i18next";
 import { useNativeTabBar } from "./hooks/useNativeTabBar";
+import { usePhoneLandscape } from "./hooks/useMobile";
 import { apiFetch } from "./lib/apiBase";
 
 // ── Local helpers ────────────────────────────────────────────
@@ -110,6 +138,7 @@ const fmtDur = (min) => {
 // ── Root ─────────────────────────────────────────────────────
 export default function MobileApp({ ctx }) {
   const { t } = useTranslation();
+  const phoneLandscape = usePhoneLandscape();
   const [mobileView,    setMobileView]    = useState("plan");
   const [planSubView,   setPlanSubView]   = useState("day");
   const [dayMode,       setDayMode]       = useState("list");
@@ -141,13 +170,6 @@ export default function MobileApp({ ctx }) {
   const [filterComplex, setFilterComplex] = useState(null);
   const hasFilters = filterType || filterGroup || filterComplex;
 
-  // Bottom nav drag/dial — DOM-direct (no re-renders per frame)
-  const navRef           = useRef(null);
-  const navIndicatorRef  = useRef(null);
-  const navDragRef       = useRef({ active: false, startX: 0, startIdx: 0, moved: false });
-  const navFirstMount    = useRef(true);
-  const [isDraggingNav, setIsDraggingNav] = useState(false);
-
   const { dark, theme, chatOpen, setChatOpen, aiHubOpen, setAiHubOpen,
           messengerOpen, setMessengerOpen, editingTask, draft, inAppAlert, setInAppAlert,
           rescheduleTask, setRescheduleTask, saveReschedule, groups,
@@ -159,14 +181,20 @@ export default function MobileApp({ ctx }) {
           atlasConversations, atlasActiveConversationId, atlasConversationsLoading,
           onSelectAtlasConversation, onNewAtlasConversation, onRenameAtlasConversation,
           onPinAtlasConversation, onArchiveAtlasConversation, onDeleteAtlasConversation,
+          onOpenNoraReturnPlan,
+          editAtlasMessage, retryAtlasMessage,
           assistantSettings, updateAssistantSettings } = ctx;
 
   const TYPE_COLORS   = { task:"var(--accent)", deadline:"#ef4444", break:"#94a3b8" };
   const COMPLEX_COLORS = { easy:"#22c55e", medium:"#f59e0b", hard:"#ef4444" };
 
-  const VIEWS_NAV = ["plan", "tasks", "notes", "status", "settings"];
-  const navIdx    = VIEWS_NAV.indexOf(mobileView);
-  const isGlass   = theme === "liquid_glass";
+  const shellLabels = {
+    plan: t("mob.plan"),
+    tasks: t("mob.tasks"),
+    notes: t("mob.notes"),
+    status: t("mob.status"),
+    settings: t("mob.settings"),
+  };
 
   // The native tab bar renders in its own UIKit layer on top of the WebView,
   // so no web mechanism (z-index, dim masks, position:fixed) can cover it —
@@ -176,160 +204,73 @@ export default function MobileApp({ ctx }) {
   // three (Proactive/SuggestionCenter/Onboarding) that render as siblings of
   // <MobileApp> rather than inside it.
   const anyOverlayOpen = !!(
-    ctx.showMorningCheckup || ctx.showLongTermInsights ||
+    ctx.showMorningCheckup || ctx.showObservations ||
     (editingTask && draft) || rescheduleTask ||
     chatOpen || aiHubOpen || messengerOpen || atlasOpen ||
     sharingTask || ctx.showJoinCode || ctx.showOnboarding ||
     ctx.showProfileModal || ctx.pricingOpen || focusTask ||
-    showFilters || mobileView === "boards" ||
+    showFilters ||
     ctx.intelOverlayOpen
   );
 
-  // Native iOS Liquid Glass tab bar — active only in glass mode on native iOS.
-  // On web / PWA / Android / default mode this is a complete no-op.
+  // Native iOS tab bar — the OS owns this surface on native iPhone builds.
+  // Web/PWA/Android keep the matching web implementation.
   const { usingNative } = useNativeTabBar({
     activeTab: mobileView,
-    mode:      isGlass ? "glass" : "default",
-    dark:      !!dark,
-    enabled:   isGlass,
-    visible:   !anyOverlayOpen,
+    mode:      atlasShellActive ? "atlas" : "nora",
+    dark:      true,
+    enabled:   true,
+    visible:   !anyOverlayOpen && !phoneLandscape,
     onTabChange: setMobileView,
   });
 
-  // Snap the indicator to the active tab.
-  // Suppress transition on first paint so it doesn't fly in from (0,0).
-  useLayoutEffect(() => {
-    const nav = navRef.current;
-    const ind = navIndicatorRef.current;
-    if (!nav || !ind) return;
-    const btns = nav.querySelectorAll(".mob-nav-btn");
-    const btn  = btns[navIdx];
-    if (!btn) return;
-
-    ind.style.left   = `${btn.offsetLeft}px`;
-    ind.style.top    = `${btn.offsetTop}px`;
-    ind.style.width  = `${btn.offsetWidth}px`;
-    ind.style.height = `${btn.offsetHeight}px`;
-
-    if (navFirstMount.current) {
-      nav.classList.add('mob-nav-no-trans');
-      navFirstMount.current = false;
-      requestAnimationFrame(() => nav.classList.remove('mob-nav-no-trans'));
-    }
-  }, [navIdx]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const onNavPointerDown = (e) => {
-    navDragRef.current = { active: true, startX: e.clientX, startIdx: navIdx, moved: false };
-    navRef.current?.setPointerCapture(e.pointerId);
-  };
-
-  const onNavPointerMove = (e) => {
-    if (!navDragRef.current.active || !navRef.current) return;
-    const dx = e.clientX - navDragRef.current.startX;
-    if (Math.abs(dx) <= 8) return;
-    if (!navDragRef.current.moved) {
-      navDragRef.current.moved = true;
-      setIsDraggingNav(true);
-    }
-    const btns = navRef.current.querySelectorAll(".mob-nav-btn");
-    const tabW = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
-    const clampedIdx = Math.max(0, Math.min(4, navDragRef.current.startIdx + dx / tabW));
-    if (navIndicatorRef.current) {
-      navIndicatorRef.current.style.left =
-        `${(btns[0]?.offsetLeft ?? 0) + clampedIdx * tabW}px`;
-    }
-    const snapIdx = Math.round(clampedIdx);
-    navRef.current.querySelectorAll(".mob-nav-btn").forEach((btn, i) => {
-      btn.style.color = i === snapIdx ? "var(--accent)" : "";
-    });
-  };
-
-  const onNavPointerUp = (e) => {
-    if (!navDragRef.current.active) return;
-    const { moved, startX, startIdx } = navDragRef.current;
-    navDragRef.current.active = false;
-    navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
-
-    if (moved) {
-      setIsDraggingNav(false);
-      if (navRef.current) {
-        const btns  = navRef.current.querySelectorAll(".mob-nav-btn");
-        const tabW  = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
-        const snapped = Math.max(0, Math.min(4, Math.round(startIdx + (e.clientX - startX) / tabW)));
-        setMobileView(VIEWS_NAV[snapped]);
-        // useLayoutEffect fires after state update → spring-animates pill to snapped position
-      }
-      setTimeout(() => { navDragRef.current.moved = false; }, 0);
-    } else {
-      // Tap — pointer capture may have swallowed the click; navigate directly from position
-      navDragRef.current.moved = false;
-      if (navRef.current) {
-        const btns    = navRef.current.querySelectorAll(".mob-nav-btn");
-        const tabW    = btns[0] ? btns[0].offsetWidth : navRef.current.clientWidth / 5;
-        const firstX  = btns[0] ? btns[0].getBoundingClientRect().left : navRef.current.getBoundingClientRect().left;
-        const tapped  = Math.max(0, Math.min(4, Math.floor((e.clientX - firstX) / tabW)));
-        setMobileView(VIEWS_NAV[tapped]);
-      }
-    }
-  };
-
-  const onNavPointerCancel = () => {
-    navRef.current?.querySelectorAll(".mob-nav-btn").forEach((btn) => { btn.style.color = ""; });
-    navDragRef.current = { active: false, startX: 0, startIdx: 0, moved: false };
-    setIsDraggingNav(false);
-    // useLayoutEffect will spring the pill back to current navIdx
-  };
+  if (phoneLandscape) {
+    return <DeskMode ctx={ctx} />;
+  }
 
   return (
-    <div className={`app mob-app${dark ? " dark" : ""}${theme === "liquid_glass" ? " glass" : ""}${usingNative ? " mob-native-nav" : ""}${atlasShellActive ? " atlas-active" : ""}${showLaunchSplash ? (launchRevealing ? " launch-shell-revealing" : " launch-shell-waiting") : ""}`}>
+    <div
+      className={`app mob-app native-ui dark${usingNative ? " mob-native-nav" : ""}${atlasShellActive ? " atlas-active" : ""}${showLaunchSplash ? (launchRevealing ? " launch-shell-revealing" : " launch-shell-waiting") : ""}`}
+      data-native-ui
+      data-persona={atlasShellActive ? "atlas" : "nora"}
+    >
 
       {/* Ambient warmth wash while Atlas's chat is open — fades in/out via .atlas-active */}
       <div className="app-atlas-tint" aria-hidden="true" />
 
-      <MobileHeader ctx={ctx} onLogoClick={() => {
-        setMobileView("plan");
-        setPlanSubView("day");
-        setPlanDate(ctx.today);
-      }} onBoardsClick={() => setMobileView("boards")}
+      <MobileShellHeader
+        today={ctx.today}
+        activeView={mobileView}
+        labels={shellLabels}
+        isOnline={ctx.isOnline}
+        onLogoClick={() => {
+          setMobileView("plan");
+          setPlanSubView("day");
+          setPlanDate(ctx.today);
+        }}
       />
 
       <main className="mob-main">
         {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} planDate={planDate} setPlanDate={setPlanDate} />}
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
-        {mobileView === "boards"   && <MobileWhiteboardView boards={ctx.boards} onAskNora={p => { ctx.setChatInput(p); ctx.setChatOpen(true); }} onClose={() => setMobileView("plan")} />}
-        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} onOpenHealthSettings={() => setMobileView("settings")} tasks={ctx.tasks || []} dailyMetrics={ctx.dailyMetrics || {}} journeys={ctx.journeys || []} onAskAtlas={(message) => { ctx.setAtlasChatInput(message); ctx.setAtlasOpen(true); }} onMindModeChange={ctx.setStatusMindActive} /></div>}
+        {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} healthSummary={ctx.healthSummary} onOpenHealthSettings={() => setMobileView("settings")} tasks={ctx.tasks || []} dailyMetrics={ctx.dailyMetrics || {}} journeys={ctx.journeys || []} onOpenInsights={() => ctx.setShowObservations(true)} onAskAtlas={(message) => { ctx.setAtlasChatInput(message); ctx.setAtlasOpen(true); }} onMindModeChange={ctx.setStatusMindActive} /></div>}
         {mobileView === "settings" && <MobileSettings ctx={ctx} />}
       </main>
 
-      <nav
-        className={`mob-bottom-nav${isDraggingNav ? " mob-nav-dragging" : ""}`}
-        ref={navRef}
-        onPointerDown={onNavPointerDown}
-        onPointerMove={onNavPointerMove}
-        onPointerUp={onNavPointerUp}
-        onPointerCancel={onNavPointerCancel}
-      >
-        <div className="mob-nav-atlas-glow" aria-hidden="true" />
-        <div ref={navIndicatorRef} className="mob-nav-indicator" />
-        {[
-          ["plan",     t("mob.plan"),     <CalendarDays size={20} />],
-          ["tasks",    t("mob.tasks"),    <CheckSquare  size={20} />],
-          ["notes",    t("mob.notes"),    <FileText     size={20} />],
-          ["status",   t("mob.status"),   <Activity     size={20} />],
-          ["settings", t("mob.settings"), <Settings     size={20} />],
-        ].map(([v, l, icon]) => (
-          <button key={v}
-            className={`mob-nav-btn${mobileView === v ? " mob-nav-active" : ""}`}
-            onClick={() => setMobileView(v)}>
-            <span className="mob-nav-icon">{icon}</span>
-            <span className="mob-nav-label">{l}</span>
-          </button>
-        ))}
-      </nav>
+      <MobileShellTabBar
+        activeView={mobileView}
+        labels={shellLabels}
+        onViewChange={(nextView) => {
+          if (nextView !== mobileView) hapticSelection();
+          setMobileView(nextView);
+        }}
+      />
 
-      <button
+      <NativeIconButton
         className={`mob-ai-fab${(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? " fab-open" : ""}${showLaunchSplash ? " mob-ai-fab-launch-hidden" : ""}`}
+        label={(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? "Close AI" : "Open Nora"}
+        variant={(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? "tertiary" : "accent"}
         onClick={() => {
           if (aiHubOpen || chatOpen || messengerOpen || atlasOpen) {
             setAiHubOpen(false); setChatOpen(false); setMessengerOpen(false); setAtlasOpen(false);
@@ -337,8 +278,8 @@ export default function MobileApp({ ctx }) {
             setAiHubOpen(true);
           }
         }}>
-        {(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? <X size={22} /> : <Sparkle size={24} strokeWidth={0} fill="currentColor" />}
-      </button>
+        {(aiHubOpen || chatOpen || messengerOpen || atlasOpen) ? <X size={22} /> : <BrandStar size={24} tone="white" />}
+      </NativeIconButton>
 
       <MobileChat ctx={ctx} />
       <MobileAtlasChat
@@ -361,6 +302,10 @@ export default function MobileApp({ ctx }) {
         onPinConversation={onPinAtlasConversation}
         onArchiveConversation={onArchiveAtlasConversation}
         onDeleteConversation={onDeleteAtlasConversation}
+        onOpenNora={onOpenNoraReturnPlan}
+        onEditMessage={editAtlasMessage}
+        onRetryMessage={retryAtlasMessage}
+        plannerTasks={ctx.tasks ?? []}
       />
       <AIHub
         open={aiHubOpen}
@@ -382,14 +327,18 @@ export default function MobileApp({ ctx }) {
         dark={dark}
       />
       {editingTask && draft && <MobileEditModal ctx={ctx} />}
-      {/* Long-Term Insights overlay */}
-      {ctx.showLongTermInsights && (
-        <LongTermInsights
-          dark={dark}
-          glass={theme === "liquid_glass"}
+      {/* Nora's observations overlay */}
+      {ctx.showObservations && (
+        <NoraObservations
           metrics={ctx.dailyMetrics || {}}
           tasks={ctx.tasks || []}
-          onClose={() => ctx.setShowLongTermInsights(false)}
+          healthSummary={ctx.healthSummary}
+          onClose={() => ctx.setShowObservations(false)}
+          onAskNora={(message) => {
+            ctx.setShowObservations(false);
+            ctx.setChatInput(message);
+            ctx.setChatOpen(true);
+          }}
         />
       )}
 
@@ -599,33 +548,6 @@ export default function MobileApp({ ctx }) {
   );
 }
 
-// ── Header ───────────────────────────────────────────────────
-function MobileHeader({ ctx, onLogoClick, onBoardsClick }) {
-  const { today, dark, isOnline } = ctx;
-  const d = new Date(today + "T00:00:00");
-  const dayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
-  const dateText = `${dayName}, ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]} ${d.getDate()}`;
-  return (
-    <header className="mob-header">
-      <button className="mob-brand-btn" onClick={onLogoClick} aria-label="Go to today's plan">
-        <img
-          src={dark ? "/logo-dark.png" : "/logo-light.png"}
-          className="mob-brand-logo"
-          alt="Nora" />
-      </button>
-      <span className="mob-header-date">
-        {dateText}
-        {isOnline === false && <span className="mob-offline-pill">Offline</span>}
-      </span>
-      {onBoardsClick && (
-        <button className="mob-header-boards-btn" onClick={onBoardsClick} aria-label="Whiteboards">
-          <Layers size={18} />
-        </button>
-      )}
-    </header>
-  );
-}
-
 // ── Swipe Row (right = done, left = reschedule) ───────────────
 function SwipeRow({ children, onDone, onReschedule }) {
   const outerRef = useRef(null);
@@ -691,35 +613,45 @@ function SwipeRow({ children, onDone, onReschedule }) {
 
 // ── Day Summary strip ─────────────────────────────────────────
 function DaySummary({ tasks, planDate, today, doneToday, totalToday, pct }) {
-  const dayTasks = tasks.filter((t) => t.date === planDate && (t.type ?? 'task') === 'task');
-  const taskCount = dayTasks.length;
-  const mins = dayTasks.reduce((s, t) => s + (t.duration ?? 0), 0);
-  const timeLabel = mins >= 60
-    ? `${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ''}`
-    : mins > 0 ? `${mins}m` : null;
-  const workload = mins >= 480 || taskCount >= 8 ? 'heavy'
-    : mins >= 300 || taskCount >= 5 ? 'moderate'
-    : mins >= 60  || taskCount >= 2 ? 'light'
-    : 'free';
-  const WL = { free: 'Free', light: 'Light', moderate: 'Moderate', heavy: 'Heavy' };
-  const isToday = planDate === today;
-  if (taskCount === 0) return null;
+  const summary = buildDaySummary(tasks, planDate, today);
+  const durationLabel = summary.durationMinutes >= 60
+    ? `${Math.floor(summary.durationMinutes / 60)}h${summary.durationMinutes % 60 ? ` ${summary.durationMinutes % 60}m` : ""}`
+    : summary.durationMinutes > 0 ? `${summary.durationMinutes}m` : "Open";
+  const workloadLabel = {
+    free: "Open",
+    light: "Light",
+    moderate: "Balanced",
+    heavy: "Heavy",
+  }[summary.workload];
+  const completed = summary.isToday ? doneToday : summary.completedCount;
+  const total = summary.isToday ? totalToday : summary.taskCount;
+  const progress = summary.isToday ? pct : summary.progress;
+
   return (
-    <div className="mob-day-summary">
-      <div className="mob-ds-stats">
-        <span className="mob-ds-tasks">{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
-        {timeLabel && <span className="mob-ds-time">· {timeLabel}</span>}
-        <span className={`mob-ds-wl mob-ds-wl-${workload}`}>{WL[workload]}</span>
+    <section className="mob-day-summary" aria-label="Day workload">
+      <div className="mob-ds-metrics">
+        <div className="mob-ds-metric">
+          <strong>{summary.taskCount}</strong>
+          <span>{summary.taskCount === 1 ? "task" : "tasks"}</span>
+        </div>
+        <div className="mob-ds-metric">
+          <strong>{durationLabel}</strong>
+          <span>planned</span>
+        </div>
+        <div className={`mob-ds-metric mob-ds-wl-${summary.workload}`}>
+          <strong>{workloadLabel}</strong>
+          <span>workload</span>
+        </div>
       </div>
-      {isToday && totalToday > 0 && (
-        <>
+      {total > 0 && (
+        <div className="mob-ds-progress">
           <div className="mob-ds-bar">
-            <div className="mob-ds-bar-fill" style={{ width: `${pct}%` }} />
+            <div className="mob-ds-bar-fill" style={{ width: `${progress}%` }} />
           </div>
-          <div className="mob-ds-pct">{doneToday} of {totalToday} done</div>
-        </>
+          <span className="mob-ds-pct">{completed} of {total} complete</span>
+        </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -730,15 +662,8 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
   const { today, tasks, doneToday, totalToday, pct } = ctx;
   const [zoomLevel, setZoomLevel] = useState(1);
 
-  const shiftDate = (delta) => {
-    const d = new Date(planDate + "T00:00:00");
-    d.setDate(d.getDate() + delta);
-    // Use local date parts to avoid UTC offset shifting the date
-    setPlanDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
-  };
-
-  const dateLabel = planDate === today ? "Today"
-    : new Date(planDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const shiftDate = (delta) => setPlanDate(shiftIsoDate(planDate, delta));
+  const dateLabel = formatPlannerDate(planDate, today);
 
   // Filtered tasks for the selected plan date
   const planTasks = tasks.filter((t) => {
@@ -751,39 +676,64 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
 
   return (
     <div className="mob-plan">
-      {/* Day / Month toggle */}
-      <div className="mob-plan-segs">
-        <div className={`mob-seg-pill mob-seg-pill-${subView === "day" ? 0 : 1}`} />
-        <button className={`mob-seg-btn${subView === "day" ? " active" : ""}`} onClick={() => { if (subView !== "day") { hapticSelection(); setSubView("day"); } }}>Day</button>
-        <button className={`mob-seg-btn${subView === "month" ? " active" : ""}`} onClick={() => { if (subView !== "month") { hapticSelection(); setSubView("month"); } }}>Month</button>
+      <div className="mob-plan-range">
+        <NativeSegmentedControl
+          label="Planner range"
+          value={subView}
+          onChange={(next) => {
+            if (next !== subView) hapticSelection();
+            setSubView(next);
+          }}
+          options={[
+            { value: "day", label: "Day" },
+            { value: "month", label: "Month" },
+          ]}
+        />
       </div>
 
       {subView === "day" && (
         <>
-          {/* Date navigation */}
           <div className="mob-plan-date-row">
-            <button className="mob-date-nav-btn" onClick={() => shiftDate(-1)}><ChevronLeft size={18} /></button>
-            <button className={`mob-date-label${planDate === today ? " is-today" : ""}`} onClick={() => setPlanDate(today)}>
-              {dateLabel}
+            <NativeIconButton label="Previous day" variant="tertiary" onClick={() => shiftDate(-1)}>
+              <ChevronLeft size={20} />
+            </NativeIconButton>
+            <button
+              type="button"
+              className={`mob-date-label${planDate === today ? " is-today" : ""}`}
+              onClick={() => setPlanDate(today)}
+              aria-label={planDate === today ? "Today" : `Return to today from ${dateLabel.full}`}
+            >
+              <strong>{dateLabel.short}</strong>
+              <span>{dateLabel.full}</span>
             </button>
-            <button className="mob-date-nav-btn" onClick={() => shiftDate(1)}><ChevronRight size={18} /></button>
+            <NativeIconButton label="Next day" variant="tertiary" onClick={() => shiftDate(1)}>
+              <ChevronRight size={20} />
+            </NativeIconButton>
           </div>
 
-          {/* List / Grid + Filters row */}
           <div className="mob-day-controls">
-            <div className="mob-day-mode-row" style={{ margin: 0 }}>
-              <button className={`mob-mode-btn${dayMode === "list" ? " active" : ""}`} onClick={() => { if (dayMode !== "list") { hapticSelection(); setDayMode("list"); } }}>
-                <Sparkles size={13} /> Smart
-              </button>
-              <button className={`mob-mode-btn${dayMode === "grid" ? " active" : ""}`} onClick={() => { if (dayMode !== "grid") { hapticSelection(); setDayMode("grid"); } }}>
-                <BarChart2 size={13} /> Grid
-              </button>
-            </div>
-            <button
+            <NativeSegmentedControl
+              className="mob-day-mode-row"
+              label="Day layout"
+              value={dayMode}
+              onChange={(next) => {
+                if (next !== dayMode) hapticSelection();
+                setDayMode(next);
+              }}
+              options={[
+                { value: "list", label: "Smart", icon: <BrandStar size={13} tone="current" /> },
+                { value: "grid", label: "Timeline", icon: <BarChart2 size={13} /> },
+              ]}
+            />
+            <NativeIconButton
               className={`mob-plan-filter-btn${hasFilters ? " active" : ""}`}
-              onClick={onOpenFilters}>
-              Filters{hasFilters ? " ●" : ""}
-            </button>
+              label={hasFilters ? "Filters active" : "Filter plan"}
+              variant="tertiary"
+              onClick={onOpenFilters}
+            >
+              <SlidersHorizontal size={18} />
+              {hasFilters && <span className="mob-filter-indicator" />}
+            </NativeIconButton>
           </div>
 
           <DaySummary tasks={tasks} planDate={planDate} today={today}
@@ -805,7 +755,7 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
 function MobileHome({ ctx, planDate, planTasks }) {
   const {
     todayTasks, today, aiFocus, contextMode, deferredTasks,
-    doneToday, totalToday, pct, toggleTask,
+    toggleTask,
     setChatInput, setChatOpen, setEditingTask, setFocusTask,
     setRescheduleTask, groups, nowObj,
   } = ctx;
@@ -814,15 +764,21 @@ function MobileHome({ ctx, planDate, planTasks }) {
   const effectiveTasks = planTasks ?? todayTasks;
   const nowMins = nowObj.getHours() * 60 + nowObj.getMinutes();
   const [expandedId, setExpandedId] = useState(null);
-
-  const scheduled = [...effectiveTasks]
-    .filter((t) => t.startHour != null)
-    .sort((a, b) => a.startHour * 60 + (a.startMinute ?? 0) - (b.startHour * 60 + (b.startMinute ?? 0)));
-
-  const unscheduled = effectiveTasks.filter((t) => t.startHour == null);
-  const nextTask = scheduled.find(
-    (t) => !t.completed && t.startHour * 60 + (t.startMinute ?? 0) >= nowMins
+  const isToday = effectiveDate === today;
+  const { scheduled, unscheduled, nextTask } = partitionDayTasks(
+    effectiveTasks,
+    nowMins,
+    isToday,
   );
+  const summary = buildDaySummary(effectiveTasks, effectiveDate, today);
+  const recommendedTask = isToday
+    ? aiFocus.priorityTask
+    : nextTask || unscheduled.find((task) => !task.completed);
+  const focusInsight = isToday
+    ? aiFocus.insight
+    : recommendedTask
+      ? "This is the clearest starting point for the selected day."
+      : "This day still has room for something meaningful.";
   const getGroup = (id) => groups.find((g) => g.id === id);
 
   const renderItem = (t, showTime) => {
@@ -904,72 +860,84 @@ function MobileHome({ ctx, planDate, planTasks }) {
     );
   };
 
+  const askNoraAboutFocus = () => {
+    setChatInput(recommendedTask
+      ? `What's the best way to tackle "${recommendedTask.title}"${isToday ? " right now" : ` on ${effectiveDate}`}?`
+      : `Help me plan ${isToday ? "today" : effectiveDate}.`);
+    setChatOpen(true);
+  };
+
   return (
     <div className="mob-home">
-
-      {/* AI Focus Card */}
-      <div className="mob-focus-card">
+      <section className="mob-focus-card" aria-labelledby="mob-nora-focus-title">
         <div className="mob-focus-card-top">
-          <span className="mob-ctx-badge" style={{
-            background: `${contextMode.color}1a`,
-            color: contextMode.color,
-            borderColor: `${contextMode.color}40`,
-          }}>
-            <Sparkles size={11} /> {contextMode.label}
-          </span>
-          {totalToday > 0 && <span className="mob-done-pill">{doneToday}/{totalToday}</span>}
+          <div className="mob-focus-brand">
+            <span className="mob-focus-brand-mark">
+              <BrandStar size={15} tone="current" />
+            </span>
+            <span id="mob-nora-focus-title">Nora's focus</span>
+          </div>
+          <span className="mob-ctx-badge">{contextMode.label}</span>
         </div>
 
-        {aiFocus.priorityTask ? (
+        {recommendedTask ? (
           <>
-            <p className="mob-focus-eyebrow">Focus on next</p>
-            <h2 className="mob-focus-title">{aiFocus.priorityTask.title}</h2>
-            {aiFocus.priorityTask.startHour != null && (
+            <p className="mob-focus-eyebrow">{isToday ? "Best next move" : "Start here"}</p>
+            <h2 className="mob-focus-title">{recommendedTask.title}</h2>
+            {recommendedTask.startHour != null && (
               <p className="mob-focus-time">
-                {fmtTime(aiFocus.priorityTask.startHour, aiFocus.priorityTask.startMinute ?? 0)}
-                {aiFocus.priorityTask.duration ? ` · ${fmtDur(aiFocus.priorityTask.duration)}` : ""}
+                {fmtTime(recommendedTask.startHour, recommendedTask.startMinute ?? 0)}
+                {recommendedTask.duration ? ` · ${fmtDur(recommendedTask.duration)}` : ""}
               </p>
             )}
           </>
         ) : (
-          <h2 className="mob-focus-title mob-focus-empty">You're all caught up.</h2>
+          <h2 className="mob-focus-title mob-focus-empty">This day is open.</h2>
         )}
 
-        <p className="mob-focus-insight">{aiFocus.insight}</p>
+        <p className="mob-focus-insight">{focusInsight}</p>
 
-        {totalToday > 0 && (
+        {summary.taskCount > 0 && (
           <div className="mob-progress-track">
-            <div className="mob-progress-fill" style={{ width: `${pct}%`, background: contextMode.color }} />
+            <div className="mob-progress-fill" style={{ width: `${summary.progress}%` }} />
           </div>
         )}
 
         <div className="mob-focus-actions">
-          {aiFocus.priorityTask && !aiFocus.priorityTask.completed && (
-            <button className="mob-btn mob-btn-done" onClick={() => setFocusTask(aiFocus.priorityTask)}>
-              <Zap size={17} /> Start Focus
-            </button>
+          {recommendedTask && !recommendedTask.completed && (
+            <NativeButton
+              className="mob-btn mob-btn-done"
+              leading={<Zap size={16} />}
+              onClick={() => setFocusTask(recommendedTask)}
+            >
+              Start focus
+            </NativeButton>
           )}
-          {aiFocus.priorityTask && (
-            <button className="mob-btn mob-btn-skip" onClick={() => toggleTask(aiFocus.priorityTask.id)}>
-              <Check size={17} /> Done
-            </button>
+          {recommendedTask && (
+            <NativeIconButton
+              className="mob-btn-skip"
+              label={recommendedTask.completed ? "Mark incomplete" : "Mark complete"}
+              variant="tertiary"
+              onClick={() => toggleTask(recommendedTask.id)}
+            >
+              <Check size={18} />
+            </NativeIconButton>
           )}
-          <button className="mob-btn mob-btn-ai" onClick={() => {
-            setChatInput(aiFocus.priorityTask
-              ? `What's the best way to tackle "${aiFocus.priorityTask.title}" right now?`
-              : "What should I focus on today?");
-            setChatOpen(true);
-          }}>
-            <MessageSquare size={17} /> Ask Nora
-          </button>
+          <NativeButton
+            className="mob-btn mob-btn-ai"
+            variant="secondary"
+            leading={<MessageSquare size={16} />}
+            onClick={askNoraAboutFocus}
+          >
+            Ask Nora
+          </NativeButton>
         </div>
-      </div>
+      </section>
 
       {/* Deferred nudge */}
-      {deferredTasks.length > 0 && (
+      {isToday && deferredTasks.length > 0 && (
         <button className="mob-nudge-bar" onClick={() => {
-          setChatInput(`I have ${deferredTasks.length} deferred task${deferredTasks.length > 1 ? "s" : ""}. Can you help me find the best time for them this week?`);
-          setChatOpen(true);
+          ctx.setPendingMobileView("tasks");
         }}>
           <RotateCcw size={14} />
           <span>{deferredTasks.length} task{deferredTasks.length > 1 ? "s" : ""} still pending — tap to reschedule</span>
@@ -979,48 +947,77 @@ function MobileHome({ ctx, planDate, planTasks }) {
 
       {/* Scheduled */}
       {scheduled.length > 0 ? (
-        <div className="mob-agenda2">
-          <div className="mob-section-title"><Clock size={14} /> Today's Schedule</div>
-          {scheduled.map((t) => renderItem(t, true))}
-        </div>
+        <section className="mob-agenda2" aria-labelledby="mob-schedule-title">
+          <div className="mob-section-title">
+            <div><Clock size={15} /><h2 id="mob-schedule-title">Schedule</h2></div>
+            <span>{scheduled.length}</span>
+          </div>
+          <div className="mob-agenda2-list">
+            {scheduled.map((t) => renderItem(t, true))}
+          </div>
+        </section>
       ) : (
-        <div className="mob-empty-state">
-          <Sparkles size={36} style={{ opacity: .15 }} />
-          <p>Nothing scheduled today.</p>
-          <button className="mob-plan-cta" onClick={() => {
-            setChatInput("Plan my day. Consider my energy level and current workload.");
-            setChatOpen(true);
-          }}>
-            <Sparkles size={15} /> Let Nora plan my day
-          </button>
-        </div>
+        <NativeEmptyState
+          className="mob-empty-state"
+          title="Nothing scheduled"
+          description={isToday
+            ? "Nora can turn your priorities into a plan you can review before anything changes."
+            : "Add a task or ask Nora to prepare this day."}
+          action={(
+            <NativeButton
+              className="mob-plan-cta"
+              leading={<BrandStar size={15} tone="white" />}
+              onClick={() => {
+                setChatInput(`Plan ${isToday ? "my day today" : effectiveDate}. Consider my energy level and current workload.`);
+                setChatOpen(true);
+              }}
+            >
+              Preview a plan
+            </NativeButton>
+          )}
+        />
       )}
 
       {/* Unscheduled */}
       {unscheduled.length > 0 && (
-        <div className="mob-agenda2 mob-unsched-section">
-          <div className="mob-section-title"><Clock size={14} /> Unscheduled</div>
-          {unscheduled.map((t) => renderItem(t, false))}
-        </div>
+        <section className="mob-agenda2 mob-unsched-section" aria-labelledby="mob-unscheduled-title">
+          <div className="mob-section-title">
+            <div><List size={15} /><h2 id="mob-unscheduled-title">Unscheduled</h2></div>
+            <span>{unscheduled.length}</span>
+          </div>
+          <div className="mob-agenda2-list">
+            {unscheduled.map((t) => renderItem(t, false))}
+          </div>
+        </section>
       )}
 
       {/* Quick add */}
       <div className="mob-task-create-row">
-        <button className="mob-quick-add" onClick={() => {
-          ctx.setEditingTask({
-            id: uid(), type: "task",
-            title: "", date: effectiveDate,
-            startHour: null, startMinute: null,
-            duration: null, repeat: null, repeatEnd: null,
-            completed: false, notes: "", complexity: null,
-            groupId: null, reminderOffset: null,
-          });
-        }}>
-          <Plus size={18} /> Add task
-        </button>
-        <button className="mob-join-task" onClick={() => ctx.setShowJoinCode?.(true)}>
-          <KeyRound size={18} /> Join task
-        </button>
+        <NativeButton
+          className="mob-quick-add"
+          variant="secondary"
+          leading={<Plus size={17} />}
+          onClick={() => {
+            ctx.setEditingTask({
+              id: uid(), type: "task",
+              title: "", date: effectiveDate,
+              startHour: null, startMinute: null,
+              duration: null, repeat: null, repeatEnd: null,
+              completed: false, notes: "", complexity: null,
+              groupId: null, reminderOffset: null,
+            });
+          }}
+        >
+          Add task
+        </NativeButton>
+        <NativeIconButton
+          className="mob-join-task"
+          label="Join a shared task"
+          variant="tertiary"
+          onClick={() => ctx.setShowJoinCode?.(true)}
+        >
+          <KeyRound size={18} />
+        </NativeIconButton>
       </div>
 
     </div>
@@ -1430,13 +1427,14 @@ function MobileMonth({ ctx, onSelectDate }) {
     taskMap[t.date].push(t);
   });
 
-  const shiftMonth = (d) => {
-    setCur(({ year, month }) => {
-      let nm = month + d, ny = year;
-      if (nm < 0) { nm = 11; ny--; }
-      if (nm > 11) { nm = 0; ny++; }
-      return { year: ny, month: nm };
-    });
+  const shiftMonth = (delta) => {
+    let nextMonth = month + delta;
+    let nextYear = year;
+    if (nextMonth < 0) { nextMonth = 11; nextYear--; }
+    if (nextMonth > 11) { nextMonth = 0; nextYear++; }
+    setCur({ year: nextYear, month: nextMonth });
+    const nextMonthPrefix = `${nextYear}-${String(nextMonth + 1).padStart(2, "0")}`;
+    setSel(today.startsWith(nextMonthPrefix) ? today : `${nextMonthPrefix}-01`);
   };
 
   const cells = Array.from({ length: Math.ceil((firstDay + daysInMonth) / 7) * 7 }, (_, i) => {
@@ -1447,16 +1445,31 @@ function MobileMonth({ ctx, onSelectDate }) {
   });
 
   const selTasks = taskMap[sel] || [];
+  const selectedDateLabel = formatPlannerDate(sel, today);
 
   return (
     <div className="mob-month-view">
       <div className="mob-month-nav">
-        <button className="mob-month-nav-btn" onClick={() => shiftMonth(-1)}><ChevronLeft size={20} /></button>
-        <span className="mob-month-title">{MONTHS[month]} {year}</span>
-        <button className="mob-month-nav-btn" onClick={() => shiftMonth(1)}><ChevronRight size={20} /></button>
+        <NativeIconButton
+          className="mob-month-nav-btn"
+          label="Previous month"
+          variant="tertiary"
+          onClick={() => shiftMonth(-1)}
+        >
+          <ChevronLeft size={20} />
+        </NativeIconButton>
+        <h2 className="mob-month-title">{MONTHS[month]} {year}</h2>
+        <NativeIconButton
+          className="mob-month-nav-btn"
+          label="Next month"
+          variant="tertiary"
+          onClick={() => shiftMonth(1)}
+        >
+          <ChevronRight size={20} />
+        </NativeIconButton>
       </div>
 
-      <div className="mob-cal-grid">
+      <div className="mob-cal-grid" aria-label={`${MONTHS[month]} ${year}`}>
         {["Mo","Tu","We","Th","Fr","Sa","Su"].map((d) => (
           <div key={d} className="mob-cal-dow">{d}</div>
         ))}
@@ -1469,29 +1482,46 @@ function MobileMonth({ ctx, onSelectDate }) {
           const doneCount  = ts.filter((t) => t.completed && t.type !== "break").length;
           const pendCount  = ts.filter((t) => !t.completed && t.type !== "break" && t.type !== "deadline").length;
           return (
-            <div key={ds}
+            <button
+              key={ds}
+              type="button"
               className={`mob-cal-cell${isToday ? " mob-cal-today" : ""}${isSel ? " mob-cal-sel" : ""}`}
-              onClick={() => setSel(ds)}>
+              aria-label={`${MONTHS[month]} ${day}, ${year}${ts.length ? `, ${ts.length} item${ts.length === 1 ? "" : "s"}` : ""}`}
+              aria-pressed={isSel}
+              onClick={() => setSel(ds)}
+            >
               <span className="mob-cal-num">{day}</span>
               <div className="mob-cal-dots">
                 {hasDl && <span className="mob-dot mob-dot-dl" />}
                 {doneCount > 0 && <span className="mob-dot mob-dot-done" />}
                 {pendCount > 0 && <span className="mob-dot" />}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
 
       <div className="mob-cal-day-panel">
-        <div className="mob-section-title">
-          <CalendarDays size={13} />
-          {sel === today ? "Today" : sel}
-          <span className="mob-cal-task-count">{selTasks.length} item{selTasks.length !== 1 ? "s" : ""}</span>
+        <div className="mob-cal-day-header">
+          <div>
+            <span className="mob-cal-day-eyebrow">
+              <CalendarDays size={13} />
+              {selectedDateLabel.short}
+            </span>
+            <h3>{selectedDateLabel.full}</h3>
+            <span className="mob-cal-task-count">
+              {selTasks.length} item{selTasks.length !== 1 ? "s" : ""}
+            </span>
+          </div>
           {onSelectDate && (
-            <button className="mob-cal-view-day-btn" onClick={() => onSelectDate(sel)}>
-              View Day →
-            </button>
+            <NativeButton
+              className="mob-cal-view-day-btn"
+              variant="tertiary"
+              size="compact"
+              onClick={() => onSelectDate(sel)}
+            >
+              View day
+            </NativeButton>
           )}
         </div>
         {selTasks.length === 0 ? (
@@ -1501,12 +1531,17 @@ function MobileMonth({ ctx, onSelectDate }) {
             const tp = t.type ?? "task";
             const color = tp === "deadline" ? "#ef4444" : tp === "break" ? "#94a3b8" : "var(--accent)";
             return (
-              <div key={t.id} className={`mob-cal-task-row${t.completed ? " done" : ""}`}
-                style={{ borderLeftColor: color }}
-                onClick={() => setEditingTask(t)}>
+              <button
+                key={t.id}
+                type="button"
+                className={`mob-cal-task-row${t.completed ? " done" : ""}`}
+                style={{ "--cal-task-color": color }}
+                onClick={() => setEditingTask(t)}
+              >
                 <span className="mob-cal-task-name">{t.title || (tp === "break" ? "Break" : "Deadline")}</span>
                 {t.startHour != null && <span className="mob-cal-task-time">{fmtTime(t.startHour, t.startMinute ?? 0)}</span>}
-              </div>
+                <ChevronRight size={14} aria-hidden="true" />
+              </button>
             );
           })
         )}
@@ -1516,13 +1551,15 @@ function MobileMonth({ ctx, onSelectDate }) {
 }
 
 // ── Tasks view ───────────────────────────────────────────────
-function MobileTasks({ ctx }) {
+export function MobileTasks({ ctx }) {
   const { tasks, today, toggleTask, skipTask, setRescheduleTask, setEditingTask, groups, setFocusTask,
           setSharingTask } = ctx;
   const [filterType, setFilterType]       = useState(null);
   const [filterGroup, setFilterGroup]     = useState(null);
   const [filterComplex, setFilterComplex] = useState(null);
   const [showFilters, setShowFilters]     = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [actionTask, setActionTask]       = useState(null);
 
   const getGroup = (id) => groups.find((g) => g.id === id);
 
@@ -1544,7 +1581,48 @@ function MobileTasks({ ctx }) {
   const hasFilters = filterType || filterGroup || filterComplex;
 
   const active    = sorted.filter((t) => !t.completed);
-  const completed = sorted.filter((t) => t.completed).slice(0, 10);
+  const completed = sorted
+    .filter((t) => t.completed)
+    .sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      const at = a.startHour != null ? a.startHour * 60 + (a.startMinute ?? 0) : -1;
+      const bt = b.startHour != null ? b.startHour * 60 + (b.startMinute ?? 0) : -1;
+      return bt - at;
+    });
+
+  const runTaskAction = (task, actionId) => {
+    if (!task) return;
+    if (actionId === "focus") setFocusTask(task);
+    else if (actionId === "skip") skipTask(task.id);
+    else if (actionId === "move") setRescheduleTask(task);
+    else if (actionId === "share") setSharingTask?.(task);
+    setActionTask(null);
+  };
+
+  const openTaskActions = async (task, event) => {
+    event.stopPropagation();
+    hapticLight();
+    if (!isNativeActionMenuAvailable()) {
+      setActionTask(task);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    let selectedId;
+    try {
+      selectedId = await showNativeActionMenu({
+        actions: [
+          { id: "focus", label: "Start Focus Session" },
+          { id: "skip", label: "Skip to Tomorrow" },
+          { id: "move", label: "Move Task" },
+          { id: "share", label: task.sharedObjectId ? "Manage Sharing" : "Share" },
+        ],
+        sourceRect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+      });
+    } catch {
+      return;
+    }
+    runTaskAction(task, selectedId);
+  };
 
   // Group active tasks by date
   const tomorrow = (() => {
@@ -1580,6 +1658,15 @@ function MobileTasks({ ctx }) {
       <div key={t.id}
         className={`mob-task-row${t.completed ? " mtr-done" : ""}${isDeferred ? " mtr-deferred" : ""}`}
         style={{ "--gc": gc }}
+        role="button"
+        tabIndex={0}
+        aria-label={`Edit ${t.title || (tp === "break" ? "break" : "deadline")}`}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setEditingTask(t);
+          }
+        }}
         onClick={() => setEditingTask(t)}>
 
         <div className="mtr-left">
@@ -1607,57 +1694,25 @@ function MobileTasks({ ctx }) {
 
         {tp === "deadline" && (
           <div className="mtr-actions" onClick={(e) => e.stopPropagation()}>
-            <button
+            <NativeIconButton
+              label={t.completed ? "Mark deadline incomplete" : "Complete deadline"}
+              size="compact"
               className={`mtr-act mtr-act-done-dl${t.completed ? " dl-done" : ""}`}
               onClick={() => toggleTask(t.id)}>
               <Check size={13} />
-            </button>
+            </NativeIconButton>
           </div>
         )}
         {tp === "task" && !t.completed && (
           <div className="mtr-actions" onClick={(e) => e.stopPropagation()}>
-            {isNativeActionMenuAvailable() ? (
-              <button className="mtr-act" title="More" onClick={async (e) => {
-                hapticLight();
-                const rect = e.currentTarget.getBoundingClientRect();
-                let selectedId;
-                try {
-                  selectedId = await showNativeActionMenu({
-                    actions: [
-                      { id: "focus", label: "Start Focus Session" },
-                      { id: "skip", label: "Skip to Tomorrow" },
-                      { id: "move", label: "Move Task" },
-                      { id: "share", label: t.sharedObjectId ? "Manage Sharing" : "Share" },
-                    ],
-                    sourceRect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
-                  });
-                } catch { return; }
-                if (selectedId === "focus") setFocusTask(t);
-                else if (selectedId === "skip") skipTask(t.id);
-                else if (selectedId === "move") setRescheduleTask(t);
-                else if (selectedId === "share") setSharingTask?.(t);
-              }}>
-                <MoreHorizontal size={15} />
-              </button>
-            ) : (
-              <>
-                <button className="mtr-act mtr-act-focus" title="Start focus session" onClick={() => setFocusTask(t)}>
-                  <Zap size={15} />
-                </button>
-                <button className="mtr-act" title="Skip to tomorrow" onClick={() => skipTask(t.id)}>
-                  <SkipForward size={15} />
-                </button>
-                <button className="mtr-act mtr-act-ai" title="Move task" onClick={() => setRescheduleTask(t)}>
-                  <CalendarDays size={15} />
-                </button>
-                <button className="mtr-act mtr-act-share" title="Share"
-                  onClick={() => setSharingTask?.(t)}>
-                  {t.sharedObjectId
-                    ? <Users size={14} style={{ color: "var(--accent)" }} />
-                    : <Share2 size={14} />}
-                </button>
-              </>
-            )}
+            <NativeIconButton
+              label={`More actions for ${t.title || "task"}`}
+              size="compact"
+              className="mtr-act"
+              onClick={(event) => openTaskActions(t, event)}
+            >
+              <MoreHorizontal size={17} />
+            </NativeIconButton>
           </div>
         )}
       </div>
@@ -1667,12 +1722,12 @@ function MobileTasks({ ctx }) {
   const DaySection = ({ label, items, accent }) => {
     if (!items.length) return null;
     return (
-      <div className="mob-tasks-day-group">
+      <section className="mob-tasks-day-group">
         <div className={`mob-tasks-day-header${accent ? " mob-day-hdr-accent" : ""}`}>{label}
           <span className="mob-tasks-day-count">{items.length}</span>
         </div>
-        {items.map((t) => renderTask(t))}
-      </div>
+        <div className="mob-tasks-list">{items.map((t) => renderTask(t))}</div>
+      </section>
     );
   };
 
@@ -1682,18 +1737,37 @@ function MobileTasks({ ctx }) {
   };
 
   return (
-    <div className="mob-tasks">
+    <>
+      <div className="mob-tasks">
+      <div className="mob-page-summary">
+        <div>
+          <span className="mob-page-summary__eyebrow">Your workload</span>
+          <strong>{active.length} active</strong>
+        </div>
+        <span className="mob-page-summary__meta">
+          {deferred.length ? `${deferred.length} pending` : "Up to date"}
+        </span>
+      </div>
+
       {/* Filter bar */}
       <div className="mob-filter-bar">
-        <button
+        <NativeButton
+          variant={showFilters || hasFilters ? "secondary" : "tertiary"}
+          size="compact"
+          leading={<SlidersHorizontal size={15} />}
           className={`mob-filter-toggle${showFilters ? " active" : ""}${hasFilters ? " has-active" : ""}`}
           onClick={() => setShowFilters(f => !f)}>
-          <List size={14} /> Filters{hasFilters ? " ●" : ""}
-        </button>
+          Filters{hasFilters ? " · Active" : ""}
+        </NativeButton>
         {hasFilters && (
-          <button className="mob-filter-clear" onClick={() => { setFilterType(null); setFilterGroup(null); setFilterComplex(null); }}>
+          <NativeButton
+            variant="tertiary"
+            size="compact"
+            className="mob-filter-clear"
+            onClick={() => { setFilterType(null); setFilterGroup(null); setFilterComplex(null); }}
+          >
             Clear
-          </button>
+          </NativeButton>
         )}
       </div>
       {showFilters && (
@@ -1739,38 +1813,33 @@ function MobileTasks({ ctx }) {
       )}
 
       {sorted.length === 0 ? (
-        <div className="mob-empty-state">
-          <CalendarDays size={36} style={{ opacity: .15 }} />
-          <p>{hasFilters ? "No tasks match these filters." : "No tasks yet."}</p>
-        </div>
+        <NativeEmptyState
+          icon={<CalendarDays size={27} />}
+          title={hasFilters ? "No matching tasks" : "No tasks yet"}
+          description={hasFilters
+            ? "Try clearing a filter to see the rest of your workload."
+            : "Add your first task and Nora will help you position it."}
+        />
       ) : (
         <>
           {deferred.length > 0 && (
-            <div className="mob-tasks-day-group">
+            <section className="mob-tasks-day-group">
               <div className="mob-tasks-day-header mob-day-hdr-deferred">
                 Pending <span className="mob-tasks-day-count">{deferred.length}</span>
               </div>
-              {deferred.map((t) => renderTask(t))}
-            </div>
+              <div className="mob-tasks-list">{deferred.map((t) => renderTask(t))}</div>
+            </section>
           )}
           <DaySection label="Today" items={todayItems} accent />
           <DaySection label="Tomorrow" items={tomorrowItems} />
           {futureByDate.map(({ date, items }) => (
             <DaySection key={date} label={fmt(date)} items={items} />
           ))}
-          {completed.length > 0 && (
-            <div className="mob-tasks-day-group">
-              <div className="mob-tasks-day-header mob-day-hdr-done">
-                Completed <span className="mob-tasks-day-count">{completed.length}</span>
-              </div>
-              {completed.map((t) => renderTask(t))}
-            </div>
-          )}
         </>
       )}
 
       <div className="mob-task-create-row">
-        <button className="mob-quick-add" onClick={() => {
+        <NativeButton className="mob-quick-add" leading={<Plus size={18} />} onClick={() => {
           ctx.setEditingTask({
             id: uid(), type: "task", title: "", date: today,
             startHour: null, startMinute: null, duration: null,
@@ -1778,13 +1847,88 @@ function MobileTasks({ ctx }) {
             notes: "", complexity: null, groupId: null, reminderOffset: null,
           });
         }}>
-          <Plus size={18} /> Add task
-        </button>
-        <button className="mob-join-task" onClick={() => ctx.setShowJoinCode?.(true)}>
-          <KeyRound size={18} /> Join task
-        </button>
+          Add task
+        </NativeButton>
+        <NativeButton
+          variant="secondary"
+          className="mob-join-task"
+          leading={<KeyRound size={17} />}
+          onClick={() => ctx.setShowJoinCode?.(true)}
+        >
+          Join task
+        </NativeButton>
       </div>
-    </div>
+
+      {completed.length > 0 && (
+        <section className={`mob-completed-archive${showCompleted ? " is-open" : ""}`}>
+          <button
+            type="button"
+            className="mob-completed-toggle"
+            aria-expanded={showCompleted}
+            aria-controls="mob-completed-task-list"
+            onClick={() => {
+              hapticSelection();
+              setShowCompleted((visible) => !visible);
+            }}
+          >
+            <span className="mob-completed-toggle-copy">
+              <span className="mob-completed-toggle-icon" aria-hidden="true">
+                <Check size={14} strokeWidth={2.5} />
+              </span>
+              <span>
+                <strong>Completed</strong>
+                <small>{showCompleted ? "Hide finished work" : "Show finished work"}</small>
+              </span>
+            </span>
+            <span className="mob-completed-toggle-end">
+              <span className="mob-tasks-day-count">{completed.length}</span>
+              <ChevronDown className="mob-completed-chevron" size={17} />
+            </span>
+          </button>
+          {showCompleted && (
+            <div id="mob-completed-task-list" className="mob-tasks-list mob-completed-list">
+              {completed.map((t) => renderTask(t))}
+            </div>
+          )}
+        </section>
+      )}
+      </div>
+
+      <NativeSheet
+        open={Boolean(actionTask)}
+        onClose={() => setActionTask(null)}
+        title={actionTask?.title || "Task actions"}
+        subtitle="Choose what you want to do next."
+        className="mob-task-actions-sheet"
+      >
+        <NativeSection grouped>
+          <NativeListRow
+            leading={<Zap size={17} />}
+            title="Start Focus Session"
+            subtitle="Work on this task without distractions"
+            onClick={() => runTaskAction(actionTask, "focus")}
+          />
+          <NativeListRow
+            leading={<SkipForward size={17} />}
+            title="Skip to Tomorrow"
+            subtitle="Move it forward by one day"
+            onClick={() => runTaskAction(actionTask, "skip")}
+          />
+          <NativeListRow
+            leading={<CalendarDays size={17} />}
+            title="Move Task"
+            subtitle="Choose a better date and time"
+            onClick={() => runTaskAction(actionTask, "move")}
+          />
+          <NativeListRow
+            leading={actionTask?.sharedObjectId ? <Users size={17} /> : <Share2 size={17} />}
+            title={actionTask?.sharedObjectId ? "Manage Sharing" : "Share Task"}
+            subtitle="Collaborate without duplicating the task"
+            onClick={() => runTaskAction(actionTask, "share")}
+          />
+        </NativeSection>
+      </NativeSheet>
+    </>
   );
 }
 
@@ -1795,6 +1939,7 @@ function MobileNotes({ ctx }) {
   const [deletingId,  setDeletingId]  = useState(null);
   const [newNoteId,   setNewNoteId]   = useState(null);
   const [noteSearch,  setNoteSearch]  = useState("");
+  const [actionNote,  setActionNote]  = useState(null);
 
   const openNote = openId ? notes.find(n => n.id === openId) : null;
   const migrated = openNote ? migrateNote(openNote) : null;
@@ -1849,88 +1994,94 @@ function MobileNotes({ ctx }) {
       onDelete={() => handleDelete(note.id)}
       onPin={() => patchNote(note.id, { pinned: !note.pinned })}
       onStar={() => patchNote(note.id, { starred: !note.starred })}
+      onMore={() => setActionNote(note)}
     />
   );
 
-  // Split notes into two explicit columns (avoids CSS columns overlap bug)
-  const splitColumns = (notes) => {
-    const left  = notes.filter((_, i) => i % 2 === 0);
-    const right = notes.filter((_, i) => i % 2 === 1);
-    return { left, right };
-  };
-
-  const renderMasonry = (notes) => {
-    const { left, right } = splitColumns(notes);
-    return (
-      <div className="mob-notes-masonry">
-        <div className="mob-notes-col">{left.map(renderNoteCard)}</div>
-        <div className="mob-notes-col">{right.map(renderNoteCard)}</div>
-      </div>
-    );
-  };
+  const renderNoteList = (noteList) => (
+    <div className="mob-notes-list">{noteList.map(renderNoteCard)}</div>
+  );
 
   const [firstType, ...typeShortcuts] = NOTE_TYPE_DEFS;
 
   return (
     <>
       <div className="mob-notes-v2">
+        <div className="mob-page-summary">
+          <div>
+            <span className="mob-page-summary__eyebrow">Your library</span>
+            <strong>{sorted.length} {sorted.length === 1 ? "note" : "notes"}</strong>
+          </div>
+          <span className="mob-page-summary__meta">
+            {pinnedNotes.length ? `${pinnedNotes.length} pinned` : "Ready to capture"}
+          </span>
+        </div>
 
         {/* ── New-note creation bar ── */}
         <div className="mob-notes-newbar">
-          <button
+          <NativeButton
             className="mob-notes-newbar-main"
+            leading={<firstType.icon size={17} />}
             onClick={() => handleCreate("note")}
           >
-            <firstType.icon size={16} className="mob-notes-newbar-icon" />
-            <span className="mob-notes-newbar-hint">New note…</span>
-          </button>
+            New note
+          </NativeButton>
           <div className="mob-notes-newbar-divider" />
           <div className="mob-notes-newbar-types">
             {typeShortcuts.map(t => {
               const Icon = t.icon;
               return (
-                <button
+                <NativeIconButton
                   key={t.key}
+                  label={`Create ${t.label}`}
+                  size="compact"
+                  variant="tertiary"
                   className="mob-notes-newbar-type-btn"
                   onClick={() => handleCreate(t.key)}
-                  title={t.label}
                 >
                   <Icon size={15} />
-                </button>
+                </NativeIconButton>
               );
             })}
           </div>
         </div>
 
         {/* Search */}
-        <div className="mob-notes-search-bar">
-          <Search size={13} className="mob-notes-search-icon" />
-          <input
-            className="mob-notes-search-input"
-            value={noteSearch}
-            onChange={e => setNoteSearch(e.target.value)}
-            placeholder="Search notes…"
-          />
-          {noteSearch && (
-            <button className="mob-notes-search-clear" onClick={() => setNoteSearch("")}>
-              <X size={12} />
-            </button>
+        <NativeField
+          className="mob-notes-search-bar"
+          value={noteSearch}
+          onChange={e => setNoteSearch(e.target.value)}
+          placeholder="Search notes"
+          aria-label="Search notes"
+          leading={<Search size={16} />}
+          trailing={noteSearch && (
+            <NativeIconButton
+              label="Clear note search"
+              size="compact"
+              className="mob-notes-search-clear"
+              onClick={() => setNoteSearch("")}
+            >
+              <X size={14} />
+            </NativeIconButton>
           )}
-        </div>
+        />
 
         {/* Empty state */}
         {sorted.length === 0 && (
-          <div className="mob-empty-state" style={{ padding: "40px 0" }}>
-            <FileText size={36} style={{ opacity: .12 }} />
-            <p>{noteSearch ? "No notes match." : "Tap \"New note\" above to get started."}</p>
-          </div>
+          <NativeEmptyState
+            icon={<FileText size={27} />}
+            title={noteSearch ? "No matching notes" : "A quiet place for ideas"}
+            description={noteSearch
+              ? "Try another phrase or clear the search."
+              : "Capture a thought, checklist, shopping list, or idea."}
+          />
         )}
 
         {/* Pinned section */}
         {pinnedNotes.length > 0 && (
           <>
             <div className="mob-notes-section-hdr">Pinned</div>
-            {renderMasonry(pinnedNotes)}
+            {renderNoteList(pinnedNotes)}
           </>
         )}
 
@@ -1938,7 +2089,7 @@ function MobileNotes({ ctx }) {
         {otherNotes.length > 0 && (
           <>
             {pinnedNotes.length > 0 && <div className="mob-notes-section-hdr">Notes</div>}
-            {renderMasonry(otherNotes)}
+            {renderNoteList(otherNotes)}
           </>
         )}
       </div>
@@ -1953,6 +2104,44 @@ function MobileNotes({ ctx }) {
           onClose={closeNote}
         />
       )}
+
+      <NativeSheet
+        open={Boolean(actionNote)}
+        onClose={() => setActionNote(null)}
+        title={actionNote?.title || "Note actions"}
+        subtitle="Organize this note or remove it."
+      >
+        <NativeSection grouped>
+          <NativeListRow
+            leading={<Pin size={17} />}
+            title={actionNote?.pinned ? "Unpin Note" : "Pin Note"}
+            subtitle="Control whether it stays at the top"
+            onClick={() => {
+              if (actionNote) patchNote(actionNote.id, { pinned: !actionNote.pinned });
+              setActionNote(null);
+            }}
+          />
+          <NativeListRow
+            leading={<Star size={17} />}
+            title={actionNote?.starred ? "Remove Star" : "Star Note"}
+            subtitle="Mark it as especially important"
+            onClick={() => {
+              if (actionNote) patchNote(actionNote.id, { starred: !actionNote.starred });
+              setActionNote(null);
+            }}
+          />
+          <NativeListRow
+            destructive
+            leading={<Trash2 size={17} />}
+            title="Delete Note"
+            subtitle="This cannot be undone"
+            onClick={() => {
+              if (actionNote) handleDelete(actionNote.id);
+              setActionNote(null);
+            }}
+          />
+        </NativeSection>
+      </NativeSheet>
     </>
   );
 }
@@ -1973,15 +2162,21 @@ function MobNameEditor({ name, onSave }) {
         onChange={e => setDraft(e.target.value)}
         onKeyDown={e => { if (e.key === "Enter") confirm(); if (e.key === "Escape") cancel(); }}
         placeholder="Your name" />
-      <button className="mob-name-confirm" onClick={confirm}><Check size={14} strokeWidth={3} /></button>
-      <button className="mob-name-cancel"  onClick={cancel}><X size={14} /></button>
+      <NativeIconButton label="Save name" size="compact" className="mob-name-confirm" onClick={confirm}>
+        <Check size={14} strokeWidth={3} />
+      </NativeIconButton>
+      <NativeIconButton label="Cancel name edit" size="compact" className="mob-name-cancel" onClick={cancel}>
+        <X size={14} />
+      </NativeIconButton>
     </div>
   );
 
   return (
     <div className="mob-name-editor-row">
       <span className="mob-sett-display-name">{name || "No name set"}</span>
-      <button className="mob-name-pencil" onClick={startEdit}><Pencil size={13} /></button>
+      <NativeIconButton label="Edit name" size="compact" className="mob-name-pencil" onClick={startEdit}>
+        <Pencil size={13} />
+      </NativeIconButton>
     </div>
   );
 }
@@ -1992,8 +2187,6 @@ function MobileSettings({ ctx }) {
   const { t, i18n } = useTranslation();
   const {
     accountName, setAccountName,
-    dark, setDark,
-    theme, setTheme,
     reminderMins, setReminderMins,
     session, groups, setGroups,
     notifPermission, notifSettings, updateNotifSettings, requestNotifPermission,
@@ -2018,9 +2211,19 @@ function MobileSettings({ ctx }) {
 
   return (
     <div className="mob-settings">
+      <div className="mob-page-summary">
+        <div>
+          <span className="mob-page-summary__eyebrow">Your Nora</span>
+          <strong>Personal settings</strong>
+        </div>
+        <span className="mob-page-summary__meta">Private to you</span>
+      </div>
+
       {/* Profile */}
-      <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><User size={15} /> {t("account.profile")}</div>
+      <NativeSection
+        className="mob-sett-card"
+        title={<span className="mob-sett-section-title"><User size={15} /> {t("account.profile")}</span>}
+      >
         <div className="mob-sett-avatar-row">
           <button className="mob-sett-avatar-btn" onClick={() => setShowProfileModal?.(true)}>
             <AvatarDisplay avatar={profileToAvatar(userProfile)} size={44} />
@@ -2033,65 +2236,73 @@ function MobileSettings({ ctx }) {
             )}
           </div>
         </div>
-        <button className="mob-edit-profile-btn" onClick={() => setShowProfileModal?.(true)}>
+        <NativeButton
+          variant="secondary"
+          className="mob-edit-profile-btn"
+          onClick={() => setShowProfileModal?.(true)}
+        >
           {t("account.editProfileAvatar")}
-        </button>
-        <button className="mob-edit-profile-btn" onClick={() => ctx.setShowJoinCode?.(true)}>
-          <KeyRound size={14} /> {t("account.joinInviteCode")}
-        </button>
-      </div>
+        </NativeButton>
+        <NativeButton
+          variant="secondary"
+          className="mob-edit-profile-btn"
+          leading={<KeyRound size={15} />}
+          onClick={() => ctx.setShowJoinCode?.(true)}
+        >
+          {t("account.joinInviteCode")}
+        </NativeButton>
+      </NativeSection>
 
-      {/* Appearance */}
-      <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><Activity size={15} /> {t("settings.appearance")}</div>
-        <div className="mob-sett-row">
-          <span className="mob-sett-row-label">{t("settings.darkMode")}</span>
-          <button className={`mob-toggle${dark ? " on" : ""}`} onClick={() => { hapticSelection(); setDark((d) => !d); }}>
-            <span className="mob-toggle-knob" />
-          </button>
-        </div>
-        <div className="mob-sett-divider" />
-        <div className="mob-sett-row">
-          <span className="mob-sett-row-label">{t("settings.theme")}</span>
-        </div>
-        <div className="mob-theme-pills">
-          <button className={`mob-theme-pill${theme === "default" ? " active" : ""}`}
-            onClick={() => { if (theme !== "default") hapticSelection(); setTheme("default"); }}>{t("settings.default")}</button>
-          <button className={`mob-theme-pill${theme === "liquid_glass" ? " active" : ""}`}
-            onClick={() => { if (theme !== "liquid_glass") hapticSelection(); setTheme("liquid_glass"); }}>{t("settings.liquidGlass")}</button>
-        </div>
-        <div className="mob-sett-divider" />
-        <div className="mob-sett-row">
-          <span className="mob-sett-row-label">{t("settings.language")}</span>
-        </div>
-        <div className="mob-theme-pills">
-          <button className={`mob-theme-pill${i18n.resolvedLanguage === "en" ? " active" : ""}`}
-            onClick={() => { if (i18n.resolvedLanguage !== "en") hapticSelection(); i18n.changeLanguage("en"); }}>🇬🇧 EN</button>
-          <button className={`mob-theme-pill${i18n.resolvedLanguage === "de" ? " active" : ""}`}
-            onClick={() => { if (i18n.resolvedLanguage !== "de") hapticSelection(); i18n.changeLanguage("de"); }}>🇩🇪 DE</button>
-          <button className={`mob-theme-pill${i18n.resolvedLanguage === "ru" ? " active" : ""}`}
-            onClick={() => { if (i18n.resolvedLanguage !== "ru") hapticSelection(); i18n.changeLanguage("ru"); }}>🇷🇺 RU</button>
-        </div>
-      </div>
+      {/* Language */}
+      <NativeSection
+        className="mob-sett-card"
+        title={<span className="mob-sett-section-title"><Languages size={15} /> {t("settings.language")}</span>}
+      >
+        <NativeSegmentedControl
+          className="mob-theme-pills"
+          label={t("settings.language")}
+          value={i18n.resolvedLanguage}
+          onChange={(language) => {
+            if (i18n.resolvedLanguage !== language) hapticSelection();
+            i18n.changeLanguage(language);
+          }}
+          options={[
+            { value: "en", label: "English" },
+            { value: "de", label: "Deutsch" },
+            { value: "ru", label: "Русский" },
+          ]}
+        />
+      </NativeSection>
 
       {/* AI experience */}
-      <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><Sparkle size={15} /> {t("settings.twoAssistantMode")}</div>
+      <NativeSection
+        className="mob-sett-card"
+        title={<span className="mob-sett-section-title"><BrandStar size={15} tone="current" /> AI experience</span>}
+      >
         <div className="mob-sett-row">
-          <span className="mob-sett-row-label">{t("settings.twoAssistantMode")}</span>
-          <button className={`mob-toggle${assistantSettings.twoAssistantMode ? " on" : ""}`}
-            onClick={() => { hapticSelection(); updateAssistantSettings({ twoAssistantMode: !assistantSettings.twoAssistantMode }); }}>
-            <span className="mob-toggle-knob" />
-          </button>
+          <span>
+            <span className="mob-sett-row-label">{t("settings.twoAssistantMode")}</span>
+            <span className="mob-sett-row-detail">Nora can hand focused coaching conversations to Atlas.</span>
+          </span>
+          <NativeSwitch
+            checked={assistantSettings.twoAssistantMode}
+            label={t("settings.twoAssistantMode")}
+            onChange={(enabled) => {
+              hapticSelection();
+              updateAssistantSettings({ twoAssistantMode: enabled });
+            }}
+          />
         </div>
         {assistantSettings.twoAssistantMode && (
           <p className="mob-sett-hint">{t("settings.twoAssistantModeDesc")}</p>
         )}
-      </div>
+      </NativeSection>
 
       {/* Notifications */}
-      <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><Bell size={15} /> {t("settings.notifications")}</div>
+      <NativeSection
+        className="mob-sett-card"
+        title={<span className="mob-sett-section-title"><Bell size={15} /> {t("settings.notifications")}</span>}
+      >
         <NotificationSettings
           permission={notifPermission}
           settings={notifSettings}
@@ -2104,28 +2315,34 @@ function MobileSettings({ ctx }) {
           testServerPush={ctx.testServerPush}
           forceResubscribe={ctx.forceResubscribe}
         />
-      </div>
+      </NativeSection>
 
       {/* Apple Health */}
-      <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><HeartPulse size={15} /> Apple Health</div>
+      <NativeSection
+        className="mob-sett-card"
+        title={<span className="mob-sett-section-title"><HeartPulse size={15} /> Apple Health</span>}
+      >
         <HealthSettings health={ctx.health} />
-      </div>
+      </NativeSection>
 
       {/* Places & Transport */}
-      <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><MapPin size={15} /> Places</div>
+      <NativeSection
+        className="mob-sett-card"
+        title={<span className="mob-sett-section-title"><MapPin size={15} /> Places</span>}
+      >
         <SavedPlacesManager
           savedPlaces={ctx.savedPlaces ?? []}
           onSavedPlacesChange={ctx.setSavedPlaces ?? (() => {})}
           transportProfile={ctx.transportProfile ?? { defaultMode: "mixed" }}
           onTransportProfileChange={ctx.setTransportProfile ?? (() => {})}
         />
-      </div>
+      </NativeSection>
 
       {/* Groups */}
-      <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><Activity size={15} /> {t("account.taskGroups")}</div>
+      <NativeSection
+        className="mob-sett-card"
+        title={<span className="mob-sett-section-title"><Activity size={15} /> {t("account.taskGroups")}</span>}
+      >
         {/* Existing groups */}
         {(groups || []).map(g => {
           const isBuiltin = g.id === "private" || g.id === "work";
@@ -2135,9 +2352,14 @@ function MobileSettings({ ctx }) {
               <span className="mob-group-name">{g.name}</span>
               {isBuiltin
                 ? <span className="mob-group-builtin">{t("account.builtin")}</span>
-                : <button className="mob-group-del" onClick={() => deleteGroup(g.id)} aria-label={`Delete ${g.name}`}>
+                : <NativeIconButton
+                    className="mob-group-del"
+                    size="compact"
+                    label={`Delete ${g.name}`}
+                    onClick={() => deleteGroup(g.id)}
+                  >
                     <Trash2 size={14} />
-                  </button>
+                  </NativeIconButton>
               }
             </div>
           );
@@ -2154,25 +2376,30 @@ function MobileSettings({ ctx }) {
             ))}
           </div>
           <div className="mob-group-input-row">
-            <input className="mob-sett-input" value={newGroupName}
+            <NativeField className="mob-sett-input" value={newGroupName}
               onChange={e => setNewGroupName(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") addGroup(); }}
+              aria-label={t("account.newGroupName")}
               placeholder={t("account.newGroupName")} />
-            <button className="mob-group-add-btn"
+            <NativeIconButton
+              label="Add group"
+              className="mob-group-add-btn"
               style={{ background: newGroupColor, opacity: newGroupName.trim() ? 1 : 0.4 }}
               onClick={addGroup} disabled={!newGroupName.trim()}>
               <Plus size={16} />
-            </button>
+            </NativeIconButton>
           </div>
         </div>
-      </div>
+      </NativeSection>
 
       {/* Account */}
-      <div className="mob-sett-card">
-        <div className="mob-sett-card-title"><User size={15} /> {t("account.account")}</div>
+      <NativeSection
+        className="mob-sett-card mob-sett-account"
+        title={<span className="mob-sett-section-title"><User size={15} /> {t("account.account")}</span>}
+      >
         <p className="mob-sett-email-text">{session?.user?.email}</p>
         {/* Upgrade button */}
-        <button
+        <NativeButton
           className="mob-upgrade-btn"
           onClick={() => ctx.setPricingOpen?.(true)}
         >
@@ -2184,11 +2411,11 @@ function MobileSettings({ ctx }) {
            : "Free"}
           </span>
           {ctx.subscription?.plan === "free" ? "Upgrade to Pro" : "Manage Subscription"}
-        </button>
-        <button className="mob-signout-btn" onClick={() => supabase.auth.signOut()}>
+        </NativeButton>
+        <NativeButton variant="danger" className="mob-signout-btn" onClick={() => supabase.auth.signOut()}>
           {t("account.signOut")}
-        </button>
-      </div>
+        </NativeButton>
+      </NativeSection>
     </div>
   );
 }
@@ -2196,10 +2423,13 @@ function MobileSettings({ ctx }) {
 // ── Chat overlay ─────────────────────────────────────────────
 function MobileChat({ ctx }) {
   const { chatOpen, setChatOpen, messages, chatInput, setChatInput, chatLoading, sendChat,
-          microStartMode, setMicroStartMode, dark, noraGreeting,
+          editPlannerMessage, retryPlannerMessage,
+          microStartMode, setMicroStartMode, noraGreeting,
           plannerConversations = [], plannerActiveConversationId = null, plannerConversationsLoading = false,
           onSelectPlannerConversation, onNewPlannerConversation, onRenamePlannerConversation,
           onPinPlannerConversation, onArchivePlannerConversation, onDeletePlannerConversation,
+          onOpenAtlasHandoff,
+          onPlannerAction,
           todayTasks = [], deferredTasks = [], energy, focus } = ctx;
   const [chatSuggestions, setChatSuggestions] = useState(DEFAULT_CHAT_CHIPS);
   const [chatGhost,       setChatGhost]       = useState("");
@@ -2264,19 +2494,12 @@ function MobileChat({ ctx }) {
 
   return (
     <div className={`mob-chat${chatOpen ? " mob-chat-open" : ""}`}>
-      <div className="mob-chat-header">
-        <div className="mob-chat-brand">
-          <button className="mob-chat-close" onClick={() => setConvSheetOpen(true)} title="Conversations">
-            <PanelLeft size={20} />
-          </button>
-          <img src={dark ? "/logo-dark.png" : "/logo-light.png"} className="mob-chat-avatar-logo" alt="Nora" />
-          <div>
-            <div className="mob-chat-title-text">Nora</div>
-            <div className="mob-chat-sub">Your productivity assistant</div>
-          </div>
-        </div>
-        <CloseButton onClick={() => setChatOpen(false)} />
-      </div>
+      <AssistantChatHeader
+        title="Nora"
+        subtitle="Planning and execution"
+        onHistory={() => setConvSheetOpen(true)}
+        onClose={() => setChatOpen(false)}
+      />
 
       <div className="mob-chat-messages-wrap">
         <div className="mob-chat-messages"
@@ -2285,14 +2508,29 @@ function MobileChat({ ctx }) {
             setChatAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
           }}>
           {messages.length === 0 && !chatLoading && (
-            <div className="mob-chat-msg mob-chat-assistant">
-              <div className="mob-chat-bubble"><MessagePartsList parts={[textPart(noraGreeting)]} /></div>
-            </div>
+            <section className="mob-chat-welcome" aria-label="Nora introduction">
+              <span className="mob-chat-welcome-mark">
+                <BrandStar size={23} tone="current" />
+              </span>
+              <h1>What should we make easier?</h1>
+              <div className="mob-chat-welcome-copy">
+                <MessagePartsList parts={[textPart(noraGreeting)]} />
+              </div>
+            </section>
           )}
           {messages.map((m, i) => (
-            <div key={m.id ?? i} className={`mob-chat-msg mob-chat-${m.role}`}>
-              <div className="mob-chat-bubble"><MessagePartsList parts={m.parts} /></div>
-            </div>
+            <ConversationMessage
+              key={m.id ?? i}
+              message={m}
+              className={`mob-chat-msg mob-chat-${m.role}`}
+              bubbleClassName="mob-chat-bubble"
+              assistantName="Nora"
+              onEdit={editPlannerMessage}
+              onRetry={retryPlannerMessage}
+              onOpenAtlas={onOpenAtlasHandoff}
+              onPlannerAction={onPlannerAction}
+              plannerTasks={ctx.tasks ?? []}
+            />
           ))}
           {chatLoading && (
             <div className="mob-chat-msg mob-chat-assistant">
@@ -2338,54 +2576,43 @@ function MobileChat({ ctx }) {
           )
         )}
       </div>}
-      <div className="mob-chat-input-bar">
-        <button
-          className={`mob-suggestions-toggle${suggestionsVisible ? " on" : ""}`}
-          onClick={toggleSuggestions}
-          aria-label={suggestionsVisible ? "Hide suggested prompts" : "Show suggested prompts"}
-          title={suggestionsVisible ? "Hide suggestions" : "Show suggestions"}>
-          <Sparkles size={16} />
-        </button>
-        <button
-          className={`mob-micro-btn${microStartMode ? " on" : ""}`}
-          onClick={() => setMicroStartMode((m) => !m)}>
-          <Zap size={15} />
-        </button>
-        <div className="mob-chat-input-wrap">
-          {chatGhost && (
-            <div className="mob-chat-ghost" aria-hidden="true">
-              {chatInput}<span className="mob-chat-ghost-text">{chatGhost}</span>
-            </div>
-          )}
-          <textarea
-            ref={inputRef}
-            className="mob-chat-input"
-            value={chatInput}
-            rows={2}
-            onChange={(e) => {
-              const val = e.target.value;
-              setChatInput(val);
-              const ghost = getChatGhost(val);
-              setChatGhost(ghost);
-              setChatSuggestions(getChatAlternatives(val, ghost));
-              e.target.style.height = "auto";
-              e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
-              } else if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                sendChat();
-                setChatGhost(""); setChatSuggestions(DEFAULT_CHAT_CHIPS);
-              }
-            }}
-            placeholder="Ask Nora anything…" />
-        </div>
-        <button className="mob-chat-send" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
-          {chatLoading ? <span className="dot-spin" /> : <Send size={18} />}
-        </button>
-      </div>
+      <AssistantChatComposer
+        className="mob-chat-composer"
+        value={chatInput}
+        inputRef={inputRef}
+        loading={chatLoading}
+        ghostSuffix={chatGhost}
+        placeholder="Ask Nora anything…"
+        onChange={(event) => {
+          const value = event.target.value;
+          setChatInput(value);
+          const ghost = getChatGhost(value);
+          setChatGhost(ghost);
+          setChatSuggestions(getChatAlternatives(value, ghost));
+          event.target.style.height = "auto";
+          event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`;
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setChatGhost("");
+            setChatSuggestions(DEFAULT_CHAT_CHIPS);
+          } else if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendChat();
+            setChatGhost("");
+            setChatSuggestions(DEFAULT_CHAT_CHIPS);
+          }
+        }}
+        onSend={sendChat}
+        leading={(
+          <AssistantComposerMenu
+            suggestionsVisible={suggestionsVisible}
+            onToggleSuggestions={toggleSuggestions}
+            microStartMode={microStartMode}
+            onToggleMicroStart={() => setMicroStartMode((mode) => !mode)}
+          />
+        )}
+      />
       <ConversationSheet
         open={convSheetOpen}
         onClose={() => setConvSheetOpen(false)}
@@ -2425,14 +2652,18 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
   };
 
   return (
-    <div className="mob-modal-overlay" onClick={onClose}>
-      <div className="mob-modal mob-reschedule-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="mob-modal-handle" />
-        <div className="mob-modal-header">
-          <span className="mob-reschedule-title">Move task</span>
-          <CloseButton onClick={onClose} />
-        </div>
-        <div className="mob-reschedule-task-name">{task.title || "Untitled"}</div>
+    <NativeDialog
+      onClose={onClose}
+      title="Move task"
+      subtitle={task.title || "Untitled task"}
+      className="mob-task-dialog mob-reschedule-modal"
+      footer={(
+        <>
+          <NativeButton variant="tertiary" onClick={onClose}>Cancel</NativeButton>
+          <NativeButton onClick={handleSave}>Save</NativeButton>
+        </>
+      )}
+    >
         <div className="mob-modal-body">
           <div className="mob-modal-field">
             <label className="mob-modal-label">Date</label>
@@ -2466,14 +2697,7 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
               placeholder="Why did it move?" />
           </div>
         </div>
-        <div className="mob-modal-footer">
-          <button className="mob-modal-delete" style={{ color: "var(--text-muted)", borderColor: "var(--border)" }} onClick={onClose}>
-            Cancel
-          </button>
-          <button className="mob-modal-save" onClick={handleSave}>Save</button>
-        </div>
-      </div>
-    </div>
+    </NativeDialog>
   );
 }
 
@@ -2482,19 +2706,40 @@ function MobileEditModal({ ctx }) {
   const { draft, setDraft, saveTask, deleteTask, groups, setSharingTask } = ctx; // eslint-disable-line
 
   return (
-    <div className="mob-modal-overlay" onClick={() => ctx.setEditingTask(null)}>
-      <div className="mob-modal" onClick={(e) => e.stopPropagation()}>
-
-        <div className="mob-modal-handle" />
-
-        <div className="mob-modal-header">
+    <NativeDialog
+      onClose={() => ctx.setEditingTask(null)}
+      title="Task details"
+      subtitle="Adjust this task without leaving your plan."
+      className="mob-task-dialog mob-edit-task-dialog"
+      contentClassName="mob-task-dialog__content"
+      footer={(
+        <>
+          <NativeButton
+            variant="danger"
+            leading={<Trash2 size={15} />}
+            onClick={() => deleteTask(draft.id)}
+          >
+            Delete
+          </NativeButton>
+          <NativeIconButton
+            label="Share task"
+            variant="tertiary"
+            onClick={() => { ctx.setEditingTask(null); setSharingTask?.(draft); }}
+          >
+            {draft.sharedObjectId ? <Users size={16} /> : <Share2 size={16} />}
+          </NativeIconButton>
+          <NativeButton onClick={saveTask}>Save</NativeButton>
+        </>
+      )}
+    >
+        <div className="mob-modal-header mob-modal-title-row">
           <input
             className="mob-modal-title-input"
             value={draft.title}
             placeholder="Task title"
+            aria-label="Task title"
             onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
             autoFocus />
-          <CloseButton onClick={() => ctx.setEditingTask(null)} />
         </div>
 
         <div className="mob-modal-body">
@@ -2502,15 +2747,18 @@ function MobileEditModal({ ctx }) {
           {/* Type */}
           <div className="mob-modal-field">
             <label className="mob-modal-label">Type</label>
-            <div className="mob-type-row">
-              {[["task","Task"],["deadline","Deadline"],["break","Break"]].map(([val, lbl]) => (
-                <button key={val}
-                  className={`mob-type-btn mob-type-${val}${(draft.type ?? "task") === val ? " active" : ""}`}
-                  onClick={() => { if ((draft.type ?? "task") !== val) hapticSelection(); setDraft((d) => ({ ...d, type: val })); }}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
+            <NativeSegmentedControl
+              label="Task type"
+              value={draft.type ?? "task"}
+              onChange={(type) => {
+                if ((draft.type ?? "task") !== type) hapticSelection();
+                setDraft((d) => ({ ...d, type }));
+              }}
+              options={["task", "deadline", "break"].map((value) => ({
+                value,
+                label: value[0].toUpperCase() + value.slice(1),
+              }))}
+            />
           </div>
 
           {/* Date */}
@@ -2627,19 +2875,6 @@ function MobileEditModal({ ctx }) {
           </div>
 
         </div>
-
-        <div className="mob-modal-footer">
-          <button className="mob-modal-delete" onClick={() => deleteTask(draft.id)}>
-            <Trash2 size={15} /> Delete
-          </button>
-          <button className="mob-modal-share" title="Share"
-            onClick={() => { ctx.setEditingTask(null); setSharingTask?.(draft); }}>
-            {draft.sharedObjectId ? <Users size={15} /> : <Share2 size={15} />}
-          </button>
-          <button className="mob-modal-save" onClick={saveTask}>Save</button>
-        </div>
-
-      </div>
-    </div>
+    </NativeDialog>
   );
 }

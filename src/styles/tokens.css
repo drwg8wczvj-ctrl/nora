@@ -1,0 +1,143 @@
+/*
+ * Nora / Atlas native design foundation
+ *
+ * These tokens intentionally use a new `--native-*` namespace while the
+ * legacy screens are migrated phase by phase. They do not repaint existing
+ * screens through cascade overrides. New shared primitives consume this file;
+ * each migrated screen will opt into `.native-ui`.
+ */
+
+:root {
+  /* Brand */
+  --brand-nora-black: #09090b;
+  --brand-nora-purple: #7c5cff;
+  --brand-nora-purple-pressed: #6b4ce8;
+  --brand-nora-purple-soft: rgba(124, 92, 255, 0.16);
+  --brand-nora-purple-hairline: rgba(151, 124, 255, 0.3);
+
+  --brand-atlas-black: #0b0a09;
+  --brand-atlas-gold: #c9a861;
+  --brand-atlas-gold-pressed: #b49350;
+  --brand-atlas-gold-soft: rgba(201, 168, 97, 0.15);
+  --brand-atlas-gold-hairline: rgba(218, 188, 119, 0.3);
+
+  /* Native type scale */
+  --native-font:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", Arial, sans-serif;
+  --native-type-caption: 12px;
+  --native-type-footnote: 13px;
+  --native-type-body: 15px;
+  --native-type-callout: 16px;
+  --native-type-title-3: 20px;
+  --native-type-title-2: 22px;
+  --native-type-title-1: 28px;
+  --native-type-large-title: 34px;
+
+  /* 4pt spatial rhythm */
+  --native-space-1: 4px;
+  --native-space-2: 8px;
+  --native-space-3: 12px;
+  --native-space-4: 16px;
+  --native-space-5: 20px;
+  --native-space-6: 24px;
+  --native-space-8: 32px;
+  --native-space-10: 40px;
+  --native-space-12: 48px;
+
+  /* Geometry */
+  --native-radius-control: 12px;
+  --native-radius-card: 18px;
+  --native-radius-sheet: 26px;
+  --native-radius-pill: 999px;
+  --native-touch-target: 44px;
+  --native-content-max: 1180px;
+  --native-readable-max: 680px;
+
+  /* Motion */
+  --native-duration-instant: 80ms;
+  --native-duration-fast: 160ms;
+  --native-duration-base: 260ms;
+  --native-duration-sheet: 360ms;
+  --native-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --native-ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Device insets */
+  --native-safe-top: env(safe-area-inset-top, 0px);
+  --native-safe-right: env(safe-area-inset-right, 0px);
+  --native-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --native-safe-left: env(safe-area-inset-left, 0px);
+}
+
+.native-ui,
+[data-native-ui] {
+  color-scheme: dark;
+  font-family: var(--native-font);
+
+  --native-canvas: var(--brand-nora-black);
+  --native-surface: #121214;
+  --native-surface-raised: #19191d;
+  --native-surface-pressed: #222227;
+  --native-label: #f7f7f8;
+  --native-label-secondary: #a7a7b0;
+  --native-label-tertiary: #73737c;
+  --native-separator: rgba(255, 255, 255, 0.09);
+  --native-hairline: rgba(255, 255, 255, 0.13);
+  --native-accent: var(--brand-nora-purple);
+  --native-accent-rgb: 124, 92, 255;
+  --native-accent-pressed: var(--brand-nora-purple-pressed);
+  --native-accent-soft: var(--brand-nora-purple-soft);
+  --native-accent-hairline: var(--brand-nora-purple-hairline);
+  --native-accent-gradient: linear-gradient(135deg, #8f73ff 0%, #6748da 100%);
+  --native-selection-gradient:
+    linear-gradient(135deg, rgba(143, 115, 255, 0.28), rgba(83, 66, 180, 0.12));
+  --native-selection-shadow:
+    inset 0 0 0 1px rgba(159, 137, 255, 0.18),
+    0 5px 18px rgba(72, 49, 156, 0.13);
+  --native-on-accent: #ffffff;
+  --native-danger: #ff453a;
+  --native-success: #30d158;
+  --native-focus-ring: 0 0 0 3px var(--native-accent-soft);
+  --native-shadow-card:
+    0 1px 1px rgba(0, 0, 0, 0.28),
+    0 10px 30px rgba(0, 0, 0, 0.2);
+  --native-shadow-sheet:
+    0 -1px 0 rgba(255, 255, 255, 0.08),
+    0 -24px 70px rgba(0, 0, 0, 0.48);
+}
+
+.native-ui[data-persona="atlas"],
+[data-native-ui][data-persona="atlas"],
+.atlas-mode .native-ui,
+.atlas-mode [data-native-ui] {
+  --native-canvas: var(--brand-atlas-black);
+  --native-surface: #141311;
+  --native-surface-raised: #1c1a17;
+  --native-surface-pressed: #26231e;
+  --native-label: #f4efe5;
+  --native-label-secondary: #aaa398;
+  --native-label-tertiary: #777168;
+  --native-separator: rgba(234, 217, 179, 0.09);
+  --native-hairline: rgba(234, 217, 179, 0.15);
+  --native-accent: var(--brand-atlas-gold);
+  --native-accent-rgb: 201, 168, 97;
+  --native-accent-pressed: var(--brand-atlas-gold-pressed);
+  --native-accent-soft: var(--brand-atlas-gold-soft);
+  --native-accent-hairline: var(--brand-atlas-gold-hairline);
+  --native-accent-gradient: linear-gradient(135deg, #d8bd80 0%, #a3853f 100%);
+  --native-selection-gradient:
+    linear-gradient(135deg, rgba(216, 189, 128, 0.25), rgba(143, 114, 56, 0.11));
+  --native-selection-shadow:
+    inset 0 0 0 1px rgba(232, 208, 150, 0.16),
+    0 5px 18px rgba(95, 73, 32, 0.13);
+  --native-on-accent: #17130b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --native-duration-instant: 0ms;
+    --native-duration-fast: 0ms;
+    --native-duration-base: 0ms;
+    --native-duration-sheet: 0ms;
+  }
+}

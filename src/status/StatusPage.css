@@ -1,16 +1,4 @@
-/* ──────────────────────────────────────────────────────────────────────
-   Status page — unified, responsive component tree.
-
-   This is the ONLY stylesheet for src/status/*. It relies entirely on the
-   design tokens already defined in src/App.css (:root / .dark) and the
-   Liquid Glass overrides in src/glass.css (.glass). No new colors or
-   spacing tokens are introduced here.
-
-   `.status-card` is NOT redefined here — it already exists in App.css
-   (background/border/radius/padding/shadow) and glass.css (specular sweep,
-   iridescent edge, hover lift). Every card root below carries that class
-   so it inherits both treatments for free.
-   ────────────────────────────────────────────────────────────────────── */
+/* Phase 5 — shared native Status workspace for mobile and desktop. */
 
 /* ── Root layout ─────────────────────────────────────────────────────
    No horizontal margin/padding of its own — outer gutter is the caller's
@@ -22,6 +10,24 @@
    width desktop column vs. a full-bleed mobile column), so @media on the
    viewport would not track the actual space available to the component. */
 .status-page {
+  --accent: var(--native-accent);
+  --accent-rgb: var(--native-accent-rgb);
+  --accent-light: var(--native-accent-soft);
+  --border: var(--native-separator);
+  --border-glow: var(--native-accent-hairline);
+  --surface: var(--native-surface);
+  --surface-2: var(--native-surface-raised);
+  --surface-solid: var(--native-canvas);
+  --text: var(--native-label);
+  --text-muted: var(--native-label-secondary);
+  --danger: var(--native-danger);
+  --success: var(--native-success);
+  --tr: var(--native-duration-fast);
+  --dur-fast: var(--native-duration-fast);
+  --dur-base: var(--native-duration-base);
+  --ease-out: var(--native-ease-out);
+  --ease-spring: var(--native-ease-spring);
+
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -30,35 +36,165 @@
   padding: 0;
   container-type: inline-size;
   container-name: status;
+  color: var(--native-label);
+  font-family: var(--native-font);
 }
 
-/* Mind tab — Atlas's world, and now the WHOLE screen, not just this page's
-   own cards. StatusPage.js's onMindModeChange callback tells the app shell
-   (App.js/MobileApp.js) to add .atlas-active to the actual app root the
-   moment tab === "mind", so the header/nav bar/FAB/status-bar area (all
-   already reading var(--header-bg)/var(--accent)/etc.) repaint black+gold
-   right along with these cards — .status-mind-view's own .atlas-mode class
-   is now mostly a redundant safety net (the values are inherited from the
-   shell above), not the primary mechanism. Because the SHELL now owns the
-   black background, this element stays transparent — an explicit bg/border/
-   padding here would double-box against the already-black shell behind it. */
-.status-mind-view .status-worktab-pill {
-  box-shadow: 0 2px 8px rgba(var(--accent-rgb),0.35);
+.app .status-page.native-ui .status-card {
+  padding: var(--native-space-5);
+  border: 1px solid var(--native-separator);
+  border-radius: var(--native-radius-card);
+  background: var(--native-surface);
+  color: var(--native-label);
+  box-shadow: var(--native-shadow-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: none;
 }
 
-/* ── Entrance stagger (reuses the existing noraEnter keyframe) ──────
-   Selectors are deliberately more specific than the plain `.status-card`
-   rule in App.css (which already applies the same un-delayed animation)
-   so the staggered `animation-delay` always wins regardless of CSS
-   import order between App.css and this file. */
-.status-page > * {
-  animation: noraEnter var(--dur-base) var(--ease-spring) both;
+.status-page.native-ui .status-card::before,
+.status-page.native-ui .status-card::after {
+  display: none;
 }
-.status-page > *:nth-child(1) { animation-delay: 0s; }
-.status-page > *:nth-child(2) { animation-delay: .05s; }
-.status-page > *:nth-child(3) { animation-delay: .10s; }
-.status-page > *:nth-child(4) { animation-delay: .15s; }
-.status-page > *:nth-child(5) { animation-delay: .20s; }
+
+/* ── Things Nora Noticed ────────────────────────────────────────────
+   A single discovery portal, deliberately unlike the metric cards below.
+   It feels like a private message from Nora rather than another dashboard. */
+.status-insights-entry {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 190px;
+  padding: clamp(24px, 5cqw, 38px);
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(16px, 3cqw, 26px);
+  overflow: hidden;
+  color: #f8f7fb;
+  text-align: left;
+  font: inherit;
+  border: 1px solid rgba(139, 92, 246, .23);
+  border-radius: 27px;
+  background:
+    radial-gradient(circle at 9% 18%, rgba(139, 92, 246, .2), transparent 18rem),
+    linear-gradient(145deg, #17131f 0%, #111116 55%, #0d0d10 100%);
+  box-shadow: 0 22px 62px rgba(0, 0, 0, .25);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--native-duration-fast) var(--native-ease-out),
+    border-color var(--native-duration-fast) ease,
+    box-shadow var(--native-duration-fast) ease;
+}
+
+.status-insights-entry::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(112deg, transparent 20%, rgba(255, 255, 255, .035) 49%, transparent 72%);
+}
+
+.status-insights-entry:hover {
+  transform: translateY(-2px);
+  border-color: rgba(139, 92, 246, .38);
+  box-shadow: 0 28px 72px rgba(0, 0, 0, .32);
+}
+
+.status-insights-entry:focus-visible {
+  outline: 3px solid rgba(139, 92, 246, .34);
+  outline-offset: 3px;
+}
+
+.status-insights-entry-mark {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  color: #9b72ff;
+  border: 1px solid rgba(155, 114, 255, .24);
+  border-radius: 18px;
+  background: rgba(139, 92, 246, .1);
+  box-shadow: 0 0 42px rgba(124, 58, 237, .15);
+}
+
+.status-insights-entry-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-insights-entry-kicker {
+  margin-bottom: 8px;
+  color: #a78bfa;
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.status-insights-entry-copy strong {
+  max-width: 620px;
+  color: #fff;
+  font-size: clamp(21px, 3.2cqw, 30px);
+  font-weight: 710;
+  letter-spacing: -.027em;
+  line-height: 1.15;
+}
+
+.status-insights-entry-preview {
+  max-width: 620px;
+  margin-top: 9px;
+  color: rgba(237, 233, 242, .57);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.status-insights-entry-action {
+  align-self: end;
+  min-height: 38px;
+  padding: 0 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #ddd6fe;
+  white-space: nowrap;
+  border: 1px solid rgba(139, 92, 246, .27);
+  border-radius: 12px;
+  background: rgba(139, 92, 246, .11);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+@container status (max-width: 560px) {
+  .status-insights-entry {
+    min-height: 230px;
+    grid-template-columns: 46px minmax(0, 1fr);
+    align-items: start;
+    border-radius: 24px;
+  }
+
+  .status-insights-entry-mark {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+  }
+
+  .status-insights-entry-copy strong {
+    font-size: clamp(20px, 6.2cqw, 27px);
+  }
+
+  .status-insights-entry-action {
+    grid-column: 1 / -1;
+    align-self: auto;
+    justify-self: stretch;
+    justify-content: center;
+  }
+}
 
 /* Card-as-<button> reset — some cards (MetricCard when it has an expand
    affordance, the QuickCheckIn summary row, tappable pattern rows, action
@@ -119,42 +255,8 @@ button.status-card {
    Work / Mind segmented control
    ══════════════════════════════════════════════════════════════════ */
 .status-worktab-toggle {
-  position: relative;
-  display: flex;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 4px;
+  width: 100%;
 }
-.status-worktab-pill {
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  width: calc(50% - 4px);
-  border-radius: 8px;
-  background: var(--grad);
-  box-shadow: 0 2px 8px rgba(124,58,237,0.3);
-  transition: left var(--dur-base) var(--ease-spring);
-  pointer-events: none;
-  z-index: 0;
-}
-.status-worktab-pill-0 { left: 4px; }
-.status-worktab-pill-1 { left: calc(50%); }
-.status-worktab-btn {
-  flex: 1;
-  position: relative;
-  z-index: 1;
-  padding: 8px 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-  border-radius: 8px;
-  transition: color var(--dur-fast) ease;
-}
-.status-worktab-btn.active { color: #fff; }
 
 /* ── Shared expand/collapse technique (grid-template-rows 0fr → 1fr) ──
    Driven by a `data-expanded` attribute on the card root rather than a
@@ -175,38 +277,31 @@ button.status-card {
 
 /* ── Shimmer skeleton utility ────────────────────────────────────────── */
 .status-skeleton {
-  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
-  background-size: 400% 100%;
-  animation: statusShimmer 1.4s ease-in-out infinite;
+  background: var(--native-surface-raised);
+  animation: statusPulse 1.2s ease-in-out infinite;
   border-radius: 8px;
   color: transparent;
 }
-@keyframes statusShimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
+@keyframes statusPulse {
+  0%, 100% { opacity: .45; }
+  50% { opacity: .9; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
    AI Coach Card
    ══════════════════════════════════════════════════════════════════ */
-/* !important on border-top-color only: the Liquid Glass desktop theme has
-   a much higher-specificity rule (.glass.app:not(.mob-app) .status-card,
-   in glass.css) that resets border-color on every status card for the
-   glass look — otherwise silently winning and leaving this card's one
-   always-on accent edge a neutral glass grey instead of Nora's/Atlas's
-   color, in both themes. */
 .status-coach-card {
-  border-top: 3px solid var(--accent) !important;
+  border-left: 3px solid var(--accent);
 }
 .status-coach-card[data-tone="urgent"],
 .status-coach-card[data-tone="warning"] {
-  border-top-color: var(--danger) !important;
+  border-left-color: var(--danger);
 }
 .status-coach-card[data-tone="positive"] {
-  border-top-color: var(--success) !important;
+  border-left-color: var(--success);
 }
 .status-coach-card[data-persona="atlas"] {
-  border-top-color: var(--accent) !important;
+  border-left-color: var(--accent);
 }
 .status-coach-card[data-persona="atlas"] .status-ghost-btn:hover {
   border-color: var(--accent);
@@ -522,6 +617,17 @@ button.status-card {
   text-overflow: ellipsis;
 }
 .status-level-btn:hover { border-color: var(--accent); }
+.status-level-btn.active {
+  border-color: color-mix(in srgb, var(--level-accent, var(--accent)) 48%, transparent);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--level-accent, var(--accent)) 25%, transparent),
+      color-mix(in srgb, var(--level-accent, var(--accent)) 8%, transparent)
+    );
+  color: var(--level-accent, var(--accent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--level-accent, var(--accent)) 10%, transparent);
+}
 
 .status-checkin-sleep-levels { display: flex; gap: 8px; }
 .status-sleep-btn {
@@ -536,9 +642,21 @@ button.status-card {
   transition: all var(--dur-fast) ease;
 }
 .status-sleep-btn:hover { border-color: var(--accent); color: var(--accent); }
-.status-sleep-poor.active { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.35); color: var(--danger); }
-.status-sleep-okay.active { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.35); color: #f59e0b; }
-.status-sleep-good.active { background: rgba(34,197,94,.12);  border-color: rgba(34,197,94,.35);  color: var(--success); }
+.status-sleep-poor.active {
+  background: linear-gradient(135deg, rgba(239,68,68,.22), rgba(190,24,93,.08));
+  border-color: rgba(239,68,68,.38);
+  color: var(--danger);
+}
+.status-sleep-okay.active {
+  background: linear-gradient(135deg, rgba(245,158,11,.22), rgba(234,88,12,.08));
+  border-color: rgba(245,158,11,.38);
+  color: #f59e0b;
+}
+.status-sleep-good.active {
+  background: linear-gradient(135deg, rgba(34,197,94,.22), rgba(20,184,166,.08));
+  border-color: rgba(34,197,94,.38);
+  color: var(--success);
+}
 
 /* ══════════════════════════════════════════════════════════════════
    Metrics grid + MetricCard
@@ -552,18 +670,6 @@ button.status-card {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
 }
-
-.status-metrics-grid > .status-metric-card {
-  animation: noraEnter var(--dur-fast) var(--ease-spring) both;
-}
-.status-metrics-grid > .status-metric-card:nth-child(1) { animation-delay: 0s; }
-.status-metrics-grid > .status-metric-card:nth-child(2) { animation-delay: .04s; }
-.status-metrics-grid > .status-metric-card:nth-child(3) { animation-delay: .08s; }
-.status-metrics-grid > .status-metric-card:nth-child(4) { animation-delay: .12s; }
-.status-metrics-grid > .status-metric-card:nth-child(5) { animation-delay: .16s; }
-.status-metrics-grid > .status-metric-card:nth-child(6) { animation-delay: .20s; }
-.status-metrics-grid > .status-metric-card:nth-child(7) { animation-delay: .24s; }
-.status-metrics-grid > .status-metric-card:nth-child(8) { animation-delay: .28s; }
 
 .status-metric-card {
   text-align: left;

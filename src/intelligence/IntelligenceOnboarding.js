@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { CheckCircle, Sparkles } from "lucide-react";
+import { CheckCircle } from "lucide-react";
+import BrandStar from "../components/BrandStar";
 import { useTranslation } from "react-i18next";
 import CloseButton from "../components/CloseButton";
 
@@ -87,8 +88,8 @@ export default function IntelligenceOnboarding({
   return (
     <>
       <div className="intel-overlay-mask" onClick={onClose} />
-      <div className="intel-onboarding-wrap" onClick={(e) => e.stopPropagation()}>
-        <div className="intel-onboarding-modal">
+      <div className="intel-onboarding-wrap native-ui" onClick={(e) => e.stopPropagation()}>
+        <div className="intel-onboarding-modal" role="dialog" aria-modal="true" aria-label={t("ob.meetTitle")}>
           <CloseButton onClick={onClose} size={24} className="ob-close" />
 
           {/* Progress dots (skip "done" step) */}
@@ -108,7 +109,7 @@ export default function IntelligenceOnboarding({
             <>
               <div className="ob-hero">
                 <div className="ob-hero-orb">
-                  <Sparkles size={28} color="#fff" />
+                  <BrandStar size={28} tone="white" />
                 </div>
                 <h1>{t("ob.meetTitle")}</h1>
                 <p>{t("ob.meetDesc")}</p>
@@ -285,7 +286,7 @@ export default function IntelligenceOnboarding({
           {/* ── STEP: done ────────────────────────────────────── */}
           {stepKey === "done" && (
             <div className="ob-success">
-              <div className="ob-success-ring">✨</div>
+              <div className="ob-success-ring"><BrandStar size={28} tone="purple" /></div>
               <h2>{t("ob.doneTitle")}</h2>
               <p>{t("ob.doneDesc")}</p>
 

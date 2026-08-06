@@ -1,0 +1,293 @@
+.planboard {
+  overflow: hidden;
+  border: 1px solid var(--native-hairline, var(--border));
+  border-radius: var(--native-radius-card, 18px);
+  background: var(--native-surface, var(--surface));
+  color: var(--native-label, var(--text));
+}
+
+.planboard-head {
+  padding: var(--native-space-4, 16px);
+  border-bottom: 1px solid var(--native-separator, var(--border));
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--native-space-3, 12px);
+}
+
+.planboard-kicker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--native-accent, var(--accent));
+  font-size: var(--native-type-footnote, 13px);
+  font-weight: 680;
+}
+
+.planboard-summary {
+  margin-top: 4px;
+  color: var(--native-label-secondary, var(--text-muted));
+  font-size: var(--native-type-caption, 12px);
+}
+
+.planboard-trust {
+  margin: 5px 0 0;
+  color: var(--native-label-tertiary, var(--text-muted));
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.planboard-legend {
+  display: flex;
+  gap: 9px;
+  color: var(--native-label-tertiary, var(--text-muted));
+  font-size: 10px;
+  white-space: nowrap;
+}
+.planboard-legend span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.planboard-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+.planboard-dot.existing { background: var(--native-label-tertiary, var(--text-muted)); }
+.planboard-dot.proposed { background: var(--native-accent, var(--accent)); }
+
+.planboard-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(44px, 1fr));
+  gap: 1px;
+  border-bottom: 1px solid var(--native-separator, var(--border));
+  background: var(--native-separator, var(--border));
+}
+
+.planboard-day {
+  position: relative;
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px 3px 10px;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--native-canvas, var(--bg));
+  color: var(--native-label-tertiary, var(--text-muted));
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.planboard-day strong {
+  color: var(--native-label, var(--text));
+  font-size: 11px;
+  font-weight: 650;
+}
+.planboard-day.selected {
+  background: var(--native-selection-gradient, var(--accent-light));
+  color: var(--native-accent, var(--accent));
+  box-shadow: inset 0 0 0 1px var(--native-accent-hairline, var(--border-glow));
+}
+.planboard-day.conflict strong { color: var(--native-danger, var(--danger)); }
+.planboard-load {
+  position: absolute;
+  inset: auto 5px 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--native-success, #30d158);
+}
+.planboard-load.balanced { background: var(--native-accent, var(--accent)); }
+.planboard-load.heavy { background: #ffb340; }
+.planboard-load.overloaded { background: var(--native-danger, var(--danger)); }
+
+.planboard-day-head {
+  padding: var(--native-space-3, 12px) var(--native-space-4, 16px) var(--native-space-2, 8px);
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.planboard-day-head strong {
+  font-size: var(--native-type-body, 15px);
+  font-weight: 650;
+}
+.planboard-day-head span {
+  color: var(--native-label-tertiary, var(--text-muted));
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.planboard-blocks {
+  padding: 0 var(--native-space-3, 12px) var(--native-space-3, 12px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--native-space-2, 8px);
+}
+
+.planboard-block {
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--native-radius-control, 12px);
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+.planboard-existing {
+  border: 1px solid var(--native-separator, var(--border));
+  background: var(--native-canvas, var(--bg));
+}
+.planboard-proposed {
+  border: 1px solid var(--native-accent-hairline, var(--accent));
+  background: var(--native-accent-soft, var(--accent-light));
+}
+.planboard-proposed.has-conflict {
+  border-color: var(--native-danger, var(--danger));
+}
+.planboard-grip {
+  margin-top: 3px;
+  flex: 0 0 auto;
+  color: var(--native-label-tertiary, var(--text-muted));
+  cursor: grab;
+}
+.planboard-block-time {
+  width: 48px;
+  flex: 0 0 auto;
+  color: var(--native-label-secondary, var(--text-muted));
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+.planboard-block-content {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+}
+.planboard-block-title {
+  overflow: hidden;
+  color: var(--native-label, var(--text));
+  font-size: var(--native-type-footnote, 13px);
+  font-weight: 640;
+  text-overflow: ellipsis;
+}
+
+.planboard-edit-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 94px 76px;
+  gap: 6px;
+}
+.planboard-edit-row label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--native-label-tertiary, var(--text-muted));
+  font-size: 9px;
+  font-weight: 580;
+  text-transform: uppercase;
+}
+.planboard-edit-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 7px;
+  border: 1px solid var(--native-separator, var(--border));
+  border-radius: 9px;
+  box-sizing: border-box;
+  outline: none;
+  background: var(--native-surface-raised, var(--surface-2));
+  color: var(--native-label, var(--text));
+  color-scheme: dark;
+  font: inherit;
+  font-size: 11px;
+}
+.planboard-edit-row input:focus { border-color: var(--native-accent-hairline, var(--accent)); }
+.planboard-remove {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  color: var(--native-label-tertiary, var(--text-muted));
+}
+.planboard-conflict {
+  color: var(--native-danger, var(--danger));
+  font-size: 11px;
+}
+.planboard-why summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--native-label-secondary, var(--text-muted));
+  font-size: 11px;
+  cursor: pointer;
+}
+.planboard-why p {
+  margin: 5px 0 0;
+  color: var(--native-label-secondary, var(--text-muted));
+  font-size: 11px;
+  line-height: 1.45;
+}
+.planboard-empty {
+  padding: var(--native-space-4, 16px);
+  border: 1px dashed var(--native-separator, var(--border));
+  border-radius: var(--native-radius-control, 12px);
+  color: var(--native-label-tertiary, var(--text-muted));
+  font-size: var(--native-type-caption, 12px);
+  text-align: center;
+}
+
+.planboard-excluded {
+  padding: 0 var(--native-space-3, 12px) var(--native-space-3, 12px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.planboard-other {
+  margin: 0 var(--native-space-3, 12px) var(--native-space-3, 12px);
+  padding: 9px 10px;
+  border: 1px solid var(--native-separator, var(--border));
+  border-radius: var(--native-radius-control, 12px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  color: var(--native-label-secondary, var(--text-muted));
+  font-size: 11px;
+}
+.planboard-other-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.planboard-other-item .native-icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+.planboard-actions {
+  padding: var(--native-space-3, 12px);
+  border-top: 1px solid var(--native-separator, var(--border));
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--native-space-2, 8px);
+}
+.planboard-actions .planboard-apply { flex: 1; }
+.planboard-result {
+  padding: var(--native-space-3, 12px) var(--native-space-4, 16px);
+  border-top: 1px solid var(--native-separator, var(--border));
+  font-size: var(--native-type-footnote, 13px);
+  font-weight: 620;
+}
+.planboard-result.applied { color: var(--native-success, #30d158); }
+.planboard-result.rejected { color: var(--native-label-tertiary, var(--text-muted)); }
+
+@media (max-width: 520px) {
+  .planboard-head { flex-direction: column; }
+  .planboard-legend { align-self: flex-start; }
+  .planboard-days { grid-template-columns: repeat(7, minmax(36px, 1fr)); }
+  .planboard-day { padding-inline: 1px; }
+  .planboard-edit-row { grid-template-columns: 1fr 1fr; }
+  .planboard-edit-row label:last-child { grid-column: 1 / -1; }
+  .planboard-actions .native-button { flex: 1 1 100%; }
+}

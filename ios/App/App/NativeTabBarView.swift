@@ -79,13 +79,13 @@ private final class TallGlassTabBar: UITabBar {
     }
 }
 
-final class NativeTabBarHost: UIViewController, UITabBarControllerDelegate, UIGestureRecognizerDelegate {
+final class NativeTabBarHost: UIViewController, UITabBarControllerDelegate {
     private let tabController = UITabBarController()
     private let feedback = UISelectionFeedbackGenerator()
     private var tabs: [TabDefinition] = []
     private var tabIDs: [String] = []
     private var activeTab = "plan"
-    private var mode = "glass"
+    private var mode = "nora"
     private var dark = true
     private var isVisible = true
     private var isProgrammaticSelection = false
@@ -135,10 +135,6 @@ final class NativeTabBarHost: UIViewController, UITabBarControllerDelegate, UIGe
             tabController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleTabBarPan(_:)))
-        pan.cancelsTouchesInView = false
-        pan.delegate = self
-        tabController.tabBar.addGestureRecognizer(pan)
     }
 
     override func viewDidLayoutSubviews() {
@@ -245,20 +241,41 @@ final class NativeTabBarHost: UIViewController, UITabBarControllerDelegate, UIGe
             $0.view.overrideUserInterfaceStyle = style
         }
 
-        tabController.tabBar.tintColor = .systemBlue
+        let isAtlas = mode == "atlas"
+        let accent = isAtlas
+            ? UIColor(red: 201.0 / 255.0, green: 168.0 / 255.0, blue: 97.0 / 255.0, alpha: 1)
+            : UIColor(red: 124.0 / 255.0, green: 92.0 / 255.0, blue: 255.0 / 255.0, alpha: 1)
+        let muted = isAtlas
+            ? UIColor(red: 170.0 / 255.0, green: 163.0 / 255.0, blue: 152.0 / 255.0, alpha: 0.72)
+            : UIColor(red: 167.0 / 255.0, green: 167.0 / 255.0, blue: 176.0 / 255.0, alpha: 0.72)
+
+        tabController.tabBar.tintColor = accent
+        tabController.tabBar.unselectedItemTintColor = muted
         tabController.tabBar.isTranslucent = true
-        applyTransparentTabBarAppearance()
+        applyTransparentTabBarAppearance(accent: accent, muted: muted)
     }
 
     // UITabBarAppearance owns the fallback backing panel. Keep that transparent
     // so iOS 26 can render only its floating Liquid Glass tab bar.
-    private func applyTransparentTabBarAppearance() {
+    private func applyTransparentTabBarAppearance(accent: UIColor, muted: UIColor) {
         let appearance = UITabBarAppearance()
         appearance.configureWithTransparentBackground()
         appearance.backgroundColor = .clear
         appearance.backgroundEffect = nil
         appearance.shadowColor = .clear
         appearance.shadowImage = UIImage()
+
+        let itemAppearances = [
+            appearance.stackedLayoutAppearance,
+            appearance.inlineLayoutAppearance,
+            appearance.compactInlineLayoutAppearance,
+        ]
+        itemAppearances.forEach { item in
+            item.normal.iconColor = muted
+            item.normal.titleTextAttributes = [.foregroundColor: muted]
+            item.selected.iconColor = accent
+            item.selected.titleTextAttributes = [.foregroundColor: accent]
+        }
 
         tabController.tabBar.standardAppearance = appearance
         tabController.tabBar.scrollEdgeAppearance = appearance
@@ -347,35 +364,6 @@ final class NativeTabBarHost: UIViewController, UITabBarControllerDelegate, UIGe
         }
     }
 
-    private func tabIndex(at location: CGPoint) -> Int? {
-        let count = max(tabIDs.count, 1)
-        guard tabController.tabBar.bounds.contains(location), count > 0 else { return nil }
-
-        let segmentWidth = tabController.tabBar.bounds.width / CGFloat(count)
-        guard segmentWidth > 0 else { return nil }
-
-        let rawIndex = Int(location.x / segmentWidth)
-        return min(max(rawIndex, 0), count - 1)
-    }
-
-    @objc private func handleTabBarPan(_ gesture: UIPanGestureRecognizer) {
-        let location = gesture.location(in: tabController.tabBar)
-
-        switch gesture.state {
-        case .began:
-            feedback.prepare()
-            fallthrough
-        case .changed:
-            guard let index = tabIndex(at: location) else { return }
-            selectTab(at: index, notify: false)
-        case .ended, .cancelled, .failed:
-            let index = tabIndex(at: location) ?? tabController.selectedIndex
-            selectTab(at: index, notify: true)
-        default:
-            break
-        }
-    }
-
     func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
         guard !isProgrammaticSelection,
               let index = tabBarController.viewControllers?.firstIndex(of: viewController) else {
@@ -393,9 +381,5 @@ final class NativeTabBarHost: UIViewController, UITabBarControllerDelegate, UIGe
         }
 
         selectTab(at: index, notify: true)
-    }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        true
     }
 }

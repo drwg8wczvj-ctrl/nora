@@ -11,8 +11,6 @@
 .fs-backdrop {
   position: absolute; inset: 0;
   background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .fs-panel {
@@ -20,14 +18,20 @@
   width: min(440px, 100%);
   max-height: min(700px, 90vh);
   overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+  background: var(--native-canvas);
+  border: 1px solid var(--native-hairline);
+  border-radius: var(--native-radius-sheet);
+  box-shadow: var(--native-shadow-sheet);
   padding: 28px 24px 32px;
   display: flex; flex-direction: column;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  --text: var(--native-label);
+  --text-muted: var(--native-label-secondary);
+  --surface: var(--native-surface);
+  --surface-2: var(--native-surface-raised);
+  --border: var(--native-separator);
+  --accent: var(--native-accent);
 }
 
 /* Accent top border */
@@ -35,7 +39,7 @@
   content: '';
   position: absolute; top: 0; left: 20px; right: 20px;
   height: 2px; border-radius: 0 0 2px 2px;
-  background: var(--grad, var(--accent));
+  background: var(--native-accent);
 }
 
 /* Visual styling now owned by CloseButton.css; this only positions it. */
@@ -115,7 +119,7 @@
 /* ── Duration chips ────────────────────────────────────────── */
 .fs-chip-row { display: flex; gap: 8px; }
 .fs-chip {
-  flex: 1; padding: 8px 0; border-radius: 10px;
+  flex: 1; min-height: 44px; padding: 8px 0; border-radius: 10px;
   border: 1.5px solid var(--border);
   background: var(--surface-2); color: var(--text);
   font-size: 13px; font-weight: 600; cursor: pointer;
@@ -132,7 +136,7 @@
 .fs-music-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .fs-music-chip {
   display: flex; flex-direction: column; align-items: flex-start;
-  gap: 2px; padding: 10px 12px; border-radius: 10px;
+  min-height: 54px; gap: 2px; padding: 10px 12px; border-radius: 10px;
   border: 1.5px solid var(--border); background: var(--surface-2);
   cursor: pointer; text-align: left;
   transition: border-color .15s, background .15s;
@@ -154,9 +158,9 @@
 
 /* ── Start button ──────────────────────────────────────────── */
 .fs-start-btn {
-  align-self: stretch; padding: 14px;
+  align-self: stretch; min-height: 48px; padding: 14px;
   border-radius: 12px; border: none; cursor: pointer;
-  background: var(--grad, var(--accent)); color: #fff;
+  background: var(--native-accent); color: var(--native-on-accent);
   font-size: 15px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   transition: opacity .15s, transform .1s;
@@ -180,7 +184,7 @@
 }
 .fs-block-btn {
   display: flex; align-items: center; gap: 8px;
-  padding: 12px 14px; border-radius: 12px;
+  min-height: 48px; padding: 12px 14px; border-radius: 12px;
   border: 1.5px solid var(--border); background: var(--surface-2);
   font-size: 13px; font-weight: 600; color: var(--text);
   cursor: pointer; text-align: left;
@@ -245,7 +249,7 @@
   align-self: stretch; margin-top: 4px;
 }
 .fs-act {
-  align-self: stretch; padding: 11px;
+  align-self: stretch; min-height: 44px; padding: 11px;
   border-radius: 10px; border: 1.5px solid var(--border);
   font-size: 14px; font-weight: 600; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 7px;

@@ -1,4 +1,9 @@
 import React from "react";
+import BrandStar from "../components/BrandStar";
+import {
+  NativeButton,
+  NativeDialog,
+} from "../components/ui/NativeUI";
 
 const TYPE_ICONS = {
   event:       "📅",
@@ -25,18 +30,22 @@ export default function ProactiveOverlay({ suggestions, onReview, onDismiss }) {
   const preview = suggestions.slice(0, 3);
 
   return (
-    <>
-      <div className="proactive-overlay-mask" onClick={onDismiss} />
-      <div className="proactive-sheet" role="dialog" aria-modal="true" aria-label="NORA suggestions">
-
-        <div className="proactive-sparkle">
-          <img src="/icon-192.png" alt="Nora" />
-        </div>
-
-        <div className="proactive-greeting">{greeting()}</div>
-        <div className="proactive-sub">
-          I found&nbsp;<b>{count}&nbsp;{count === 1 ? "thing" : "things"}</b>&nbsp;that
-          {count === 1 ? " may need" : " may need"} your attention.
+    <NativeDialog
+      onClose={onDismiss}
+      title={greeting()}
+      subtitle={`I found ${count} ${count === 1 ? "thing" : "things"} that may need your attention.`}
+      className="proactive-dialog"
+      footer={(
+        <>
+          <NativeButton variant="tertiary" onClick={onDismiss}>Later</NativeButton>
+          <NativeButton leading={<BrandStar size={15} tone="white" />} onClick={onReview}>
+            Review suggestions
+          </NativeButton>
+        </>
+      )}
+    >
+        <div className="proactive-mark" aria-hidden="true">
+          <BrandStar size={28} tone="purple" />
         </div>
 
         <div className="proactive-preview">
@@ -55,16 +64,6 @@ export default function ProactiveOverlay({ suggestions, onReview, onDismiss }) {
           )}
         </div>
 
-        <div className="proactive-actions">
-          <button className="proactive-cta" onClick={onReview}>
-            Review Suggestions
-          </button>
-          <button className="proactive-dismiss" onClick={onDismiss}>
-            Later
-          </button>
-        </div>
-
-      </div>
-    </>
+    </NativeDialog>
   );
 }
