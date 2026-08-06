@@ -9,10 +9,14 @@
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("crypto");
 
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+function getSupabaseClient() {
+  const url = process.env.REACT_APP_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return null;
+  return createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
 function verifyState(state) {
   const [payload, signature] = String(state || "").split(".");
@@ -45,6 +49,10 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return res.redirect(302, `${appUrl}?intel_status=gmail_not_configured`);
+    }
     // Exchange code for tokens
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",

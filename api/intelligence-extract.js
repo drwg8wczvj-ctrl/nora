@@ -4,8 +4,6 @@ const { enforceRateLimit } = require("./_rateLimit");
 const { internalError } = require("./_errors");
 const { parseBody, schemas } = require("./_validation");
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const today = () => new Date().toISOString().split("T")[0];
 
 const SYSTEM_PROMPT = `You are NORA's intelligence extraction engine. Analyze the provided text and extract all actionable items a user would want to add to their personal planner.
@@ -74,6 +72,8 @@ module.exports = async function handler(req, res) {
     sourceAccountId = null,
   } = parsedBody.data;
   const userId = auth.user.id;
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: "AI extraction is not configured" });
 
   // Build user content: if context is provided, prepend the thread so the AI
   // can resolve relative dates (e.g. "tomorrow") from the conversation.
@@ -82,6 +82,7 @@ module.exports = async function handler(req, res) {
     : message.slice(0, 8000);
 
   try {
+    const openai = new OpenAI({ apiKey });
     const supabase = getAdminClient();
     if (sourceAccountId) {
       const { data: ownedAccount } = await supabase
