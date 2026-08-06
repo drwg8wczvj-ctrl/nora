@@ -20,6 +20,9 @@
   font-family: var(--native-font);
   animation: desk-arrive .55s var(--native-ease-out) both;
 }
+.desk-mode *,
+.desk-mode *::before,
+.desk-mode *::after { box-sizing: border-box; }
 
 .desk-mode-focus { grid-template-rows: minmax(0, 1fr); }
 
@@ -140,7 +143,8 @@
     max(42px, calc(var(--native-safe-bottom) + 30px))
     max(26px, var(--native-safe-left));
   box-sizing: border-box;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
   animation: desk-workspace-enter .34s var(--native-ease-out) both;
 }
@@ -166,8 +170,9 @@
 }
 
 /* ── NOW / widget system ─────────────────────────────────────────── */
-.desk-now-workspace { overflow: hidden; }
+.desk-now-workspace { overflow-x: hidden; overflow-y: auto; }
 .desk-widget-grid {
+  width: 100%;
   height: 100%;
   min-height: 0;
   display: grid;
@@ -348,7 +353,8 @@ button.desk-widget:hover { border-color: rgba(173, 159, 255, .35); }
   grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 8px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at 50% 42%, rgba(115, 89, 255, .14), transparent 31%),
     transparent;
@@ -359,7 +365,7 @@ button.desk-widget:hover { border-color: rgba(173, 159, 255, .35); }
   justify-content: space-between;
 }
 .desk-focus-active header h1 { max-width: 60ch; margin: 4px 0; font-size: clamp(18px, 2vw, 28px); letter-spacing: -.025em; }
-.desk-focus-stage { display: flex; align-items: center; justify-content: center; gap: clamp(28px, 6vw, 90px); }
+.desk-focus-stage { min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; gap: clamp(28px, 6vw, 90px); }
 .desk-focus-ring { position: relative; width: clamp(190px, 28vh, 290px); aspect-ratio: 1; }
 .desk-focus-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .desk-focus-ring circle { fill: none; stroke: rgba(255,255,255,.09); stroke-width: 5; }
@@ -438,16 +444,19 @@ button.desk-widget:hover { border-color: rgba(173, 159, 255, .35); }
   grid-template-columns: minmax(230px, .85fr) minmax(280px, 1.25fr) minmax(220px, .75fr);
   gap: clamp(22px, 4vw, 60px);
   align-items: center;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   isolation: isolate;
 }
+.desk-music-workspace > * { min-width: 0; }
 .desk-music-backdrop { position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(rgba(7,7,10,.72), rgba(7,7,10,.92)), var(--desk-artwork); background-position: center; background-size: cover; filter: blur(45px) saturate(125%); opacity: .45; transform: scale(1.15); }
 .desk-music-artwork { position: relative; width: min(34vw, 390px); max-width: 100%; aspect-ratio: 1; border: 1px solid var(--desk-line); border-radius: 28px; display: grid; place-items: center; justify-self: end; overflow: hidden; background: linear-gradient(145deg, #272336, #12151b); color: #9d8cff; box-shadow: 0 30px 80px rgba(0,0,0,.38); }
 .desk-music-artwork img { width: 100%; height: 100%; object-fit: cover; }
 .desk-music-focus-overlay { position: absolute; right: 14px; bottom: 14px; padding: 9px 13px; border: 1px solid rgba(255,255,255,.15); border-radius: 14px; display: flex; flex-direction: column; background: rgba(7,7,10,.72); backdrop-filter: blur(15px); }
 .desk-music-focus-overlay span { color: var(--desk-muted); font-size: 8px; text-transform: uppercase; }
 .desk-music-focus-overlay strong { font-size: 18px; font-variant-numeric: tabular-nums; }
-.desk-music-details h1 { margin: 9px 0 3px; overflow: hidden; font-size: clamp(34px, 5vw, 68px); letter-spacing: -.06em; text-overflow: ellipsis; white-space: nowrap; }
+.desk-music-details { min-width: 0; max-width: 100%; }
+.desk-music-details h1 { max-width: 100%; margin: 9px 0 3px; overflow: hidden; font-size: clamp(30px, 5vw, 68px); letter-spacing: -.06em; text-overflow: ellipsis; white-space: nowrap; }
 .desk-music-details > p { margin: 0; color: var(--desk-muted); }
 .desk-media-unavailable { margin: 18px 0; padding: 12px 14px; border: 1px solid var(--desk-line); border-radius: 14px; color: var(--desk-muted); font-size: 10px; line-height: 1.5; }
 .desk-playback-position { margin-top: 20px; display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; color: var(--desk-muted); font-size: 9px; }
@@ -590,7 +599,7 @@ button.desk-widget:hover { border-color: rgba(173, 159, 255, .35); }
   .desk-size-standard { grid-column: span 2; }
   .desk-size-wide { grid-column: span 3; }
   .desk-size-hero { grid-column: span 3; }
-  .desk-music-workspace { grid-template-columns: minmax(190px,.8fr) minmax(260px,1.2fr); }
+  .desk-music-workspace { grid-template-columns: minmax(0,.8fr) minmax(0,1.2fr); }
   .desk-ambient-mixer { grid-column: 1 / -1; min-height: 120px; }
   .desk-health-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .desk-focus-stats { grid-template-columns: repeat(3,minmax(0,1fr)); }
@@ -604,9 +613,22 @@ button.desk-widget:hover { border-color: rgba(173, 159, 255, .35); }
   .desk-clock { font-size: clamp(43px,8vw,74px); }
   .desk-widget-clock h1 { font-size: 16px; }
   .desk-weather-line { margin-top: 7px; }
-  .desk-focus-ring { width: min(39vh,210px); }
-  .desk-focus-active { grid-template-rows: auto minmax(0,1fr) auto auto auto; }
-  .desk-focus-lower { grid-template-columns: 160px 1fr; }
+  .desk-focus-ring { width: min(43vh,190px); }
+  .desk-focus-active {
+    grid-template-columns: minmax(190px,.72fr) minmax(360px,1.28fr);
+    grid-template-rows: auto minmax(46px,1fr) auto auto;
+    column-gap: clamp(20px,5vw,72px);
+    row-gap: 6px;
+    align-items: center;
+  }
+  .desk-focus-active > header { grid-column: 1 / -1; }
+  .desk-focus-stage { grid-column: 1; grid-row: 2 / 5; gap: 18px; }
+  .desk-focus-score strong { font-size: clamp(44px,6vw,68px); }
+  .desk-focus-controls { grid-column: 2; grid-row: 2; align-self: end; }
+  .desk-focus-lower { grid-column: 2; grid-row: 3; grid-template-columns: minmax(130px,.65fr) minmax(0,1.8fr); gap: 8px; }
+  .desk-focus-coaching { grid-column: 2; grid-row: 4; }
+  .desk-focus-music { padding: 7px 10px; }
+  .desk-focus-stats { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .desk-focus-stat { padding: 6px; }
   .desk-focus-stat strong { font-size: 12px; }
   .desk-focus-coaching { min-height: 20px; }
@@ -615,6 +637,21 @@ button.desk-widget:hover { border-color: rgba(173, 159, 255, .35); }
   .desk-insight-card p { margin: 10px 0; font-size: 14px; }
   .desk-journal-compose textarea { min-height: 70px; font-size: 14px; }
   .desk-health-card { min-height: 86px; padding: 12px; }
+  .desk-music-workspace {
+    grid-template-columns: minmax(130px,.58fr) minmax(250px,1.15fr) minmax(165px,.72fr);
+    gap: clamp(12px,2.5vw,28px);
+    align-items: center;
+  }
+  .desk-music-artwork { width: min(38vh,190px); border-radius: 22px; }
+  .desk-music-details h1 { font-size: clamp(27px,4vw,45px); }
+  .desk-media-unavailable { margin: 9px 0; padding: 8px 10px; }
+  .desk-playback-position { margin-top: 9px; }
+  .desk-media-controls { margin: 7px 0; }
+  .desk-media-controls button { width: 36px; height: 36px; }
+  .desk-media-controls .desk-media-play { width: 46px; height: 46px; }
+  .desk-lyrics-placeholder { margin-top: 8px; padding-top: 8px; }
+  .desk-ambient-mixer { grid-column: auto; min-height: 0; padding: 13px; border-radius: 18px; }
+  .desk-ambient-options { margin: 10px 0; }
 }
 
 @media (max-width: 720px) {
@@ -638,12 +675,41 @@ button.desk-widget:hover { border-color: rgba(173, 159, 255, .35); }
   .desk-journal-workspace,
   .desk-health-workspace { grid-template-columns: 1fr; }
   .desk-timeline-workspace .desk-workspace-intro { position: static; padding-top: 0; }
-  .desk-music-workspace { grid-template-columns: 1fr 1.2fr; }
+  .desk-music-workspace { grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); }
   .desk-music-artwork { width: 100%; }
   .desk-health-recommendation { grid-column: 1; }
   .desk-focus-lower { grid-template-columns: 1fr; }
   .desk-complete-summary { grid-template-columns: repeat(3,minmax(90px,1fr)); }
   .desk-customize-columns { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) and (max-height: 560px) and (orientation: landscape) {
+  .desk-focus-active {
+    grid-template-columns: minmax(170px,.7fr) minmax(320px,1.3fr);
+  }
+  .desk-focus-lower { grid-template-columns: minmax(115px,.6fr) minmax(0,1.8fr); }
+  .desk-music-workspace {
+    grid-template-columns: minmax(120px,.65fr) minmax(0,1.35fr);
+    align-items: center;
+  }
+  .desk-music-artwork { width: min(36vh,160px); }
+  .desk-ambient-mixer { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) and (orientation: landscape) {
+  .desk-focus-active {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .desk-focus-active > header { flex: 0 0 auto; }
+  .desk-focus-stage { flex: 0 0 auto; }
+  .desk-focus-ring { width: 150px; }
+  .desk-focus-score { display: none; }
+  .desk-focus-controls { flex: 0 0 auto; }
+  .desk-focus-lower { flex: 0 0 auto; grid-template-columns: 1fr; }
+  .desk-focus-coaching { flex: 0 0 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

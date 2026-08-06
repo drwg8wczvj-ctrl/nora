@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Brain, CalendarClock, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { Brain, CalendarClock, ChevronDown, ChevronUp } from "lucide-react";
+import BrandStar from "./BrandStar";
 import {
   calculateDeadlineHealth,
   inferTaskIntelligence,
@@ -43,7 +44,7 @@ export default function IntelligentTaskFields({
   return (
     <section className={`task-intelligence${compact ? " is-compact" : ""}`} aria-label="Nora task intelligence">
       <header>
-        <span><Sparkles size={14} /> Nora suggests</span>
+        <span><BrandStar size={13} tone="purple" /> Nora suggests</span>
         <button type="button" onClick={accept}>Accept</button>
       </header>
       <div className="task-intelligence-summary">

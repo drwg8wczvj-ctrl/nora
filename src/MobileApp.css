@@ -2907,6 +2907,7 @@
 }
 
 .mob-task-dialog .mob-modal-body {
+  min-width: 0;
   padding: var(--native-space-4);
   gap: var(--native-space-4);
 }
@@ -2942,4 +2943,13 @@
 
 .mob-task-dialog .native-dialog__footer .native-button--danger {
   margin-right: auto;
+}
+
+@media (max-width: 390px) {
+  .mob-task-dialog .native-dialog__footer {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) var(--native-touch-target) minmax(0,1fr);
+  }
+  .mob-task-dialog .native-dialog__footer .native-button--danger { margin-right: 0; }
+  .mob-task-dialog .native-dialog__footer .native-button { padding-inline: 10px; }
 }

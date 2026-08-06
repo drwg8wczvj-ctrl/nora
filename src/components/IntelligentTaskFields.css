@@ -1,4 +1,8 @@
 .task-intelligence {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
   margin: 4px 0 2px;
   padding: 13px;
   border: 1px solid color-mix(in srgb, var(--accent, #7c5cff) 23%, var(--border));
@@ -23,9 +27,10 @@
 .task-intelligence-fields label > span { color: var(--text-muted); font-size: 10px; font-weight: 700; }
 .task-intelligence-fields input,
 .task-intelligence-fields select,
-.task-intelligence-fields textarea { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 12px; }
+.task-intelligence-fields textarea { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 12px; }
 .task-intelligence-wide { grid-column: 1 / -1; }
-.task-deadline-explanation { display: flex; gap: 8px; padding: 10px; border-radius: 11px; background: var(--surface-2); color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+.task-deadline-explanation { min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px; padding: 10px; border-radius: 11px; background: var(--surface-2); color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+.task-deadline-explanation span { min-width: 0; overflow-wrap: anywhere; }
 .task-deadline-explanation strong { color: var(--text); }
 .task-deadline-explanation.is-risk strong,
 .task-deadline-explanation.is-critical strong { color: #ff637d; }
@@ -33,4 +38,6 @@
 @media (max-width: 540px) {
   .task-intelligence-fields { grid-template-columns: 1fr; }
   .task-intelligence-wide { grid-column: 1; }
+  .task-intelligence-summary > span { padding-inline: 7px; }
+  .task-deadline-explanation { grid-template-columns: 1fr; }
 }

@@ -922,6 +922,10 @@ export default function App() {
   const pendingViewRef   = useRef(null);
   const [editingTask, setEditingTask] = useState(null);
   const [draft,       setDraft]       = useState(null);
+  const openTaskEditor = (task) => {
+    setDraft(task ? { ...task } : null);
+    setEditingTask(task);
+  };
   const [savedPlaces,      setSavedPlaces]      = useState([]);
   const [transportProfile, setTransportProfile] = useState({ defaultMode: "mixed", routeOverrides: {} });
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -3649,7 +3653,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       onPinAtlasConversation: atlasEngine.pin,
       onArchiveAtlasConversation: atlasEngine.archive,
       onDeleteAtlasConversation: atlasEngine.remove,
-      editingTask, setEditingTask, draft, setDraft,
+      editingTask, setEditingTask: openTaskEditor, draft, setDraft,
       todayTasks, deferredTasks, contextMode, aiFocus,
       momentum, recoveryState, workloadForecast, weekData, weekTrend,
       dailyWorkflowPlan, productivityProfile,

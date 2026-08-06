@@ -53,6 +53,20 @@ test("places task actions before a collapsed completed archive", () => {
   expect(screen.getByRole("button", { name: "Edit Finish LinkedIn profile" })).toBeInTheDocument();
 });
 
+test("opens the add-task editor from a single click", () => {
+  const ctx = buildContext();
+  render(<MobileTasks ctx={ctx} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Add task" }));
+
+  expect(ctx.setEditingTask).toHaveBeenCalledTimes(1);
+  expect(ctx.setEditingTask).toHaveBeenCalledWith(expect.objectContaining({
+    type: "task",
+    title: "",
+    date: ctx.today,
+  }));
+});
+
 test("task action menu offers edit and confirmed deletion", () => {
   const ctx = buildContext();
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);

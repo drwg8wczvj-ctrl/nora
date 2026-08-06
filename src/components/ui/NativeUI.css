@@ -387,6 +387,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
 }
 
 .native-dialog__footer {
@@ -622,6 +623,11 @@
     border-left: 0;
     border-radius: var(--native-radius-sheet) var(--native-radius-sheet) 0 0;
   }
+  .native-dialog__footer {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .native-dialog__footer > * { min-width: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
