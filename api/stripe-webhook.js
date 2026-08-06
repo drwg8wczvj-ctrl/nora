@@ -1,7 +1,5 @@
-import Stripe from "stripe";
-import { createClient } from "@supabase/supabase-js";
-
-export const config = { api: { bodyParser: false } };
+const Stripe = require("stripe");
+const { createClient } = require("@supabase/supabase-js");
 
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -12,7 +10,7 @@ async function getRawBody(req) {
   });
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   const secretKey     = process.env.STRIPE_SECRET_KEY;
@@ -95,3 +93,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: e.message });
   }
 }
+
+module.exports = handler;
+module.exports.config = { api: { bodyParser: false } };

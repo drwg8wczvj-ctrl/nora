@@ -4,7 +4,7 @@ const { enforceRateLimit } = require("./_rateLimit");
 const { internalError } = require("./_errors");
 const { parseBody, schemas } = require("./_validation");
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).end();
   const auth = await requireUser(req, res);
