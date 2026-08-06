@@ -1,7 +1,8 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Info, PanelLeft, Plus, Send, X, Zap } from "lucide-react";
 import BrandStar from "../BrandStar";
 import { NativeIconButton } from "../ui/NativeUI";
+import { buildTaskMentionParts } from "../../lib/taskMentions";
 import "./AssistantChatUI.css";
 
 const joinClassNames = (...names) => names.filter(Boolean).join(" ");
@@ -65,6 +66,8 @@ export function AssistantChatComposer({
   placeholder,
   inputRef,
   rows = 1,
+  maxHeight = 160,
+  highlightTerms = [],
   leading,
   ghostSuffix = "",
   className = "",
@@ -72,31 +75,52 @@ export function AssistantChatComposer({
   const disabled = loading || !value.trim();
   const localInputRef = useRef(null);
   const textareaRef = inputRef ?? localInputRef;
+  const backdropRef = useRef(null);
+  const mentionParts = useMemo(
+    () => buildTaskMentionParts(value, highlightTerms),
+    [highlightTerms, value],
+  );
+  const hasTaskMentions = mentionParts.some((part) => part.taskTitle);
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
-  }, [textareaRef, value]);
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+  }, [maxHeight, textareaRef, value]);
 
   return (
     <footer className={joinClassNames("assistant-composer", className)}>
       {leading && <div className="assistant-composer__tools">{leading}</div>}
       <div className="assistant-composer__field">
-        {ghostSuffix && (
-          <div className="assistant-composer__ghost" aria-hidden="true">
-            {value}<span>{ghostSuffix}</span>
+        {(ghostSuffix || hasTaskMentions) && (
+          <div
+            ref={backdropRef}
+            className={joinClassNames("assistant-composer__ghost", hasTaskMentions && "has-task-mentions")}
+            aria-hidden="true"
+          >
+            {hasTaskMentions
+              ? mentionParts.map((part, index) => part.taskTitle
+                ? <mark className="assistant-composer__task-mention" key={`${part.taskTitle}-${index}`}>{part.text}</mark>
+                : <React.Fragment key={index}>{part.text}</React.Fragment>)
+              : value}
+            {ghostSuffix && <span className="assistant-composer__ghost-suffix">{ghostSuffix}</span>}
           </div>
         )}
         <textarea
           ref={textareaRef}
-          className="assistant-composer__input"
+          className={joinClassNames("assistant-composer__input", hasTaskMentions && "has-task-mentions")}
           value={value}
           rows={rows}
           onChange={onChange}
           onKeyDown={onKeyDown}
+          onScroll={(event) => {
+            if (!backdropRef.current) return;
+            backdropRef.current.scrollTop = event.currentTarget.scrollTop;
+            backdropRef.current.scrollLeft = event.currentTarget.scrollLeft;
+          }}
           placeholder={placeholder}
           aria-label={placeholder}
+          style={{ "--assistant-composer-max-height": `${maxHeight}px` }}
         />
       </div>
       <NativeIconButton

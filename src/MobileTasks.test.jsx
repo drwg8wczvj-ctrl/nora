@@ -31,6 +31,7 @@ function buildContext() {
     setEditingTask: vi.fn(),
     setFocusTask: vi.fn(),
     setSharingTask: vi.fn(),
+    deleteTask: vi.fn(),
     setShowJoinCode: vi.fn(),
   };
 }
@@ -50,4 +51,21 @@ test("places task actions before a collapsed completed archive", () => {
   fireEvent.click(completedToggle);
   expect(completedToggle).toHaveAttribute("aria-expanded", "true");
   expect(screen.getByRole("button", { name: "Edit Finish LinkedIn profile" })).toBeInTheDocument();
+});
+
+test("task action menu offers edit and confirmed deletion", () => {
+  const ctx = buildContext();
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(<MobileTasks ctx={ctx} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "More actions for Prepare interview" }));
+  fireEvent.click(screen.getByText("Edit Task"));
+  expect(ctx.setEditingTask).toHaveBeenCalledWith(ctx.tasks[0]);
+
+  fireEvent.click(screen.getByRole("button", { name: "More actions for Prepare interview" }));
+  fireEvent.click(screen.getByText("Delete Task"));
+  expect(confirm).toHaveBeenCalledWith("Delete this task? This can't be undone.");
+  expect(ctx.deleteTask).toHaveBeenCalledWith("active");
+
+  confirm.mockRestore();
 });

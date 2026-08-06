@@ -27,7 +27,25 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
-    chunkSizeWarningLimit: 650,
+    // ExcelJS is loaded on demand for spreadsheet exports and is just under 1 MB
+    // after minification. Keep that feature intact while splitting the libraries
+    // needed at startup into cacheable chunks.
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) {
+            return "react-vendor";
+          }
+          if (id.includes("/@supabase/")) return "supabase-vendor";
+          if (id.includes("/i18next") || id.includes("/react-i18next/")) return "i18n-vendor";
+          if (id.includes("/lucide-react/")) return "icons-vendor";
+          if (id.includes("/@capacitor/")) return "capacitor-vendor";
+          return undefined;
+        },
+      },
+    },
   },
   test: {
     environment: "jsdom",

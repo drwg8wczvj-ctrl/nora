@@ -184,6 +184,7 @@
 
 .assistant-composer__field:focus-within {
   border-color: var(--native-accent-hairline);
+  box-shadow: 0 0 0 2px var(--native-accent-soft);
 }
 
 .assistant-composer__input,
@@ -201,13 +202,23 @@
 .assistant-composer__input {
   position: relative;
   z-index: 1;
-  max-height: 128px;
+  max-height: var(--assistant-composer-max-height, 160px);
   min-height: 44px;
   border: 0;
   outline: 0;
   resize: none;
   background: transparent;
   color: var(--native-label);
+  overflow-y: auto;
+}
+
+.assistant-composer__input.has-task-mentions {
+  color: transparent;
+  caret-color: var(--native-label);
+}
+
+.assistant-composer__input:focus-visible {
+  outline: none;
 }
 
 .assistant-composer__input::placeholder {
@@ -223,7 +234,24 @@
   color: transparent;
 }
 
-.assistant-composer__ghost span {
+.assistant-composer__ghost.has-task-mentions {
+  z-index: 0;
+  color: var(--native-label);
+}
+
+.assistant-composer__task-mention {
+  border-radius: 5px;
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--native-accent) 34%, transparent),
+      color-mix(in srgb, var(--native-accent) 16%, transparent));
+  color: color-mix(in srgb, var(--native-accent) 72%, var(--native-label));
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  font: inherit;
+}
+
+.assistant-composer__ghost-suffix {
   color: var(--native-label-tertiary);
   opacity: .58;
 }

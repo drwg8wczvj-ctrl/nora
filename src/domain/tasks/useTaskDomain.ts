@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { taskListSchema, type PlannerTask } from "./taskSchema";
+import { migrateTaskList, normalizeIntelligentTask } from "./taskIntelligence";
 import { getTasksForDate } from "./taskSelectors";
 import {
   moveTaskToSlot,
@@ -34,7 +35,7 @@ const STORAGE_KEY = "nora_tasks";
 function loadTasks(): PlannerTask[] {
   try {
     const parsed = taskListSchema.safeParse(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]"));
-    if (parsed.success) return parsed.data;
+    if (parsed.success) return migrateTaskList(parsed.data);
     console.warn("[Tasks] Ignoring invalid local task data", parsed.error.issues);
   } catch {}
   return [];
@@ -64,7 +65,7 @@ export function useTaskDomain(userId?: string) {
   const setTasks = useCallback((action: SetStateAction<PlannerTask[]>) => {
     rawSetTasks((previous) => {
       const next = typeof action === "function" ? action(previous) : action;
-      return markLocalChanges(previous, next);
+      return markLocalChanges(previous, migrateTaskList(next));
     });
   }, []);
 
@@ -94,7 +95,7 @@ export function useTaskDomain(userId?: string) {
           return;
         }
         baselineRef.current = baselineFromRecords(records);
-        rawSetTasks((current) => mergeTaskRecords(current, records));
+        rawSetTasks((current) => migrateTaskList(mergeTaskRecords(current, records)));
         readyRef.current = true;
         setStorageMode("normalized");
       })
@@ -122,7 +123,7 @@ export function useTaskDomain(userId?: string) {
           fingerprint: taskFingerprint(record.task),
           updatedAt: record.updatedAt,
         });
-        rawSetTasks((current) => upsertTask(current, record.task));
+        rawSetTasks((current) => upsertTask(current, normalizeIntelligentTask(record.task)));
       }
     });
   }, [storageMode, userId]);
@@ -145,7 +146,7 @@ export function useTaskDomain(userId?: string) {
           });
         }
         if (records.length) {
-          rawSetTasks((current) => mergeTaskRecords(current, records));
+          rawSetTasks((current) => migrateTaskList(mergeTaskRecords(current, records)));
         }
       }).catch((error) => {
         console.warn("[Task sync] Record update failed; local snapshot preserved", error);
@@ -156,7 +157,7 @@ export function useTaskDomain(userId?: string) {
 
   const actions = useMemo(() => ({
     upsert(task: PlannerTask) {
-      setTasks((current) => upsertTask(current, task));
+      setTasks((current) => upsertTask(current, normalizeIntelligentTask(task)));
     },
     toggle(id: PlannerTask["id"]) {
       setTasks((current) => toggleTaskCompletion(current, id));

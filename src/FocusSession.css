@@ -117,7 +117,28 @@
 }
 
 /* ── Duration chips ────────────────────────────────────────── */
-.fs-chip-row { display: flex; gap: 8px; }
+.fs-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.fs-custom-duration {
+  min-height: 38px;
+  padding: 4px 7px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.fs-custom-duration input {
+  width: 54px;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+}
 .fs-chip {
   flex: 1; min-height: 44px; padding: 8px 0; border-radius: 10px;
   border: 1.5px solid var(--border);

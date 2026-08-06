@@ -67,6 +67,13 @@
   --native-safe-right: env(safe-area-inset-right, 0px);
   --native-safe-bottom: env(safe-area-inset-bottom, 0px);
   --native-safe-left: env(safe-area-inset-left, 0px);
+  /* Full-screen surfaces must use the currently visible viewport, not the
+     historical 100vh value that can extend behind mobile browser chrome. */
+  --native-viewport-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  :root { --native-viewport-height: 100dvh; }
 }
 
 .native-ui,

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MessageSquare, X,
   FileText, Trash2, User, RotateCcw, CalendarDays, Pin, Star,
-  Flag, Coffee, Bell, Activity,
+  Flag, Coffee, Bell,
   SkipForward, Plus,
   BarChart2, Zap, List, Pencil,
   Share2, Users, Search, KeyRound, HeartPulse, MoreHorizontal, Languages,
@@ -58,6 +58,7 @@ import ProfileModal from "./components/ProfileModal";
 import AvatarDisplay, { profileToAvatar } from "./components/AvatarDisplay";
 import { MapPin } from "lucide-react";
 import LocationField from "./components/LocationField";
+import IntelligentTaskFields from "./components/IntelligentTaskFields";
 import SavedPlacesManager from "./components/SavedPlacesManager";
 import PricingModal from "./components/PricingModal";
 import AIHub from "./aiHub/AIHub";
@@ -71,6 +72,7 @@ import { useTranslation } from "react-i18next";
 import { useNativeTabBar } from "./hooks/useNativeTabBar";
 import { usePhoneLandscape } from "./hooks/useMobile";
 import { apiFetch } from "./lib/apiBase";
+import { calculateDeadlineHealth } from "./domain/tasks/taskIntelligence";
 
 // ── Local helpers ────────────────────────────────────────────
 const uid  = () => Math.random().toString(36).slice(2);
@@ -220,7 +222,7 @@ export default function MobileApp({ ctx }) {
     mode:      atlasShellActive ? "atlas" : "nora",
     dark:      true,
     enabled:   true,
-    visible:   !anyOverlayOpen && !phoneLandscape,
+    visible:   !anyOverlayOpen && !phoneLandscape && !showLaunchSplash,
     onTabChange: setMobileView,
   });
 
@@ -251,7 +253,7 @@ export default function MobileApp({ ctx }) {
       />
 
       <main className="mob-main">
-        {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} planDate={planDate} setPlanDate={setPlanDate} />}
+        {mobileView === "plan"     && <MobilePlan ctx={ctx} subView={planSubView} setSubView={setPlanSubView} dayMode={dayMode} setDayMode={setDayMode} filterType={filterType} filterGroup={filterGroup} filterComplex={filterComplex} hasFilters={hasFilters} onOpenFilters={() => setShowFilters(true)} onOpenStatus={() => setMobileView("status")} planDate={planDate} setPlanDate={setPlanDate} />}
         {mobileView === "tasks"    && <MobileTasks ctx={ctx} />}
         {mobileView === "notes"    && <MobileNotes ctx={ctx} />}
         {mobileView === "status"   && <div className="status-page-mobile-gutter"><StatusPage {...buildWorkMindProps(ctx, ctx, ctx)} health={ctx.health} healthSummary={ctx.healthSummary} onOpenHealthSettings={() => setMobileView("settings")} tasks={ctx.tasks || []} dailyMetrics={ctx.dailyMetrics || {}} journeys={ctx.journeys || []} onOpenInsights={() => ctx.setShowObservations(true)} onAskAtlas={(message) => { ctx.setAtlasChatInput(message); ctx.setAtlasOpen(true); }} onMindModeChange={ctx.setStatusMindActive} /></div>}
@@ -387,6 +389,12 @@ export default function MobileApp({ ctx }) {
           setUserPrefs={setUserPrefs}
           notifSettings={ctx.notifSettings}
           showNotification={ctx.showNotification}
+          onSessionRecord={(record) => ctx.setTasks?.((current) => current.map((task) => task.id === focusTask.id ? {
+            ...task,
+            actualDuration: Number(task.actualDuration ?? 0) + record.duration,
+            focusSessions: [...(task.focusSessions ?? []), record].slice(-500),
+            status: "active",
+          } : task))}
           onClose={(action) => {
             setFocusTask(null);
             if (action === "reschedule") setRescheduleTask(focusTask);
@@ -658,7 +666,7 @@ function DaySummary({ tasks, planDate, today, doneToday, totalToday, pct }) {
 // ── Plan view (Day / Month) ───────────────────────────────────
 function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
                       filterType, filterGroup, filterComplex, hasFilters, onOpenFilters,
-                      planDate, setPlanDate }) {
+                      onOpenStatus, planDate, setPlanDate }) {
   const { today, tasks, doneToday, totalToday, pct } = ctx;
   const [zoomLevel, setZoomLevel] = useState(1);
 
@@ -740,7 +748,7 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
             doneToday={doneToday} totalToday={totalToday} pct={pct} />
 
           {dayMode === "list"
-            ? <MobileHome ctx={ctx} planDate={planDate} planTasks={planTasks} />
+            ? <MobileHome ctx={ctx} planDate={planDate} planTasks={planTasks} onOpenStatus={onOpenStatus} />
             : <MobileGrid ctx={{ ...ctx, todayTasks: planTasks, effectiveDate: planDate ?? today, zoomLevel, setZoomLevel }} />}
         </>
       )}
@@ -752,7 +760,7 @@ function MobilePlan({ ctx, subView, setSubView, dayMode, setDayMode,
 }
 
 // ── Home view (Day smart mode) ───────────────────────────────
-function MobileHome({ ctx, planDate, planTasks }) {
+function MobileHome({ ctx, planDate, planTasks, onOpenStatus }) {
   const {
     todayTasks, today, aiFocus, contextMode, deferredTasks,
     toggleTask,
@@ -877,7 +885,15 @@ function MobileHome({ ctx, planDate, planTasks }) {
             </span>
             <span id="mob-nora-focus-title">Nora's focus</span>
           </div>
-          <span className="mob-ctx-badge">{contextMode.label}</span>
+          <button
+            type="button"
+            className="mob-ctx-badge"
+            style={{ "--mode-color": contextMode.color }}
+            onClick={onOpenStatus}
+            aria-label={`${contextMode.label}. Open your status`}
+          >
+            {contextMode.label}
+          </button>
         </div>
 
         {recommendedTask ? (
@@ -936,13 +952,18 @@ function MobileHome({ ctx, planDate, planTasks }) {
 
       {/* Deferred nudge */}
       {isToday && deferredTasks.length > 0 && (
-        <button className="mob-nudge-bar" onClick={() => {
-          ctx.setPendingMobileView("tasks");
-        }}>
+        <div className="mob-nudge-bar mob-rebalance-card">
           <RotateCcw size={14} />
-          <span>{deferredTasks.length} task{deferredTasks.length > 1 ? "s" : ""} still pending — tap to reschedule</span>
-          <ChevronRight size={14} />
-        </button>
+          <span>{deferredTasks.length} task{deferredTasks.length > 1 ? "s have" : " has"} moved. Nora can find a calmer place for {deferredTasks.length > 1 ? "them" : "it"}.</span>
+          <button onClick={() => {
+            ctx.setChatInput("Rebalance my day. Move only what realistically no longer fits, protect my priorities and include recovery time.");
+            ctx.setChatOpen(true);
+          }}>Rebalance day</button>
+          <button onClick={() => {
+            ctx.setChatInput("Rebalance my week. Consider deadlines, available time, task energy, focus capacity and existing commitments.");
+            ctx.setChatOpen(true);
+          }}>Week</button>
+        </div>
       )}
 
       {/* Scheduled */}
@@ -1553,7 +1574,7 @@ function MobileMonth({ ctx, onSelectDate }) {
 // ── Tasks view ───────────────────────────────────────────────
 export function MobileTasks({ ctx }) {
   const { tasks, today, toggleTask, skipTask, setRescheduleTask, setEditingTask, groups, setFocusTask,
-          setSharingTask } = ctx;
+          setSharingTask, deleteTask } = ctx;
   const [filterType, setFilterType]       = useState(null);
   const [filterGroup, setFilterGroup]     = useState(null);
   const [filterComplex, setFilterComplex] = useState(null);
@@ -1596,6 +1617,8 @@ export function MobileTasks({ ctx }) {
     else if (actionId === "skip") skipTask(task.id);
     else if (actionId === "move") setRescheduleTask(task);
     else if (actionId === "share") setSharingTask?.(task);
+    else if (actionId === "edit") setEditingTask(task);
+    else if (actionId === "delete") deleteTask(task.id);
     setActionTask(null);
   };
 
@@ -1615,10 +1638,22 @@ export function MobileTasks({ ctx }) {
           { id: "skip", label: "Skip to Tomorrow" },
           { id: "move", label: "Move Task" },
           { id: "share", label: task.sharedObjectId ? "Manage Sharing" : "Share" },
+          { id: "edit", label: "Edit Task" },
+          { id: "delete", label: "Delete Task", style: "destructive" },
         ],
         sourceRect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
       });
     } catch {
+      return;
+    }
+    if (selectedId === "delete") {
+      const confirmed = await showNativeActionMenu({
+        title: "Delete this task?",
+        message: "This can't be undone.",
+        actions: [{ id: "confirm-delete", label: "Delete Task", style: "destructive" }],
+        sourceRect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+      }).catch(() => null);
+      if (confirmed === "confirm-delete") runTaskAction(task, "delete");
       return;
     }
     runTaskAction(task, selectedId);
@@ -1654,6 +1689,7 @@ export function MobileTasks({ ctx }) {
                 : tp === "break"    ? "#94a3b8"
                 : group?.color ?? "var(--accent)";
     const isDeferred = !t.completed && t.date < today;
+    const deadlineHealth = calculateDeadlineHealth(t, tasks);
     return (
       <div key={t.id}
         className={`mob-task-row${t.completed ? " mtr-done" : ""}${isDeferred ? " mtr-deferred" : ""}`}
@@ -1689,6 +1725,9 @@ export function MobileTasks({ ctx }) {
           <span className="mtr-meta">
             {t.startHour != null && <span>{fmtTime(t.startHour, t.startMinute ?? 0)} </span>}
             {t.duration && <span>{fmtDur(t.duration)}</span>}
+            {(t.deadline || tp === "deadline") && (
+              <span className={`mtr-deadline-health is-${deadlineHealth.level}`}>{deadlineHealth.level}</span>
+            )}
           </span>
         </div>
 
@@ -1925,6 +1964,23 @@ export function MobileTasks({ ctx }) {
             title={actionTask?.sharedObjectId ? "Manage Sharing" : "Share Task"}
             subtitle="Collaborate without duplicating the task"
             onClick={() => runTaskAction(actionTask, "share")}
+          />
+          <NativeListRow
+            leading={<Pencil size={17} />}
+            title="Edit Task"
+            subtitle="Change its name, schedule, type, or notes"
+            onClick={() => runTaskAction(actionTask, "edit")}
+          />
+          <NativeListRow
+            leading={<Trash2 size={17} />}
+            title="Delete Task"
+            subtitle="Permanently remove it and cancel its reminder"
+            destructive
+            onClick={() => {
+              if (window.confirm("Delete this task? This can't be undone.")) {
+                runTaskAction(actionTask, "delete");
+              }
+            }}
           />
         </NativeSection>
       </NativeSheet>
@@ -2188,26 +2244,11 @@ function MobileSettings({ ctx }) {
   const {
     accountName, setAccountName,
     reminderMins, setReminderMins,
-    session, groups, setGroups,
+    session,
     notifPermission, notifSettings, updateNotifSettings, requestNotifPermission,
     userProfile, setShowProfileModal,
     assistantSettings, updateAssistantSettings,
   } = ctx;
-
-  const [newGroupName,  setNewGroupName]  = useState("");
-  const [newGroupColor, setNewGroupColor] = useState(GROUP_PRESET_COLORS[0]);
-
-  const addGroup = () => {
-    const name = newGroupName.trim();
-    if (!name) return;
-    if (groups.some(g => g.name.toLowerCase() === name.toLowerCase())) return;
-    setGroups(g => [...g, { id: uid(), name, color: newGroupColor }]);
-    setNewGroupName("");
-  };
-  const deleteGroup = (id) => {
-    if (id === "private" || id === "work") return;
-    setGroups(g => g.filter(x => x.id !== id));
-  };
 
   return (
     <div className="mob-settings">
@@ -2336,60 +2377,6 @@ function MobileSettings({ ctx }) {
           transportProfile={ctx.transportProfile ?? { defaultMode: "mixed" }}
           onTransportProfileChange={ctx.setTransportProfile ?? (() => {})}
         />
-      </NativeSection>
-
-      {/* Groups */}
-      <NativeSection
-        className="mob-sett-card"
-        title={<span className="mob-sett-section-title"><Activity size={15} /> {t("account.taskGroups")}</span>}
-      >
-        {/* Existing groups */}
-        {(groups || []).map(g => {
-          const isBuiltin = g.id === "private" || g.id === "work";
-          return (
-            <div key={g.id} className="mob-group-row">
-              <span className="mob-group-dot" style={{ background: g.color }} />
-              <span className="mob-group-name">{g.name}</span>
-              {isBuiltin
-                ? <span className="mob-group-builtin">{t("account.builtin")}</span>
-                : <NativeIconButton
-                    className="mob-group-del"
-                    size="compact"
-                    label={`Delete ${g.name}`}
-                    onClick={() => deleteGroup(g.id)}
-                  >
-                    <Trash2 size={14} />
-                  </NativeIconButton>
-              }
-            </div>
-          );
-        })}
-        {/* Add new group */}
-        <div className="mob-group-add-row">
-          <div className="mob-group-colors">
-            {GROUP_PRESET_COLORS.map(c => (
-              <button key={c}
-                className={`mob-group-color-dot${newGroupColor === c ? " active" : ""}`}
-                style={{ background: c, "--dot-color": c }}
-                onClick={() => setNewGroupColor(c)}
-                aria-label={c} />
-            ))}
-          </div>
-          <div className="mob-group-input-row">
-            <NativeField className="mob-sett-input" value={newGroupName}
-              onChange={e => setNewGroupName(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") addGroup(); }}
-              aria-label={t("account.newGroupName")}
-              placeholder={t("account.newGroupName")} />
-            <NativeIconButton
-              label="Add group"
-              className="mob-group-add-btn"
-              style={{ background: newGroupColor, opacity: newGroupName.trim() ? 1 : 0.4 }}
-              onClick={addGroup} disabled={!newGroupName.trim()}>
-              <Plus size={16} />
-            </NativeIconButton>
-          </div>
-        </div>
       </NativeSection>
 
       {/* Account */}
@@ -2580,7 +2567,9 @@ function MobileChat({ ctx }) {
         className="mob-chat-composer"
         value={chatInput}
         inputRef={inputRef}
+        maxHeight={180}
         loading={chatLoading}
+        highlightTerms={(ctx.tasks ?? []).map((task) => task.title)}
         ghostSuffix={chatGhost}
         placeholder="Ask Nora anything…"
         onChange={(event) => {
@@ -2589,8 +2578,6 @@ function MobileChat({ ctx }) {
           const ghost = getChatGhost(value);
           setChatGhost(ghost);
           setChatSuggestions(getChatAlternatives(value, ghost));
-          event.target.style.height = "auto";
-          event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`;
         }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -2703,7 +2690,26 @@ function MobileRescheduleModal({ task, onSave, onClose }) {
 
 // ── Task edit modal ───────────────────────────────────────────
 function MobileEditModal({ ctx }) {
-  const { draft, setDraft, saveTask, deleteTask, groups, setSharingTask } = ctx; // eslint-disable-line
+  const { draft, setDraft, saveTask, deleteTask, groups, setGroups, setTasks, setSharingTask } = ctx; // eslint-disable-line
+  const [managingGroups, setManagingGroups] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupColor, setNewGroupColor] = useState(GROUP_PRESET_COLORS[0]);
+
+  const addGroup = () => {
+    const name = newGroupName.trim();
+    if (!name || groups.some((group) => group.name.toLowerCase() === name.toLowerCase())) return;
+    const group = { id: uid(), name, color: newGroupColor };
+    setGroups((current) => [...current, group]);
+    setDraft((current) => ({ ...current, groupId: group.id }));
+    setNewGroupName("");
+  };
+
+  const deleteGroup = (id) => {
+    if (id === "private" || id === "work") return;
+    setGroups((current) => current.filter((group) => group.id !== id));
+    setTasks((current) => current.map((task) => task.groupId === id ? { ...task, groupId: null } : task));
+    setDraft((current) => current.groupId === id ? { ...current, groupId: null } : current);
+  };
 
   return (
     <NativeDialog
@@ -2743,6 +2749,9 @@ function MobileEditModal({ ctx }) {
         </div>
 
         <div className="mob-modal-body">
+          {(draft.type ?? "task") === "task" && (
+            <IntelligentTaskFields task={draft} setTask={setDraft} tasks={ctx.tasks ?? []} compact />
+          )}
 
           {/* Type */}
           <div className="mob-modal-field">
@@ -2834,7 +2843,54 @@ function MobileEditModal({ ctx }) {
                     <span className="mob-gdot" />{g.name}
                   </button>
                 ))}
+                <button
+                  className={`mob-pill${managingGroups ? " active" : ""}`}
+                  onClick={() => setManagingGroups((open) => !open)}>
+                  <Plus size={13} /> Add group
+                </button>
               </div>
+              {managingGroups && (
+                <div className="mob-group-add-row">
+                  <div className="mob-group-colors">
+                    {GROUP_PRESET_COLORS.map((color) => (
+                      <button key={color}
+                        className={`mob-group-color-dot${newGroupColor === color ? " active" : ""}`}
+                        style={{ background: color, "--dot-color": color }}
+                        onClick={() => setNewGroupColor(color)}
+                        aria-label={`Use ${color}`} />
+                    ))}
+                  </div>
+                  <div className="mob-group-input-row">
+                    <NativeField className="mob-sett-input" value={newGroupName}
+                      onChange={(event) => setNewGroupName(event.target.value)}
+                      onKeyDown={(event) => { if (event.key === "Enter") addGroup(); }}
+                      aria-label="New group name"
+                      placeholder="New group name" />
+                    <NativeIconButton
+                      label="Create group"
+                      className="mob-group-add-btn"
+                      style={{ background: newGroupColor, opacity: newGroupName.trim() ? 1 : 0.4 }}
+                      onClick={addGroup}
+                      disabled={!newGroupName.trim()}>
+                      <Plus size={16} />
+                    </NativeIconButton>
+                  </div>
+                  {groups.some((group) => group.id !== "private" && group.id !== "work") && (
+                    <div>
+                      {groups.filter((group) => group.id !== "private" && group.id !== "work").map((group) => (
+                        <div key={group.id} className="mob-group-row">
+                          <span className="mob-group-dot" style={{ background: group.color }} />
+                          <span className="mob-group-name">{group.name}</span>
+                          <NativeIconButton className="mob-group-del" size="compact"
+                            label={`Delete ${group.name}`} onClick={() => deleteGroup(group.id)}>
+                            <Trash2 size={14} />
+                          </NativeIconButton>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

@@ -278,11 +278,19 @@
   border: 1px solid var(--native-separator);
   border-radius: var(--native-radius-card);
   background: var(--native-surface);
+  transition: border-color var(--native-duration-fast) var(--native-ease-out),
+    box-shadow var(--native-duration-fast) var(--native-ease-out);
+}
+
+.app:not(.mob-app) .chat-panel .assistant-composer:focus-within {
+  border-color: var(--native-accent-hairline);
+  box-shadow: 0 0 0 2px var(--native-accent-soft);
 }
 
 .app:not(.mob-app) .chat-panel .assistant-composer__field {
   border: 0;
   background: transparent;
+  box-shadow: none;
 }
 
 @keyframes noraChatPulse {
@@ -1226,10 +1234,13 @@
 .app.launch-shell-waiting:not(.mob-app) > .main-wrap {
   opacity: 0;
 }
-.app.launch-shell-revealing:not(.mob-app) > .sidebar,
 .app.launch-shell-revealing:not(.mob-app) > .main-wrap {
   opacity: 1;
   transition: opacity .72s cubic-bezier(.22, 1, .36, 1);
+}
+.app.launch-shell-revealing:not(.mob-app) > .sidebar {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .chat-panel {
@@ -2940,8 +2951,22 @@
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px; border-radius: 20px;
   font-size: 11.5px; font-weight: 700;
-  border: 1px solid;
+  border: 1px solid color-mix(in srgb, var(--mode-color) 42%, transparent);
   letter-spacing: .02em;
+  font-family: inherit;
+  color: var(--mode-color);
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--mode-color) 23%, transparent),
+      color-mix(in srgb, var(--mode-color) 7%, transparent));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--mode-color) 10%, transparent);
+  cursor: pointer;
+  transition: transform var(--tr), border-color var(--tr), box-shadow var(--tr);
+}
+.context-badge:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--mode-color) 68%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--mode-color) 18%, transparent);
 }
 .ai-done-count {
   font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums;

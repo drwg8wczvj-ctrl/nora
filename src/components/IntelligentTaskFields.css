@@ -1,0 +1,36 @@
+.task-intelligence {
+  margin: 4px 0 2px;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--accent, #7c5cff) 23%, var(--border));
+  border-radius: 16px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent, #7c5cff) 8%, transparent), transparent 58%);
+}
+.task-intelligence > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.task-intelligence > header span { display: flex; align-items: center; gap: 6px; color: var(--accent, #8b73ff); font-size: 12px; font-weight: 760; }
+.task-intelligence > header button { border: 0; border-radius: 9px; padding: 6px 10px; background: color-mix(in srgb, var(--accent, #7c5cff) 18%, transparent); color: var(--accent, #9b87ff); font: inherit; font-size: 11px; font-weight: 720; cursor: pointer; }
+.task-intelligence-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+.task-intelligence-summary > span { padding: 5px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-muted); font-size: 10px; font-weight: 650; }
+.task-intelligence-summary .deadline-health.is-healthy { color: #28c76f; }
+.task-intelligence-summary .deadline-health.is-attention { color: #f5a524; }
+.task-intelligence-summary .deadline-health.is-risk,
+.task-intelligence-summary .deadline-health.is-critical { color: #ff637d; }
+.task-intelligence > p { display: flex; align-items: flex-start; gap: 6px; margin: 9px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.45; }
+.task-intelligence > p svg { flex: 0 0 auto; margin-top: 1px; }
+.task-intelligence-toggle { width: 100%; margin-top: 10px; padding: 8px 0 0; border: 0; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 6px; background: transparent; color: var(--text-muted); font: inherit; font-size: 11px; cursor: pointer; }
+.task-intelligence-toggle svg:last-child { margin-left: auto; }
+.task-intelligence-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.task-intelligence-fields label { display: grid; gap: 5px; min-width: 0; }
+.task-intelligence-fields label > span { color: var(--text-muted); font-size: 10px; font-weight: 700; }
+.task-intelligence-fields input,
+.task-intelligence-fields select,
+.task-intelligence-fields textarea { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 12px; }
+.task-intelligence-wide { grid-column: 1 / -1; }
+.task-deadline-explanation { display: flex; gap: 8px; padding: 10px; border-radius: 11px; background: var(--surface-2); color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+.task-deadline-explanation strong { color: var(--text); }
+.task-deadline-explanation.is-risk strong,
+.task-deadline-explanation.is-critical strong { color: #ff637d; }
+.task-intelligence.is-compact { padding: 11px; }
+@media (max-width: 540px) {
+  .task-intelligence-fields { grid-template-columns: 1fr; }
+  .task-intelligence-wide { grid-column: 1; }
+}

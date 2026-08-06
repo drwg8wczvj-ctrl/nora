@@ -287,10 +287,15 @@
 }
 
 .mob-app.launch-shell-revealing > .mob-header,
-.mob-app.launch-shell-revealing > .mob-main,
-.mob-app.launch-shell-revealing > .mob-bottom-nav {
+.mob-app.launch-shell-revealing > .mob-main {
   opacity: 1;
   transition: opacity .72s cubic-bezier(.22, 1, .36, 1);
+}
+
+/* Navigation appears only after the intro has completely handed off. */
+.mob-app.launch-shell-revealing > .mob-bottom-nav {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* ── Section title chip ──────────────────────────────────── */
@@ -400,15 +405,24 @@
 .mob-ctx-badge {
   max-width: 42%;
   padding: 5px 9px;
-  border: 1px solid var(--native-separator);
+  border: 1px solid color-mix(in srgb, var(--mode-color) 42%, transparent);
   border-radius: var(--native-radius-pill);
   overflow: hidden;
-  color: var(--native-label-secondary);
-  background: var(--native-surface-raised);
+  color: var(--mode-color);
+  background:
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--mode-color) 24%, transparent),
+      color-mix(in srgb, var(--mode-color) 7%, transparent));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--mode-color) 12%, transparent);
+  font-family: inherit;
   font-size: 11px;
   font-weight: 620;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+}
+.mob-ctx-badge:active {
+  transform: scale(.97);
 }
 
 .mob-focus-eyebrow {
@@ -1329,6 +1343,30 @@
   min-height: 16px;
   color: var(--native-label-secondary);
   font-size: var(--native-type-caption);
+}
+.mtr-deadline-health {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--native-fill-tertiary);
+  font-size: 9px;
+  font-weight: 720;
+  text-transform: capitalize;
+}
+.mtr-deadline-health.is-healthy { color: #34d399; }
+.mtr-deadline-health.is-attention { color: #f5a524; }
+.mtr-deadline-health.is-risk,
+.mtr-deadline-health.is-critical { color: #fb7185; }
+.mob-rebalance-card { cursor: default; }
+.mob-rebalance-card button {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(124,92,255,.16);
+  color: #aa96ff;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .mtr-actions { display: flex; flex-shrink: 0; }

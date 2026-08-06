@@ -91,6 +91,7 @@ import {
 } from "lucide-react";
 import { computeTravelBlocks, describeTravelBlock, estimateTravelMinutes, fetchTravelMinutes, getModeLabel, findNearbyPlace } from "./location";
 import LocationField from "./components/LocationField";
+import IntelligentTaskFields from "./components/IntelligentTaskFields";
 import SavedPlacesManager from "./components/SavedPlacesManager";
 import BrandStar, { BrandLockup } from "./components/BrandStar";
 import { extractJoinInviteCode } from "./utils/sharingIntent";
@@ -126,6 +127,12 @@ import { useTaskDomain } from "./domain/tasks/useTaskDomain";
 import { isRepeatMatch } from "./domain/tasks/taskRecurrence";
 import { buildOccupiedBlocksContext } from "./domain/tasks/taskSelectors";
 import { executeTaskTool } from "./domain/tasks/taskAiTools";
+import {
+  buildDailyPlan,
+  buildProductivityProfile,
+  suggestReschedule,
+} from "./domain/tasks/taskIntelligence";
+import { staleTaskReminderAlarmIds, taskReminderAlarmId } from "./lib/taskReminderRegistry";
 
 // Cold-launch signature moment plays exactly once per real app process —
 // a plain module-level flag, not React state persisted anywhere, so it
@@ -728,6 +735,7 @@ const ATLAS_TOOLS = [
 const DELETED_TASK_IDS_KEY = "nora_deleted_task_ids_v1";
 const DELETED_SHARED_IDS_KEY = "nora_deleted_shared_ids_v1";
 const PENDING_SHARED_DELETIONS_KEY = "nora_pending_shared_deletions_v1";
+const TASK_REMINDER_ALARM_IDS_KEY = "nora_task_reminder_alarm_ids_v1";
 
 function loadStoredArray(key) {
   try {
@@ -1018,6 +1026,7 @@ export default function App() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [subscription, setSubscription] = useState({ plan: "free", status: "active" });
   const notifTimers       = useRef({});
+  const scheduledTaskAlarmIdsRef = useRef(new Set(loadStoredArray(TASK_REMINDER_ALARM_IDS_KEY)));
   const syncTimer         = useRef(null);
   // Always-current snapshot of data to save — used by the emergency flush below.
   const latestSyncDataRef = useRef(null);
@@ -1034,6 +1043,7 @@ export default function App() {
     showNotification,
     scheduleAlarm,
     cancelAlarm,
+    reconcileNativeTaskAlarms,
     sendTestNotification,
     bannerVisible:     notifBannerVisible,
     dismissBanner:     dismissNotifBanner,
@@ -1279,6 +1289,15 @@ export default function App() {
     sleepAnalysis, healthSummary,
   } = statusEngine;
   const contextMode = noraState; // UI alias — keeps all existing JSX working
+  const dailyWorkflowPlan = useMemo(
+    () => buildDailyPlan(tasks, today, energy),
+    [energy, tasks, today],
+  );
+  const productivityProfile = useMemo(() => {
+    let focusLog = [];
+    try { focusLog = JSON.parse(localStorage.getItem("nora_focus_log") ?? "[]"); } catch {}
+    return buildProductivityProfile(tasks, Array.isArray(focusLog) ? focusLog : []);
+  }, [tasks]);
 
   // Cold-launch splash — see hasShownLaunchSplashThisProcess's own comment.
   // The greeting is decided ONCE, right here, from whatever's already
@@ -1847,10 +1866,9 @@ export default function App() {
     // Clear React timers (used only for in-app toast — doesn't survive app close)
     Object.values(notifTimers.current).forEach(clearTimeout);
     notifTimers.current = {};
-    // Cancel any previously queued SW alarms for today's tasks
-    tasks.forEach((task) => cancelAlarm(`task-reminder-${task.id}`));
-
     const now = Date.now();
+    const nextScheduledAlarmIds = new Set();
+    const nextReminderTaskIds = new Set();
     tasks.forEach((task) => {
       if (task.completed || task.startHour == null || task.date !== todayStr()) return;
       const type = task.type ?? "task";
@@ -1876,21 +1894,35 @@ export default function App() {
 
       // OS notification — persisted in SW IndexedDB, fires even when app is closed
       if (categoryEnabled && notifSettings.enabled && notifPermission === "granted") {
+        const alarmId = taskReminderAlarmId(task.id);
         const isDeadline = type === "deadline";
         const title = isDeadline ? "🔴 Deadline" : "⏰ Reminder";
         const body  = offset === 0
           ? `${task.title} is starting`
           : `${task.title} in ${offset} min`;
         scheduleAlarm(
-          `task-reminder-${task.id}`,
+          alarmId,
           fireAt,
           title,
           body,
           { action: "open_task", taskId: task.id, url: "/" },
           `task-${task.id}`
         );
+        nextScheduledAlarmIds.add(alarmId);
+        nextReminderTaskIds.add(task.id);
       }
     });
+
+    // Reconcile against the persistent registry rather than the current task
+    // list. This catches every removal path (manual, Nora tool, collaboration,
+    // or cloud sync) and also clears stale native alarms after an app restart.
+    staleTaskReminderAlarmIds(
+      scheduledTaskAlarmIdsRef.current,
+      nextScheduledAlarmIds,
+    ).forEach(cancelAlarm);
+    scheduledTaskAlarmIdsRef.current = nextScheduledAlarmIds;
+    storeArray(TASK_REMINDER_ALARM_IDS_KEY, [...nextScheduledAlarmIds]);
+    reconcileNativeTaskAlarms(nextReminderTaskIds);
   }, [tasks, reminderMins, notifPermission, notifSettings.enabled, notifSettings.taskReminders, notifSettings.deadlineReminders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Morning check-up reminder ───────────────────────────────────────────────
@@ -2032,7 +2064,10 @@ export default function App() {
 
     // Cancel any scheduled reminder — the scheduling effect only iterates
     // tasks that still exist, so without this the alarm is never cleared.
-    cancelAlarm(`task-reminder-${id}`);
+    const reminderAlarmId = taskReminderAlarmId(id);
+    cancelAlarm(reminderAlarmId);
+    scheduledTaskAlarmIdsRef.current.delete(reminderAlarmId);
+    storeArray(TASK_REMINDER_ALARM_IDS_KEY, [...scheduledTaskAlarmIdsRef.current]);
     clearTimeout(notifTimers.current[id]);
     delete notifTimers.current[id];
 
@@ -2195,8 +2230,12 @@ export default function App() {
     const daysDeferred = Math.round(
       (new Date(today + "T00:00:00") - new Date(task.date + "T00:00:00")) / 86400000
     );
+    const recommendation = suggestReschedule(task, tasks, new Date());
+    const proposed = recommendation.proposal
+      ? ` Nora found ${recommendation.proposal.date} at ${String(recommendation.proposal.startHour).padStart(2, "0")}:${String(recommendation.proposal.startMinute).padStart(2, "0")} as a workable opening.`
+      : "";
     setChatInput(
-      `"${task.title}" has been pending for ${daysDeferred} day${daysDeferred !== 1 ? "s" : ""}. Can you find the best spot for it this week and schedule it there? Consider my current workload and energy.`
+      `"${task.title}" has moved by ${daysDeferred} day${daysDeferred !== 1 ? "s" : ""}. ${recommendation.message}${proposed} Help me ${recommendation.action === "split" ? "split it into focused sessions" : recommendation.action === "reduce" ? "reduce its scope" : "confirm or adjust this new time"} calmly.`
     );
     setChatOpen(true);
   };
@@ -3577,7 +3616,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
   // ── Mobile layout ─────────────────────────────────────
   if (isMobile) {
     const mobileCtx = {
-      tasks, setTasks, groups, notes, setNotes, session, today, nowObj, dark,
+      tasks, setTasks, groups, setGroups, notes, setNotes, session, today, nowObj, dark,
       accountName, setAccountName, energy, setEnergy, relaxation, setRelaxation,
       inAppAlert, setInAppAlert, reminderMins, setReminderMins,
       setDark, theme, setTheme, isOnline,
@@ -3613,6 +3652,7 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
       editingTask, setEditingTask, draft, setDraft,
       todayTasks, deferredTasks, contextMode, aiFocus,
       momentum, recoveryState, workloadForecast, weekData, weekTrend,
+      dailyWorkflowPlan, productivityProfile,
       adaptiveRecs, weeklyReflection, mostAvoided, focusPatterns,
       doneToday, totalToday, pct,
       toggleTask, skipTask, askNORAtoReschedule, saveTask, deleteTask,
@@ -3944,9 +3984,16 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
           {view === "day" && (
             <div className="ai-focus-panel">
               <div className="ai-focus-top">
-                <span className="context-badge" style={{ background: `${contextMode.color}1a`, color: contextMode.color, borderColor: `${contextMode.color}40` }}>
+                <button
+                  type="button"
+                  className="context-badge"
+                  style={{ "--mode-color": contextMode.color }}
+                  onClick={() => navigateTo("status")}
+                  aria-label={`${contextMode.label}. Open your status`}
+                  title="Open your status"
+                >
                   <BrandStar size={11} tone="current" /> {contextMode.label}
-                </span>
+                </button>
                 {totalToday > 0 && (
                   <span className="ai-done-count">{doneToday}/{totalToday} done</span>
                 )}
@@ -5015,7 +5062,9 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
           value={chatInput}
           inputRef={chatInputRef}
           rows={2}
+          maxHeight={240}
           loading={chatLoading}
+          highlightTerms={tasks.map((task) => task.title)}
           ghostSuffix={chatGhost}
           placeholder="Ask Nora anything…"
           onChange={(event) => {
@@ -5024,8 +5073,6 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
             const ghost = getChatGhost(value);
             setChatGhost(ghost);
             setChatSuggestions(getChatAlternatives(value, ghost));
-            event.target.style.height = "auto";
-            event.target.style.height = `${Math.min(event.target.scrollHeight, 160)}px`;
           }}
           onKeyDown={(event) => {
             if (event.key === "Tab" && chatGhost) {
@@ -5179,6 +5226,12 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
           setUserPrefs={setUserPrefs}
           notifSettings={notifSettings}
           showNotification={showNotification}
+          onSessionRecord={(record) => setTasks((current) => current.map((task) => task.id === focusTask.id ? {
+            ...task,
+            actualDuration: Number(task.actualDuration ?? 0) + record.duration,
+            focusSessions: [...(task.focusSessions ?? []), record].slice(-500),
+            status: "active",
+          } : task))}
           onClose={(action) => {
             setFocusTask(null);
             if (action === "reschedule") setRescheduleTask(focusTask);
@@ -5231,6 +5284,9 @@ flag_wellbeing_signal — call when the conversation reveals exhaustion, stress,
                 autoFocus
                 onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
               />
+              {(draft.type ?? "task") === "task" && (
+                <IntelligentTaskFields task={draft} setTask={setDraft} tasks={tasks} />
+              )}
               {/* Type selector */}
               <NativeSegmentedControl
                 label="Task type"

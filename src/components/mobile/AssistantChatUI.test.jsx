@@ -58,5 +58,20 @@ test("assistant composer resizes when its value is filled programmatically", () 
   rerender(
     <AssistantChatComposer value={"A long pasted message ".repeat(20)} inputRef={inputRef} onChange={() => {}} onSend={() => {}} placeholder="Ask Nora anything…" />,
   );
-  expect(inputRef.current.style.height).toBe("96px");
+  expect(inputRef.current).toHaveStyle({ height: "96px" });
+});
+
+test("visually confirms an exact task reference without changing the input value", () => {
+  render(
+    <AssistantChatComposer
+      value="How do I approach the Main Exam?"
+      highlightTerms={["Main Exam"]}
+      onChange={() => {}}
+      onSend={() => {}}
+      placeholder="Ask Nora anything…"
+    />,
+  );
+
+  expect(screen.getByText("Main Exam")).toHaveClass("assistant-composer__task-mention");
+  expect(screen.getByRole("textbox")).toHaveValue("How do I approach the Main Exam?");
 });

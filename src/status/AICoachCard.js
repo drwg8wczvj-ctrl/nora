@@ -1,5 +1,5 @@
 import React from "react";
-import { MessageSquare } from "lucide-react";
+import { Info, MessageSquare } from "lucide-react";
 
 // Hero card at the top of the Status page — Nora's single most important
 // line of the day, plus (optionally) the state she thinks you're in, how
@@ -15,12 +15,18 @@ export default function AICoachCard({
   askLabel = "Ask Nora",
   persona,
   loading = false,
+  onExplainModes,
 }) {
   const safeSignals = Array.isArray(signals) ? signals : [];
   const hasHeader = Boolean(stateLabel) || Boolean(confidence?.label);
 
   return (
-    <div className="status-card status-coach-card" data-tone={tone} {...(persona ? { "data-persona": persona } : {})}>
+    <div
+      className={`status-card status-coach-card${stateColor ? " has-state" : ""}`}
+      data-tone={tone}
+      style={stateColor ? { "--state-color": stateColor } : undefined}
+      {...(persona ? { "data-persona": persona } : {})}
+    >
       {hasHeader && (
         <div className="status-coach-header">
           {stateLabel && (
@@ -33,11 +39,24 @@ export default function AICoachCard({
               </span>
             </div>
           )}
-          {confidence?.label && (
-            <span className={`status-coach-confidence status-conf-${confidence.level || "building"}`}>
-              {confidence.label}
-            </span>
-          )}
+          <div className="status-coach-header-actions">
+            {confidence?.label && (
+              <span className={`status-coach-confidence status-conf-${confidence.level || "building"}`}>
+                {confidence.label}
+              </span>
+            )}
+            {typeof onExplainModes === "function" && (
+              <button
+                type="button"
+                className="status-mode-info"
+                onClick={onExplainModes}
+                aria-label="Learn how Nora modes work"
+                title="How Nora modes work"
+              >
+                <Info size={16} />
+              </button>
+            )}
+          </div>
         </div>
       )}
 

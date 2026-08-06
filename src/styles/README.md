@@ -26,6 +26,16 @@ the owning selector in its source stylesheet.
 - Avoid animation on every list/card child.
 - Use one dominant action per screen.
 - Preserve iOS safe areas and a minimum 44px touch target.
+- Full-screen surfaces use `--native-viewport-height`, reserve all four
+  `--native-safe-*` insets, and calculate content space with flex/grid rather
+  than subtracting guessed header or footer heights.
+- Maximum use of the display never takes priority over visibility. Headers,
+  controls, card borders, and the final content item must remain fully
+  reachable at every supported viewport and orientation. If content cannot
+  fit, the content region scrolls; fixed or sticky controls must not cover it.
+- Before shipping a full-screen or orientation-specific view, check the
+  smallest supported height, landscape, portrait, and non-zero safe-area
+  insets. No meaningful element may rely on clipping at a viewport edge.
 - Nora brand actions use the shared BrandStar component.
 - New shared controls come from `components/ui/NativeUI`; screens should not
   create a second local interpretation of the same control.

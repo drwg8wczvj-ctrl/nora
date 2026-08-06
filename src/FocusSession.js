@@ -6,6 +6,7 @@ import {
 import { saveUserPreferences } from "./lib/noraApi";
 import { apiFetch } from "./lib/apiBase";
 import CloseButton from "./components/CloseButton";
+import { createFocusSession, recommendBreak } from "./domain/tasks/taskIntelligence";
 import "./FocusSession.css";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -13,7 +14,7 @@ import "./FocusSession.css";
 const RADIUS = 54;
 const CIRC   = 2 * Math.PI * RADIUS; // 339.29
 
-const DURATION_OPTS = [15, 25, 45, 60];
+const DURATION_OPTS = [25, 50, 90];
 
 const MUSIC_OPTS = [
   { key: "deep", label: "Deep Focus",  sub: "Minimal, intense",  url: "https://www.youtube.com/results?search_query=deep+focus+music" },
@@ -87,7 +88,7 @@ const computeFocusInsights = () => {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function FocusSession({ task, dark, onClose, onComplete, userPrefs, setUserPrefs, notifSettings, showNotification }) {
+export default function FocusSession({ task, dark, onClose, onComplete, onSessionRecord, userPrefs, setUserPrefs, notifSettings, showNotification }) {
   const today = new Date().toISOString().slice(0, 10);
   const daysDeferred = (task?.date && task.date < today)
     ? Math.floor((new Date(today) - new Date(task.date + "T00:00:00")) / 86400000) : 0;
@@ -95,8 +96,12 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   const [phase,         setPhase]          = useState(daysDeferred >= 2 ? "check" : "prepare");
   const [blockReason,   setBlockReason]    = useState(null);
   const [duration,      setDuration]       = useState(() => {
+    const learned = Number(userPrefs?.focus_stats?.avg_focus_duration);
+    if (learned >= 20) return Math.max(15, Math.min(180, Math.round(learned / 5) * 5));
+    if (task?.cognitiveLoad === "deep") return 90;
+    if (task?.cognitiveLoad === "simple") return 25;
     if (task?.duration) return DURATION_OPTS.reduce((a, b) => Math.abs(b - task.duration) < Math.abs(a - task.duration) ? b : a);
-    return 25;
+    return 50;
   });
   const [music,         setMusic]          = useState(null);
   const [timeLeft,      setTimeLeft]       = useState(null);
@@ -165,8 +170,15 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
   const microStarts = getMicroStart(task?.title);
+  const focusPlan = createFocusSession(task ?? { id: "focus", title: "Focus Session" }, duration);
+  const breakPlan = recommendBreak({
+    focusMinutes: duration,
+    cognitiveLoad: task?.cognitiveLoad ?? "focused",
+    energy: userPrefs?.energy ?? 5,
+    recovery: userPrefs?.recovery ?? 70,
+  });
   const totalSecs   = duration * 60;
-  const BREAK_SECS  = 300;
+  const BREAK_SECS  = breakPlan.minutes * 60;
   const ringMax     = phaseRef.current === "break" ? BREAK_SECS : totalSecs;
   const ringProgress = timeLeft != null ? timeLeft / ringMax : 1;
 
@@ -207,6 +219,13 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
       plannedDuration: duration, actual,
       distractionCount: distractRef.current,
     });
+    onSessionRecord?.({
+      ...focusPlan,
+      endTime: new Date().toISOString(),
+      duration: actual,
+      interruptions: distractRef.current,
+      completion: 1,
+    });
     const insights = computeFocusInsights();
     const updated  = { ...(userPrefs ?? {}), focus_stats: insights };
     setUserPrefs?.(updated);
@@ -229,7 +248,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
     setTimeLeft(BREAK_SECS);
     setRunning(true);
     setPhase("break");
-  }, []);
+  }, [BREAK_SECS]);
 
   const handlePause = () => { clearInterval(intervalRef.current); setRunning(false); setPhase("paused"); };
   const handleResume = () => { setRunning(true); setPhase("running"); };
@@ -297,14 +316,14 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
             <h2 className="fs-task-title">{task?.title ?? "Focus Session"}</h2>
 
             <div className="fs-first-step">
-              <span className="fs-step-label">Start here</span>
+              <span className="fs-step-label">Expected outcome</span>
               <span className="fs-step-text">
                 {blockReason?.response === "micro_start" && microStarts[0]}
                 {blockReason?.response === "sprint"      && `Quick sprint: ${microStarts[0]}`}
                 {blockReason?.response === "define"      && `Define step one: ${microStarts[1] ?? microStarts[0]}`}
                 {blockReason?.response === "light"       && "Just open it and look. Nothing else."}
                 {blockReason?.response === "why"         && `Finishing "${task?.title}" moves things forward. Start for 5 min.`}
-                {!blockReason && microStarts[0]}
+                {!blockReason && focusPlan.expectedOutcome}
               </span>
             </div>
 
@@ -316,6 +335,19 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
                     {d}m
                   </button>
                 ))}
+                <label className="fs-custom-duration">
+                  <span>Custom</span>
+                  <input
+                    type="number"
+                    min="5"
+                    max="240"
+                    step="5"
+                    value={DURATION_OPTS.includes(duration) ? "" : duration}
+                    placeholder="min"
+                    aria-label="Custom focus duration in minutes"
+                    onChange={(event) => setDuration(Math.max(5, Math.min(240, Number(event.target.value) || 5)))}
+                  />
+                </label>
               </div>
             </div>
 
@@ -379,7 +411,10 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
               </>
             )}
             {phase === "break" && (
-              <p className="fs-active-task">Step away. Breathe. You're doing great.</p>
+              <>
+                <p className="fs-active-task">{breakPlan.type === "recovery" ? "Recovery break" : `${breakPlan.type[0].toUpperCase()}${breakPlan.type.slice(1)} break`}</p>
+                <p className="fs-active-step">{breakPlan.suggestion}</p>
+              </>
             )}
 
             <div className="fs-run-actions">
@@ -433,7 +468,7 @@ export default function FocusSession({ task, dark, onClose, onComplete, userPref
               </button>
               <button className="fs-recover-btn" onClick={startBreak}>
                 <Coffee size={16} />
-                <span><strong>Take a 5-min break</strong><small>Step away, then come back.</small></span>
+                <span><strong>Take a {breakPlan.minutes}-min break</strong><small>{breakPlan.suggestion}</small></span>
               </button>
             </div>
           </div>

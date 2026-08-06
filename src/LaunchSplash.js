@@ -143,7 +143,7 @@ export default function LaunchSplash({
       >
         <div className="launch-splash-aura" />
         <div className="launch-splash-logo">
-          <BrandStar className="launch-splash-star" size={24} tone="purple" />
+          <BrandStar className="launch-splash-star" size={78} tone="purple" />
           <span className="launch-splash-wordmark">NORA</span>
         </div>
       </div>

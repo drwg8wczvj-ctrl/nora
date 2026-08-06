@@ -437,6 +437,32 @@ export function useNotifications() {
     cancelServerAlarm(id).catch(() => {});
   }, []);
 
+  // Native notifications live outside React and can outlast an older app
+  // version or cleared local registry. Reconcile against iOS's actual pending
+  // requests so only reminders for currently planned tasks remain.
+  const reconcileNativeTaskAlarms = useCallback((validTaskIds) => {
+    if (!IS_NATIVE) return;
+    const valid = validTaskIds instanceof Set ? validTaskIds : new Set(validTaskIds);
+    LocalNotifications.getPending()
+      .then(({ notifications = [] }) => {
+        const stale = notifications.filter((notification) => {
+          const taskId = notification.extra?.taskId;
+          const tag = notification.extra?.tag;
+          return Boolean(taskId)
+            && typeof tag === "string"
+            && tag.startsWith("task-")
+            && !valid.has(taskId);
+        });
+        if (stale.length) {
+          return LocalNotifications.cancel({
+            notifications: stale.map(({ id }) => ({ id })),
+          });
+        }
+        return undefined;
+      })
+      .catch((error) => console.warn("[LocalNotifications] reconciliation failed", error));
+  }, []);
+
   // ── Display a notification (native: immediate local notification;          ──
   // web: SW-first, Notification API fallback) ─────────────────────────────────
   const showNotification = useCallback(
@@ -575,6 +601,7 @@ export function useNotifications() {
     showNotification,
     scheduleAlarm,
     cancelAlarm,
+    reconcileNativeTaskAlarms,
     sendTestNotification,
     bannerVisible,
     dismissBanner,

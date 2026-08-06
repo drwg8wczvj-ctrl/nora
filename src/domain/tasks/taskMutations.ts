@@ -11,9 +11,21 @@ export function removeTask(tasks: PlannerTask[], id: PlannerTask["id"]): Planner
 }
 
 export function toggleTaskCompletion(tasks: PlannerTask[], id: PlannerTask["id"]): PlannerTask[] {
-  return tasks.map((task) =>
-    task.id === id ? { ...task, completed: !task.completed } : task
-  );
+  const changedAt = new Date().toISOString();
+  return tasks.map((task) => {
+    if (task.id !== id) return task;
+    const completed = !task.completed;
+    return {
+      ...task,
+      completed,
+      status: completed ? "completed" : (task.startHour == null ? "inbox" : "planned"),
+      completedAt: completed ? changedAt : null,
+      history: [
+        ...(task.history ?? []),
+        { type: completed ? "completed" : "reopened", at: changedAt },
+      ].slice(-1000),
+    };
+  });
 }
 
 export function rescheduleTask(
@@ -24,7 +36,19 @@ export function rescheduleTask(
   startMinute: number | null = null,
 ): PlannerTask[] {
   return tasks.map((task) =>
-    task.id === id ? { ...task, date, startHour, startMinute } : task
+    task.id === id ? {
+      ...task,
+      date,
+      startHour,
+      startMinute,
+      status: "deferred",
+      history: [...(task.history ?? []), {
+        type: "rescheduled",
+        at: new Date().toISOString(),
+        from: task.date,
+        to: date,
+      }].slice(-1000),
+    } : task
   );
 }
 
@@ -35,6 +59,6 @@ export function moveTaskToSlot(
   startMinute: number,
 ): PlannerTask[] {
   return tasks.map((task) =>
-    task.id === id ? { ...task, startHour, startMinute } : task
+    task.id === id ? { ...task, startHour, startMinute, status: "planned" } : task
   );
 }

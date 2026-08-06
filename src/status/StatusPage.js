@@ -9,6 +9,7 @@ import SleepScienceCard from "./SleepScienceCard";
 import WorkMindToggle from "./WorkMindToggle";
 import HealthSection from "./HealthSection";
 import GuidedJourneysCard from "./GuidedJourneysCard";
+import StatusModesGuide from "./StatusModesGuide";
 
 // Root orchestrator for the Status page. Pure props in, JSX out — this
 // component has zero knowledge of mobile vs. desktop. The only platform
@@ -24,6 +25,7 @@ import GuidedJourneysCard from "./GuidedJourneysCard";
 // conditional render, never a lazy/async fetch.
 export default function StatusPage({ work, mind, loading = false, health = null, healthSummary = null, onOpenHealthSettings = null, tasks = [], dailyMetrics = {}, journeys = [], onOpenInsights = null, onAskAtlas = null, onMindModeChange = null }) {
   const [tab, setTab] = useState("work");
+  const [showModesGuide, setShowModesGuide] = useState(false);
   const active = tab === "mind" ? mind : work;
 
   // Mind is Atlas's world, not just this page's own cards — let the app SHELL
@@ -46,6 +48,17 @@ export default function StatusPage({ work, mind, loading = false, health = null,
   // technically "loading" (e.g. a background refresh).
   const showMetricsSkeleton = loading && safeMetrics.length === 0;
 
+  if (showModesGuide) {
+    return (
+      <div className="status-page native-ui" data-persona="nora">
+        <StatusModesGuide
+          activeMode={work?.aiCoach?.stateLabel}
+          onBack={() => setShowModesGuide(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`status-page native-ui${tab === "mind" ? " status-mind-view atlas-mode" : ""}`}
@@ -64,6 +77,7 @@ export default function StatusPage({ work, mind, loading = false, health = null,
         askLabel={active?.aiCoach?.askLabel ?? "Ask Nora"}
         persona={active?.aiCoach?.persona}
         loading={loading || Boolean(active?.aiCoach?.loading)}
+        onExplainModes={tab === "work" ? () => setShowModesGuide(true) : undefined}
       />
 
       {tab === "work" && (
